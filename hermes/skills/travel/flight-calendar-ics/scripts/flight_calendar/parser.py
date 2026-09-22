@@ -148,7 +148,6 @@ def command_build(args: argparse.Namespace) -> dict[str, Any]:
         "ok": True,
         "media": f"MEDIA:{output_path.resolve()}",
         "segments_count": len(summaries),
-        "no_further_action_needed": True,
     }
 
 

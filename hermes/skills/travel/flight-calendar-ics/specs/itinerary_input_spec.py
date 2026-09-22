@@ -192,7 +192,6 @@ class ItineraryInputSpecification(unittest.TestCase):
             assert_valid_cli_envelope(self, payload)
             self.assertEqual(payload["ok"], True)
             self.assertEqual(payload["segments_count"], 1)
-            self.assertEqual(payload["no_further_action_needed"], True)
 
             media_path = Path(payload["media"][len("MEDIA:"):])
             self.assertTrue(media_path.is_absolute())

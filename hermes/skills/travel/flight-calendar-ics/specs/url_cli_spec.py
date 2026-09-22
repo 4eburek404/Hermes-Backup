@@ -127,7 +127,6 @@ class BookingUrlProcessSpecification(unittest.TestCase):
             self.assertEqual(payload["media"], f"MEDIA:{output}")
             self.assertIsInstance(payload["segments_count"], int)
             self.assertGreater(payload["segments_count"], 0)
-            self.assertIs(payload["no_further_action_needed"], True)
             self.assertTrue(output.is_file())
 
             ics_text = output.read_text(encoding="utf-8").replace("\n ", "")

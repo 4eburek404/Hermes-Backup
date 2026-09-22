@@ -149,7 +149,6 @@ class CompactContractTests(unittest.TestCase):
                     "ok": True,
                     "media": f"MEDIA:{output}",
                     "segments_count": 1,
-                    "no_further_action_needed": True,
                 },
             )
             self.assertTrue(output.exists())

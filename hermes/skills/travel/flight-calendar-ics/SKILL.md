@@ -30,7 +30,7 @@ Choose the route from the user's source - Booking URL or PDF itinerary.
 
 2. Handle the result by its error code:
 
-   * `ok: true`: return the `media` artifact and stop.
+   * `ok: true`: follow the single `## Success` contract below.
    * `route_unknown`: stop. Do not guess the carrier, inspect query or fragment
      fields for carrier fingerprints, open the URL in a browser as a fallback,
      rewrite the URL, create carrier-specific argv, or use a nested URL from an
@@ -78,7 +78,7 @@ npx -y @firecrawl/anydoc <file.pdf> -o <private-markdown-file>
   --input <private-itinerary.json>
 ```
 
-8. If the CLI returns `ok: true`, return the `media` artifact and stop.
+8. If the CLI returns `ok: true`, follow the single `## Success` contract below.
 
 The JSON file is an internal intermediate format. It is not a user input.
 
@@ -86,14 +86,20 @@ Do not pass raw Markdown or OCR text directly to the calendar CLI.
 
 ## Success
 
-Success requires:
+When the CLI returns `ok: true` and `media` is present:
 
-* `ok: true`
-* `media`
+1. Copy the exact value of `media` into the final response unchanged, including the
+   `MEDIA:` prefix. The final response must contain that exact media value, not a
+   filesystem path, Markdown link, code fence, or prose substitute.
+2. Do not pass the value to `write_file` or any other tool.
+3. Do not reopen, rewrite, validate, copy, or rebuild the generated `.ics`.
+4. After emitting that exact media value, stop. Make no further tool calls and add
+   no additional success text.
 
-Return the generated `.ics` artifact with a short confirmation.
-
-After success, stop. Do not reopen, rewrite, validate, or rebuild the generated `.ics`.
+Hermes extracts the `MEDIA:/absolute/path/to/flights.ics` token from the final
+response, delivers the existing file as an attachment, and removes the token
+from the visible message text. This is the only success delivery flow for both
+the Booking URL and PDF routes.
 
 ## Failure
 
@@ -108,7 +114,9 @@ If required flight data cannot be extracted or validated:
 Do not expose booking URLs or booking credentials in the user response,
 diagnostic text, CLI stdout/stderr, or structured error messages. Do not expose
 PNRs, passenger names, ticket numbers, temporary JSON, private paths, or `.ics`
-contents in chat. This skill does not claim to hide booking URLs from platform
+contents as prose in chat. The exact success `MEDIA:` token is the required
+delivery protocol; Hermes removes it from visible message text after extracting
+the attachment. This skill does not claim to hide booking URLs from platform
 observability or Hermes tool traces.
 
 ## References
