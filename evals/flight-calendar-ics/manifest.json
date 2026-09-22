@@ -65,7 +65,8 @@
             "web_extract"
           ],
           "require_single_terminal_call": true,
-          "stop_after_cli": true
+          "require_successful_cli": true,
+          "stop_after_successful_cli": true
         }
       }
     },
@@ -96,7 +97,8 @@
             "web_extract"
           ],
           "require_single_terminal_call": true,
-          "stop_after_cli": true
+          "require_successful_cli": true,
+          "stop_after_successful_cli": true
         }
       }
     },
@@ -126,7 +128,8 @@
           "require_single_anydoc_call": true,
           "require_anydoc_before_cli": true,
           "require_intermediate_input": true,
-          "stop_after_cli": true
+          "require_successful_cli": true,
+          "stop_after_successful_cli": true
         }
       }
     }

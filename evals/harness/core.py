@@ -97,6 +97,60 @@ def evaluate_dimensions(
     evidence: dict[str, Any],
     rules: dict[str, Any],
 ) -> dict[str, str]:
+    return {
+        dimension: detail["status"]
+        for dimension, detail in evaluate_dimension_details(consumer, evidence, rules).items()
+    }
+
+
+def evaluate_dimension_details(
+    consumer: Consumer,
+    evidence: dict[str, Any],
+    rules: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Evaluate dimensions while retaining deterministic failure diagnostics."""
+    details: dict[str, dict[str, Any]] = {}
+    diagnostic_evaluator = getattr(consumer, "evaluate_dimension_diagnostic", None)
+    for dimension in DIMENSIONS:
+        try:
+            if callable(diagnostic_evaluator):
+                detail = diagnostic_evaluator(dimension, evidence, rules.get(dimension, {}))
+                if not isinstance(detail, dict):
+                    raise TypeError("diagnostic evaluator must return a mapping")
+                status = detail.get("status")
+                reason = detail.get("reason")
+            else:
+                status = consumer.evaluate_dimension(dimension, evidence, rules.get(dimension, {}))
+                reason = None if status == "PASS" else f"{dimension} evaluation failed"
+            if status not in {"PASS", "FAIL", "ERROR", "UNDEFINED"}:
+                status = "ERROR"
+                reason = reason or "evaluator returned an invalid status"
+            details[dimension] = {"status": status, "reason": reason}
+        except Exception as exc:
+            details[dimension] = {
+                "status": "ERROR",
+                "reason": f"evaluator error: {type(exc).__name__}: {exc}",
+            }
+    return details
+
+
+def _undefined_details(status: str, reason: str) -> dict[str, dict[str, str]]:
+    return {
+        dimension: {"status": status, "reason": reason}
+        for dimension in DIMENSIONS
+    }
+
+
+def _score_from_details(details: dict[str, dict[str, Any]]) -> dict[str, str]:
+    return {dimension: str(detail.get("status", "ERROR")) for dimension, detail in details.items()}
+
+
+def _evaluate_dimensions_legacy(
+    consumer: Consumer,
+    evidence: dict[str, Any],
+    rules: dict[str, Any],
+) -> dict[str, str]:
+    """Compatibility helper retained for adapters that import the old symbol."""
     score: dict[str, str] = {}
     for dimension in DIMENSIONS:
         try:
@@ -153,17 +207,32 @@ class Harness:
         self.consumer = consumer
         self.agent_execution_count = 0
 
-    def run(self, case: dict[str, Any], output_dir: Path) -> dict[str, Any]:
+    def run(
+        self,
+        case: dict[str, Any],
+        output_dir: Path,
+        progress: Any | None = None,
+    ) -> dict[str, Any]:
         output_dir.mkdir(parents=True, exist_ok=True)
         specs = build_matrix(case)
         expected_ids = [spec.run_id for spec in specs]
         runs: list[dict[str, Any]] = []
 
-        for spec in specs:
+        for index, spec in enumerate(specs, start=1):
             run_dir = output_dir / spec.run_id
             run_dir.mkdir(parents=True, exist_ok=False)
+            if progress is not None:
+                progress({"phase": "start", "index": index, "total": len(specs), "spec": spec})
             run_record = self._run_one(spec, case, run_dir)
             runs.append(run_record)
+            if progress is not None:
+                progress({
+                    "phase": "finish",
+                    "index": index,
+                    "total": len(specs),
+                    "spec": spec,
+                    "run": run_record,
+                })
 
         batch = {
             "consumer": self.consumer.name,
@@ -240,10 +309,16 @@ class Harness:
             }
 
         rules = case.get("rules", {}).get(spec.scenario, {})
-        if evidence.get("execution_status") == "COMPLETED":
-            score = evaluate_dimensions(self.consumer, evidence, rules)
+        if evidence.get("execution_status") in {"COMPLETED", "AGENT_FAILURE"}:
+            diagnostics = evaluate_dimension_details(self.consumer, evidence, rules)
+            score = _score_from_details(diagnostics)
         else:
-            score = {d: "UNDEFINED" for d in DIMENSIONS}
+            diagnostics = _undefined_details(
+                "UNDEFINED",
+                str(evidence.get("error") or evidence.get("execution_status") or "execution unavailable"),
+            )
+            score = _score_from_details(diagnostics)
+        evidence["diagnostics"] = diagnostics
         evidence["agent_execution_count"] = self.agent_execution_count
         return self._persist(run_dir, evidence, score)
 
@@ -267,8 +342,9 @@ class Harness:
 
     def reevaluate(self, evidence_path: Path, rules: dict[str, Any]) -> dict[str, Any]:
         evidence = _read_json(evidence_path)
-        score = evaluate_dimensions(self.consumer, evidence, rules)
+        diagnostics = evaluate_dimension_details(self.consumer, evidence, rules)
         return {
-            "score": score,
+            "score": _score_from_details(diagnostics),
+            "diagnostics": diagnostics,
             "agent_execution_count": evidence.get("agent_execution_count", self.agent_execution_count),
         }

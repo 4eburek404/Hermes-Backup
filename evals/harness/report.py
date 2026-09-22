@@ -17,9 +17,7 @@ def _parse_datetime(value: Any) -> datetime | None:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
 def _timezone_config(case: dict[str, Any]) -> tuple[ZoneInfo, str]:
@@ -28,18 +26,12 @@ def _timezone_config(case: dict[str, Any]) -> tuple[ZoneInfo, str]:
     try:
         zone = ZoneInfo(name)
     except Exception:
-        name = DEFAULT_REPORT_TIMEZONE
-        zone = ZoneInfo(name)
-    label = str(config.get("timezone_label") or name)
-    return zone, label
+        name, zone = DEFAULT_REPORT_TIMEZONE, ZoneInfo(DEFAULT_REPORT_TIMEZONE)
+    return zone, str(config.get("timezone_label") or name)
 
 
 def _duration_seconds(run: dict[str, Any]) -> float | None:
-    values = [run.get("elapsed_seconds")]
-    metrics = run.get("metrics")
-    if isinstance(metrics, dict):
-        values.append(metrics.get("duration_seconds"))
-    for value in values:
+    for value in (run.get("elapsed_seconds"), (run.get("metrics") or {}).get("duration_seconds")):
         if isinstance(value, (int, float)) and value >= 0:
             return float(value)
     return None
@@ -60,33 +52,7 @@ def format_batch_duration(seconds: float | None) -> str:
         return "—"
     rounded = int(round(seconds))
     minutes, remainder = divmod(rounded, 60)
-    if minutes:
-        return f"{minutes} мин {remainder} сек"
-    return f"{remainder} сек"
-
-
-def _run_result(run: dict[str, Any]) -> str:
-    if run.get("execution_status") != "COMPLETED":
-        return str(run.get("execution_status") or "FAIL")
-    values = list((run.get("score") or {}).values())
-    if any(value == "ERROR" for value in values):
-        return "ERROR"
-    if any(value == "FAIL" for value in values):
-        return "FAIL"
-    if values and all(value == "PASS" for value in values):
-        return "PASS"
-    if any(value == "PASS" for value in values):
-        return "PARTIAL"
-    return "UNDEFINED"
-
-
-def _batch_result(runs: list[dict[str, Any]]) -> str:
-    labels = [_run_result(run) for run in runs]
-    if labels and all(label == "PASS" for label in labels):
-        return "PASS"
-    if labels and all(label not in {"PASS", "PARTIAL"} for label in labels):
-        return "FAIL"
-    return "PARTIAL"
+    return f"{minutes} мин {remainder} сек" if minutes else f"{remainder} сек"
 
 
 def _floor_minute(value: datetime) -> datetime:
@@ -95,7 +61,7 @@ def _floor_minute(value: datetime) -> datetime:
 
 def _ceil_minute(value: datetime) -> datetime:
     if value.second or value.microsecond:
-        value = value + timedelta(minutes=1)
+        value += timedelta(minutes=1)
     return value.replace(second=0, microsecond=0)
 
 
@@ -104,15 +70,12 @@ def _batch_window(runs: list[dict[str, Any]], zone: ZoneInfo) -> tuple[str | Non
     ends = [parsed for run in runs if (parsed := _parse_datetime(run.get("ended_at"))) is not None]
     if not starts or not ends:
         return None, None
-
-    start = min(starts)
-    end = max(ends)
-    start_local = _floor_minute(start.astimezone(zone))
-    end_local = _ceil_minute(end.astimezone(zone))
-    if start_local.date() == end_local.date():
-        period = f"{start_local:%d.%m.%Y}, {start_local:%H:%M}–{end_local:%H:%M}"
+    start, end = min(starts), max(ends)
+    local_start, local_end = _floor_minute(start.astimezone(zone)), _ceil_minute(end.astimezone(zone))
+    if local_start.date() == local_end.date():
+        period = f"{local_start:%d.%m.%Y}, {local_start:%H:%M}–{local_end:%H:%M}"
     else:
-        period = f"{start_local:%d.%m.%Y %H:%M} – {end_local:%d.%m.%Y %H:%M}"
+        period = f"{local_start:%d.%m.%Y %H:%M} – {local_end:%d.%m.%Y %H:%M}"
     return period, max(0.0, (end - start).total_seconds())
 
 
@@ -128,25 +91,64 @@ def _model_groups(runs: list[dict[str, Any]]) -> list[tuple[tuple[str, str], lis
     return [(key, groups[key]) for key in order]
 
 
-def _score(run: dict[str, Any], dimension: str) -> str:
-    return str((run.get("score") or {}).get(dimension, "—"))
+def _run_result(run: dict[str, Any]) -> str:
+    if run.get("execution_status") == "RUNTIME_FAILURE":
+        return "RUNTIME_FAILURE"
+    values = list((run.get("score") or {}).values())
+    if any(value == "ERROR" for value in values):
+        return "ERROR"
+    if any(value == "FAIL" for value in values):
+        return "FAIL"
+    if values and all(value == "PASS" for value in values):
+        return "PASS"
+    if any(value == "PASS" for value in values):
+        return "PARTIAL"
+    if run.get("execution_status") == "AGENT_FAILURE":
+        return "FAIL"
+    return "UNDEFINED"
 
 
-def _fact(run: dict[str, Any], key: str) -> str:
-    facts = run.get("report_facts")
-    if isinstance(facts, dict) and key in facts:
-        return str(facts[key])
-    return "—"
+def _batch_result(runs: list[dict[str, Any]]) -> str:
+    labels = [_run_result(run) for run in runs]
+    if labels and all(label == "PASS" for label in labels):
+        return "PASS"
+    if any(label == "PASS" for label in labels):
+        return "PARTIAL"
+    return "FAIL"
 
 
-def _note(run: dict[str, Any]) -> str:
-    note = run.get("report_note")
-    if isinstance(note, str) and note.strip():
-        return note.strip().replace("\n", " ")
-    error = run.get("error")
-    if isinstance(error, str) and error.strip():
-        return error.strip().replace("\n", " ")
-    return "—"
+def _scenario_label(name: str) -> str:
+    return {
+        "ural-url-success": "Ural",
+        "pdf-success": "PDF",
+        "url-success": "URL",
+    }.get(name, name)
+
+
+def _diagnostic_lines(run: dict[str, Any]) -> list[str]:
+    diagnostics = run.get("diagnostics") if isinstance(run.get("diagnostics"), dict) else {}
+    lines: list[str] = []
+    for dimension in ("outcome", "trajectory", "privacy"):
+        detail = diagnostics.get(dimension)
+        if not isinstance(detail, dict):
+            continue
+        status, reason = detail.get("status"), detail.get("reason")
+        if status not in {"PASS", None} and reason:
+            lines.append(f"- {dimension.title()}: {status} — {reason}")
+    if run.get("execution_status") == "RUNTIME_FAILURE":
+        error = run.get("error") or "runtime/harness failure"
+        lines.insert(0, f"- Runtime: FAIL — {error}")
+    return lines
+
+
+def _facts(run: dict[str, Any]) -> str | None:
+    facts = run.get("report_facts") if isinstance(run.get("report_facts"), dict) else {}
+    values: list[str] = []
+    for key in ("Source", "AnyDoc", "CLI", "CLI success", "URL"):
+        if key in facts and facts[key] not in {None, "—"}:
+            label = {"AnyDoc": "AnyDoc calls", "CLI": "CLI calls", "CLI success": "CLI success"}.get(key, key)
+            values.append(f"{label}: {facts[key]}")
+    return "; ".join(values) if values else None
 
 
 def _skill_sources(runs: list[dict[str, Any]]) -> list[str]:
@@ -156,15 +158,15 @@ def _skill_sources(runs: list[dict[str, Any]]) -> list[str]:
         source = run.get("skill_source")
         if not isinstance(source, dict):
             continue
-        version = str(run.get("skill_version", ""))
-        requested = str(source.get("requested_ref") or source.get("source") or "unknown")
-        resolved = str(source.get("resolved_commit") or "")
-        key = (version, requested, resolved)
+        key = (
+            str(run.get("skill_version", "")),
+            str(source.get("requested_ref") or source.get("source") or "unknown"),
+            str(source.get("resolved_commit") or ""),
+        )
         if key in seen:
             continue
         seen.add(key)
-        short = resolved[:7] if resolved else "unknown"
-        lines.append(f"- **{version}:** `{requested} @ {short}`")
+        lines.append(f"- **{key[0]}:** `{key[1]} @ {key[2][:7] or 'unknown'}`")
     return lines
 
 
@@ -172,6 +174,12 @@ def render_report(batch: dict[str, Any], case: dict[str, Any]) -> str:
     runs = list(batch.get("runs", []))
     zone, zone_label = _timezone_config(case)
     period, batch_duration = _batch_window(runs, zone)
+    scenarios: list[str] = []
+    for run in runs:
+        scenario = str(run.get("scenario", ""))
+        if scenario not in scenarios:
+            scenarios.append(scenario)
+    model_groups = _model_groups(runs)
     successful = sum(_run_result(run) == "PASS" for run in runs)
 
     lines = [
@@ -179,124 +187,85 @@ def render_report(batch: dict[str, Any], case: dict[str, Any]) -> str:
         "",
         "## STATUS",
         "",
-        f"**Результат:** {_batch_result(runs)}  ",
-        f"**Запуски:** {len(runs)}  ",
-        f"**Успешно:** {successful}/{len(runs)}  ",
+        f"Result: {_batch_result(runs)}",
+        f"Runs: {successful}/{len(runs)} PASS",
     ]
-    if period is not None:
-        lines.append(f"**Период:** {period}  ")
+    if period:
+        lines.append(f"Period: {period}")
     if batch_duration is not None:
-        lines.append(f"**Общее время:** {format_batch_duration(batch_duration)}  ")
-    lines.append(f"**Часовой пояс:** {zone_label}")
-    lines.extend(["", "Кратко:"])
-    for (model, _provider), model_runs in _model_groups(runs):
-        passed = sum(_run_result(run) == "PASS" for run in model_runs)
-        lines.append(f"- {model} — {passed}/{len(model_runs)} PASS")
-
-    lines.extend(["", "## BASELINE", ""])
-    lines.append(f"**Consumer:** `{batch.get('consumer', 'unknown')}`")
+        lines.append(f"Duration: {format_batch_duration(batch_duration)}")
+    lines.extend([f"Timezone: {zone_label}", "", "## BASELINE", ""])
+    lines.append(f"Consumer: `{batch.get('consumer', 'unknown')}`")
     modes = sorted({str(run.get("mode")) for run in runs if run.get("mode")})
     if modes:
-        lines.append(f"**Mode:** `{', '.join(modes)}`")
+        lines.append(f"Mode: `{', '.join(modes)}`")
     source_lines = _skill_sources(runs)
     if source_lines:
         lines.extend(["", "Skill source:", *source_lines])
     lines.extend([
         "",
-        f"**Expected runs:** {len(batch.get('expected_run_ids', []))}  ",
-        f"**Executed runs:** {len(batch.get('executed_run_ids', []))}",
-    ])
-
-    lines.extend(["", "## RESULTS", ""])
-    for (model, provider), model_runs in _model_groups(runs):
-        passed = sum(_run_result(run) == "PASS" for run in model_runs)
-        lines.extend([
-            f"### {model} / {provider} — {passed}/{len(model_runs)} PASS",
-            "",
-            "| Scenario | Run | Result | Time | Tools | CLI | URL | Примечание |",
-            "|---|---:|---|---:|---:|---:|---|---|",
-        ])
-        for run in sorted(model_runs, key=lambda item: int(item.get("repeat", 0))):
-            metrics = run.get("metrics") if isinstance(run.get("metrics"), dict) else {}
-            cli = _fact(run, "CLI")
-            if cli == "—":
-                cli = str(metrics.get("cli_build_calls", "—"))
-            row = [
-                str(run.get("scenario", "—")),
-                str(run.get("repeat", "—")),
-                _run_result(run),
-                format_run_duration(_duration_seconds(run)),
-                str(metrics.get("tool_calls", "—")),
-                cli,
-                _fact(run, "URL"),
-                _note(run).replace("|", "\\|"),
-            ]
-            lines.append("| " + " | ".join(row) + " |")
-
-        durations = [value for run in model_runs if (value := _duration_seconds(run)) is not None]
-        if durations:
-            lines.extend([
-                "",
-                f"**Среднее:** {format_run_duration(statistics.fmean(durations))}  ",
-                f"**Медиана:** {format_run_duration(statistics.median(durations))}  ",
-                f"**Диапазон:** {format_run_duration(min(durations))}–{format_run_duration(max(durations))}",
-            ])
-        lines.append("")
-
-    lines.extend([
-        "## CONTRACT CHECKS",
+        f"Expected runs: {len(batch.get('expected_run_ids', []))}",
+        f"Executed runs: {len(batch.get('executed_run_ids', []))}",
         "",
-        "| Model | Outcome | Trajectory | Privacy |",
-        "|---|---|---|---|",
+        "## RESULTS",
+        "",
     ])
-    for (model, _provider), model_runs in _model_groups(runs):
-        def count_pass(dimension: str) -> str:
-            passed = sum(_score(run, dimension) == "PASS" for run in model_runs)
-            return f"{passed}/{len(model_runs)}"
 
-        lines.append(
-            f"| {model} | {count_pass('outcome')} | "
-            f"{count_pass('trajectory')} | {count_pass('privacy')} |"
-        )
+    header = ["Model", *(_scenario_label(scenario) for scenario in scenarios)]
+    lines.append("| " + " | ".join(header) + " |")
+    lines.append("|" + "---|" * len(header))
+    for (model, _provider), group in model_groups:
+        cells = [model]
+        for scenario in scenarios:
+            matching = [run for run in group if run.get("scenario") == scenario]
+            if not matching:
+                cells.append("—")
+                continue
+            run = matching[0]
+            cells.append(f"{_run_result(run)} · {format_run_duration(_duration_seconds(run))}")
+        lines.append("| " + " | ".join(cells) + " |")
 
-    url_runs = [
-        run
-        for run in runs
-        if isinstance(run.get("report_facts"), dict)
-        and run["report_facts"].get("URL") not in {None, "—"}
-    ]
+    lines.extend(["", "## FACTS", ""])
+    fact_lines = []
+    for run in runs:
+        fact = _facts(run)
+        if fact:
+            fact_lines.append(f"- {run.get('model')} / {_scenario_label(str(run.get('scenario')))}: {fact}")
+    lines.extend(fact_lines or ["No additional domain facts."])
+
+    lines.extend(["", "## CONTRACT CHECKS", "", "| Model | Outcome | Trajectory | Privacy |", "|---|---|---|---|"])
+    for (model, _provider), group in model_groups:
+        counts = []
+        for dimension in ("outcome", "trajectory", "privacy"):
+            counts.append(f"{sum((run.get('score') or {}).get(dimension) == 'PASS' for run in group)}/{len(group)}")
+        lines.append(f"| {model} | {' | '.join(counts)} |")
+
+    url_runs = [run for run in runs if (_facts(run) or "").find("URL:") >= 0]
     if url_runs:
-        lines.extend(["", "**URL integrity**"])
-        for (model, _provider), model_runs in _model_groups(url_runs):
-            exact = sum(_fact(run, "URL").lower() == "exact" for run in model_runs)
-            lines.append(f"- {model}: {exact}/{len(model_runs)} exact")
+        lines.extend(["", "URL integrity"])
+        for (model, _provider), group in _model_groups(url_runs):
+            exact = sum((run.get("report_facts") or {}).get("URL") == "exact" for run in group)
+            lines.append(f"- {model}: {exact}/{len(group)} exact")
 
+    lines.extend(["", "## FINDINGS", ""])
     findings = []
     for run in runs:
         if _run_result(run) == "PASS":
             continue
-        findings.append(
-            f"- `{run.get('run_id', 'unknown')}` — "
-            f"{_run_result(run)}; {_note(run)}"
-        )
-    lines.extend(["", "## FINDINGS", ""])
-    if findings:
-        lines.extend(findings)
-    else:
-        lines.append("Существенных отклонений в batch не зафиксировано.")
-
+        diagnostics = _diagnostic_lines(run)
+        if diagnostics:
+            findings.append(f"### {run.get('model')} / {_scenario_label(str(run.get('scenario')))}")
+            findings.extend(diagnostics)
+    lines.extend(findings or ["No failures recorded."])
     lines.extend([
         "",
         "## ARTIFACTS",
         "",
-        "Полные machine timestamps, raw traces и детальная evidence сохраняются "
-        "в batch/run artifacts. ISO timestamps с микросекундами намеренно не "
-        "дублируются в этом человекочитаемом отчёте.",
+        "Raw traces and detailed evidence remain in the batch/run artifacts. Human report timestamps are intentionally minute-readable.",
         "",
         "## GIT",
         "",
-        "Точная версия evaluated skill указана в BASELINE. Состояние checkout "
-        "и local/remote выводится только если launcher сохранил эти данные как evidence.",
+        "Git state is recorded by the launcher when available.",
         "",
     ])
     return "\n".join(lines)

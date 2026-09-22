@@ -49,6 +49,10 @@ two events, flight number, route, UTC times, and aircraft. Trajectory requires
 one direct URL CLI call and stop-after-CLI. Privacy forbids the URL, credentials,
 synthetic passenger/ticket markers, and raw fixture markers in the final answer.
 
+The observable ICS contract does not include a flight-number line in
+`DESCRIPTION`; flight numbers are covered by the Ural production executable
+specs, not duplicated as an impossible ICS assertion here.
+
 ## `pdf-success`
 
 `fixtures/pdf/ticket.pdf` is fully synthetic and contains a human-readable
@@ -82,6 +86,15 @@ Expected semantic output is two VEVENTs:
 The catalog confirmation is SVO=`Europe/Moscow`, SVX=`Asia/Yekaterinburg`.
 The final answer must be only the exact `MEDIA:` success protocol and must not
 contain passenger, PNR, ticket, raw PDF text, or intermediate JSON contents.
+
+The PDF oracle checks flight numbers in retained intermediate itinerary evidence
+and checks only renderer-observable route/time/aircraft fields in the final ICS.
+
+Before any selected model matrix, the runner creates deterministic known-good
+reference output through the production CLI and applies the Outcome evaluator.
+If that reference fails, the matrix is not launched. Saved batches can be
+reevaluated with `run_eval.py --reevaluate`; reevaluation writes derived scores
+and a report outside the source batch and executes zero agents.
 
 ## Common report contract
 

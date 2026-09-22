@@ -1,8 +1,8 @@
 # Eval human report template
 
-This template is owned by the common eval harness. Every batch should produce
-`report.md` in this shape. Raw ISO timestamps remain in machine evidence and
-must not be duplicated into the human report.
+This template is owned by the common eval harness. Every batch and derived
+reevaluation should produce `report.md` in this shape. Raw ISO timestamps remain
+in machine evidence and must not be duplicated into the human report.
 
 ## Formatting rules
 
@@ -10,12 +10,13 @@ must not be duplicated into the human report.
 - Date: `DD.MM.YYYY`.
 - Batch period: `DD.MM.YYYY, HH:MM–HH:MM`; floor start to the minute and ceil end.
 - Run duration below one minute: one decimal, for example `15.8 сек`.
-- Longer duration: `3 мин 53 сек`; no six-decimal raw seconds.
+- Longer duration: `3 мин 53 сек`; no raw fractional seconds.
 - Never print microseconds or duplicate UTC/local timestamps in `report.md`.
-- Keep repeats visible; do not hide failed runs behind averages.
-- Keep Outcome, Trajectory and Privacy separate.
-- Domain-specific consumers may add compact facts such as CLI-call count,
-  URL-integrity status and a short failure note, but must not expose secrets.
+- Keep all configured runs visible in the model/scenario matrix.
+- Keep Outcome, Trajectory, and Privacy separate in CONTRACT CHECKS.
+- Keep telemetry facts separate from diagnostics; facts are not failures.
+- Findings contain only failed/partial runs and concise deterministic reasons.
+- Do not expose URLs, names, PNRs, ticket numbers, raw fixture text, or JSON contents.
 
 ## Required sections
 
@@ -23,24 +24,25 @@ must not be duplicated into the human report.
 # EVAL REPORT
 
 ## STATUS
-Результат / Запуски / Успешно / Период / Общее время / Часовой пояс
+Result / Runs / Period / Duration / Timezone
 
 ## BASELINE
 Consumer / mode / evaluated skill source / expected and executed runs
 
 ## RESULTS
-One compact table per model/provider:
-Scenario | Run | Result | Time | Tools | CLI | URL | Примечание
+One compact matrix:
+Model | scenario columns
+Each cell: PASS/FAIL/RUNTIME_FAILURE · human duration
 
-Then mean / median / range for that model.
+## FACTS
+Source, AnyDoc calls, CLI calls, URL integrity, and similar telemetry only.
 
 ## CONTRACT CHECKS
 Outcome / Trajectory / Privacy aggregation.
-Optional domain facts such as URL integrity.
+URL integrity only for URL scenarios.
 
 ## FINDINGS
-Only failed/partial runs and concise factual causes.
-Do not restate every successful run.
+Only failed/partial runs with dimension-specific diagnostics.
 
 ## ARTIFACTS
 Point to raw evidence conceptually; do not dump machine timestamps.

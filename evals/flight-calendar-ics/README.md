@@ -36,6 +36,22 @@ selected pair.
 This preparation task does not run LLM evaluations. Provider credentials/OAuth
 must already be configured before a future selected batch is launched.
 
+Before a model batch starts, the runner builds a deterministic known-good
+reference result for every selected scenario and applies the same Outcome
+evaluator. A failed reference stops the batch as
+`EVALUATOR_PREFLIGHT_FAILURE` with zero agent executions. The runner prints
+high-level per-run progress without streaming raw model traces.
+
+To reevaluate an existing batch without launching Hermes or a model:
+
+```bash
+python3 evals/flight-calendar-ics/run_eval.py \
+  --reevaluate evals/flight-calendar-ics/runs/<batch>
+```
+
+The derived result is written under `reevaluations/`; the source batch and its
+raw evidence are read-only inputs.
+
 ## Recorded boundaries
 
 The candidate is materialized from:
