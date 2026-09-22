@@ -124,6 +124,27 @@ class FlightCalendarIcsConsumer:
         return found
 
     @staticmethod
+    def _booking_url(text: str) -> str | None:
+        match = re.search(r"https?://[^\s\"']+", text)
+        return match.group(0) if match else None
+
+    @staticmethod
+    def _cli_url_argument(command: str) -> tuple[str | None, bool]:
+        marker = "--url"
+        index = command.find(marker)
+        if index < 0:
+            return None, False
+        rest = command[index + len(marker):].lstrip()
+        if not rest:
+            return None, False
+        quoted = rest[0] in {"'", '"'}
+        if quoted:
+            quote = rest[0]
+            end = rest.find(quote, 1)
+            return (rest[1:end] if end >= 0 else rest[1:]), True
+        return rest.split(None, 1)[0], False
+
+    @staticmethod
     def _unfold_ics(text: str) -> str:
         return text.replace("\r\n ", "").replace("\n ", "")
 
@@ -318,6 +339,43 @@ class FlightCalendarIcsConsumer:
                 for value in terminal_commands
                 if "flight_calendar_ics.py" in value and "build" in value
             )
+            prompt_url = self._booking_url(
+                prepared["prompt"].read_text(encoding="utf-8")
+            )
+            cli_commands = [
+                value
+                for value in terminal_commands
+                if "flight_calendar_ics.py" in value and "build" in value
+            ]
+            first_cli_url: str | None = None
+            first_cli_quoted = False
+            if cli_commands:
+                first_cli_url, first_cli_quoted = self._cli_url_argument(
+                    cli_commands[0]
+                )
+            if prompt_url and first_cli_url:
+                url_integrity = "exact" if prompt_url == first_cli_url else "changed"
+            else:
+                url_integrity = "missing"
+
+            report_notes: list[str] = []
+            if url_integrity == "changed":
+                report_notes.append("URL изменён перед CLI")
+            if (
+                first_cli_url
+                and not first_cli_quoted
+                and re.search(r"[&;|<>$()]", first_cli_url)
+            ):
+                report_notes.append("URL без shell quoting")
+            if cli_build_calls != 1:
+                report_notes.append(f"CLI вызван {cli_build_calls} раза")
+
+            report_facts = {
+                "CLI": cli_build_calls,
+                "URL": url_integrity,
+            }
+            report_note = "; ".join(report_notes) if report_notes else None
+
             metrics = {
                 "tool_calls": len(summary["tool_uses"]),
                 "terminal_calls": len(terminal_commands),
@@ -347,6 +405,8 @@ class FlightCalendarIcsConsumer:
                 "artifact_evidence_path": str(artifact_path) if artifact_path else None,
                 "artifact_observation": artifact_observation,
                 "metrics": metrics,
+                "report_facts": report_facts,
+                "report_note": report_note,
             }
             (run_dir / "metadata.json").write_text(
                 json.dumps(metadata, indent=2, sort_keys=True, ensure_ascii=False) + "\n",

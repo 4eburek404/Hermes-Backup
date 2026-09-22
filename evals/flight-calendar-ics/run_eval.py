@@ -73,6 +73,7 @@ def build_case(
         "prompt_version": sha256(eval_root / cfg["prompt"]),
         "runtime_version": runtime_version,
         "mode": manifest.get("mode", "recorded"),
+        "report": manifest.get("report", {}),
         "rules": {scenario: cfg.get("evaluation", {})},
     }
 
@@ -94,6 +95,8 @@ def main() -> int:
     batch = Harness(consumer).run(case, batch_dir)
 
     print(f"batch={batch_dir}")
+    if batch.get("report_path"):
+        print(f"report={batch['report_path']}")
     failed = [
         run
         for run in batch["runs"]

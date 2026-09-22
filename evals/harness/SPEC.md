@@ -287,6 +287,27 @@ Repeats remain separate observations.
 
 Aggregation must not hide an unsuccessful run behind an average.
 
+## 15.1 Human-readable batch report
+
+Every batch must retain machine-readable evidence and also produce a derived
+`report.md` through the common harness.
+
+The human report is presentation, not the source of truth. Exact ISO timestamps,
+microseconds, raw traces and detailed metadata remain in JSON/raw evidence.
+
+The report must:
+
+- use one configured human timezone rather than duplicate UTC and local time;
+- show dates as `DD.MM.YYYY` and batch periods as `HH:MM–HH:MM`;
+- show sub-minute run durations to one decimal place;
+- show longer durations as human units such as `3 мин 53 сек`;
+- keep every repeat visible while also providing model/provider aggregation;
+- keep Outcome, Trajectory and Privacy separate;
+- expose concise factual failure notes without dumping raw traces;
+- never expose private fixture values merely to make the report readable.
+
+The canonical presentation template is `evals/harness/REPORT_TEMPLATE.md`.
+
 ## 16. Baseline/candidate comparison
 
 When baseline and candidate are compared, material conditions must be controlled or explicitly identified.
@@ -439,6 +460,20 @@ Given the common harness exists.
 When a new skill supplies its own scenarios, fixtures, and evaluator rules.
 
 Then adding that skill does not require changing the general orchestration logic used by existing evaluations.
+
+### H14 — Human-readable report
+
+Given raw run evidence contains exact ISO timestamps with microseconds.
+
+When the batch report is rendered for a configured human timezone.
+
+Then:
+
+- `report.md` is created by the common harness;
+- the report shows one readable local period and human durations;
+- raw ISO timestamps are not duplicated into the report;
+- exact raw timestamps remain preserved in evidence;
+- per-model repeats and independent Outcome/Trajectory/Privacy results remain visible.
 
 ### H13 — Skill source is explicit and checkout-independent
 

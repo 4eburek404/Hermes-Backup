@@ -239,5 +239,49 @@ class EvalHarnessContract(unittest.TestCase):
         self.assertEqual("consumer-b", batch_b["consumer"])
 
 
+    def test_h14_human_report_is_readable_and_preserves_raw_timestamps(self) -> None:
+        subject = load_subject()
+        case = base_case()
+        case["report"] = {
+            "timezone": "Asia/Yekaterinburg",
+            "timezone_label": "Екатеринбург (UTC+5)",
+        }
+        behavior = case["behaviors"]["scenario-a"]
+        behavior["started_at"] = "2026-09-22T13:02:04.673472+00:00"
+        behavior["ended_at"] = "2026-09-22T13:05:57.812091+00:00"
+        behavior["elapsed_seconds"] = 15.827967
+        behavior["metrics"] = {
+            "tool_calls": 1,
+            "duration_seconds": 15.827967,
+        }
+        behavior["report_facts"] = {"CLI": 1, "URL": "exact"}
+
+        with tempfile.TemporaryDirectory(prefix="eval-harness-report-") as temp:
+            root = Path(temp)
+            batch = subject.run_case(case, root)
+            report_path = Path(batch["report_path"])
+            self.assertTrue(report_path.is_file())
+            report = report_path.read_text(encoding="utf-8")
+
+            self.assertIn("**Период:** 22.09.2026, 18:02–18:06", report)
+            self.assertIn("**Общее время:** 3 мин 53 сек", report)
+            self.assertIn("15.8 сек", report)
+            self.assertIn("**Часовой пояс:** Екатеринбург (UTC+5)", report)
+            self.assertIn("| 1 | PASS | 15.8 сек | 1 | 1 | exact |", report)
+            self.assertNotIn(".673472", report)
+            self.assertNotIn("+05:00", report)
+            self.assertNotIn("Start UTC", report)
+
+            run = only_run(batch)
+            self.assertEqual(
+                "2026-09-22T13:02:04.673472+00:00",
+                run["started_at"],
+            )
+            self.assertEqual(
+                "2026-09-22T13:05:57.812091+00:00",
+                run["ended_at"],
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

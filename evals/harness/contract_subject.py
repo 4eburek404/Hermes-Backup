@@ -40,7 +40,7 @@ class _ContractConsumer:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content, encoding="utf-8")
         after = self._snapshot(fixture)
-        return {
+        result = {
             "execution_status": "COMPLETED",
             "fixture_before": before,
             "fixture_after": after,
@@ -50,6 +50,16 @@ class _ContractConsumer:
             "final_answer": behavior.get("final_answer", ""),
             "metrics": behavior.get("metrics", {}),
         }
+        for key in (
+            "started_at",
+            "ended_at",
+            "elapsed_seconds",
+            "report_facts",
+            "report_note",
+        ):
+            if key in behavior:
+                result[key] = behavior[key]
+        return result
 
     def evaluate_dimension(
         self,

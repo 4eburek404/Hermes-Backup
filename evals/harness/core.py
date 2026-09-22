@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+from .report import write_report
+
 
 ORCHESTRATOR_CONTRACT_VERSION = "1"
 DIMENSIONS = ("outcome", "trajectory", "privacy")
@@ -172,7 +174,15 @@ class Harness:
             "runs": runs,
         }
         batch["comparison"] = _comparison(runs)
-        _write_json(output_dir / "batch_manifest.json", batch)
+        manifest_path = output_dir / "batch_manifest.json"
+        _write_json(manifest_path, batch)
+        try:
+            report_path = write_report(batch, case, output_dir)
+        except Exception as exc:
+            batch["report_error"] = f"{type(exc).__name__}: {exc}"
+        else:
+            batch["report_path"] = str(report_path)
+        _write_json(manifest_path, batch)
         return batch
 
     def _run_one(

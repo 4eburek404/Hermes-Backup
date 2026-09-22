@@ -58,6 +58,11 @@ scenario/model-selection flags in this first version.
 
 Provider credentials/OAuth must already be configured in the Hermes runtime.
 
+Each batch also receives a common-harness `report.md`. It is the human-readable
+summary: one configured timezone, compact durations, per-model repeat tables,
+contract aggregation, URL-integrity facts, and concise failures. Exact ISO
+timestamps and raw traces remain only in machine evidence.
+
 ## Candidate isolation
 
 The candidate is materialized by the common harness from:

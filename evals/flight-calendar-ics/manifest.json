@@ -69,5 +69,9 @@
         }
       }
     }
+  },
+  "report": {
+    "timezone": "Asia/Yekaterinburg",
+    "timezone_label": "Екатеринбург (UTC+5)"
   }
 }
