@@ -134,8 +134,7 @@ def _comparison(runs: list[dict[str, Any]]) -> dict[str, Any]:
     for run in runs:
         signature = tuple(run[key] for key in keys)
         groups.setdefault(signature, set()).add(run["skill_version"])
-    controlled = bool(groups) and all(values == set(versions) for values in groups.values())
-    return {
+    controlled = (\n        bool(groups)\n        and all(run.get("comparable", False) for run in runs)\n        and all(values == set(versions) for values in groups.values())\n    )\n    return {
         "controlled": controlled,
         "changed_material_conditions": ["skill_version"] if controlled else ["multiple_or_unknown"],
         "retained_evidence_by_version": retained,
@@ -198,6 +197,7 @@ class Harness:
             evidence = {
                 **base_record,
                 "execution_status": "SETUP_FAILURE",
+                "comparable": False,
                 "error": f"{type(exc).__name__}: {exc}",
             }
             return self._persist(run_dir, evidence, {d: "UNDEFINED" for d in DIMENSIONS})
