@@ -1,0 +1,14 @@
+{
+  "name": "flight-calendar-ics-agent-level-eval",
+  "mode": "recorded",
+  "skill": {
+    "name": "flight-calendar-ics",
+    "path": "hermes/skills/travel/flight-calendar-ics/SKILL.md"
+  },
+  "skill_versions": {
+    "candidate": {
+      "source": "git",
+      "ref": "update/flight-calendar-ics"
+    }
+  }
+}
