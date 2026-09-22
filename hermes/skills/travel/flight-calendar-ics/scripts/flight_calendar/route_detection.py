@@ -33,17 +33,19 @@ def first_url_from_args(args: argparse.Namespace) -> str | None:
 def trusted_route(url: str) -> str | None:
     """Return the carrier for a trusted scheme/host/path fingerprint only."""
     parsed = urlparse(url)
-    if parsed.scheme.lower() != "https":
-        return None
-
     host = (parsed.hostname or "").lower()
     path = parsed.path
+    if host == "click.mail.utair.io" and parsed.scheme.lower() in {"http", "https"}:
+        return "utair"
+    if parsed.scheme.lower() != "https":
+        return None
     if host == "www.aeroflot.ru" and path == "/sb/pnr/app/ru-ru":
         return "aeroflot"
     if host == "service.uralairlines.ru":
         return "ural"
     if host == "www.utair.ru" and path == "/order-manage":
         return "utair"
+
     if host == "flyredwings.com" and path == "/booking/":
         return "redwings"
     if host == "myb.s7.ru" and path == "/myb/manage-order":

@@ -115,3 +115,4 @@ observability or Hermes tool traces.
 
 * `templates/itinerary.example.json` — itinerary structure used for the PDF route.
 * `references/carriers.md` — carrier-specific troubleshooting for booking URL failures.
+* `references/provider-architecture.md` — provider, router, and shared transport boundaries.

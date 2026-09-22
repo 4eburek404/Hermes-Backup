@@ -16,7 +16,6 @@ from typing import Any
 from flight_calendar import ics_render, itinerary_contract, timezone_catalog
 from flight_calendar.carriers import aeroflot, redwings, s7, ural, utair
 from flight_calendar.errors import CliFailure
-from flight_calendar.utair_redirect import resolve_utair_booking_redirect
 from flight_calendar.route_detection import first_url_from_args, infer_build_route
 
 
@@ -92,7 +91,7 @@ def _source_args_for_url_file(url_file: Path) -> argparse.Namespace:
 def _build_itinerary_from_url(
     raw_url: str, tz_items: list[str]
 ) -> dict[str, Any]:
-    booking_url = resolve_utair_booking_redirect(raw_url)
+    booking_url = raw_url.strip()
     source_args = argparse.Namespace(url=booking_url, url_file=None)
     route = str(infer_build_route(source_args)["route"])
 

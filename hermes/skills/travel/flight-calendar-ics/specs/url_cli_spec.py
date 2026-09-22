@@ -217,8 +217,8 @@ class BookingUrlProcessSpecification(unittest.TestCase):
 
     def test_known_host_untrusted_shape_fails_before_adapter_or_network(self) -> None:
         """A known carrier host is not enough without a trusted source shape."""
+        from flight_calendar import carrier_http
         from flight_calendar.carriers import s7
-        from flight_calendar.errors import CliFailure
 
         adapter_calls: list[str] = []
         network_calls: list[str] = []
@@ -229,11 +229,6 @@ class BookingUrlProcessSpecification(unittest.TestCase):
             adapter_calls.append("s7.parse_s7_source")
             return real_parse_s7_source(*args, **kwargs)
 
-        def adapter_fetch_called(*args: Any, **kwargs: Any) -> None:
-            del args, kwargs
-            adapter_calls.append("s7.fetch_s7_order")
-            raise CliFailure("test adapter dispatch reached", code="route_unknown")
-
         def network_called(*args: Any, **kwargs: Any) -> None:
             del args, kwargs
             network_calls.append("s7.Session")
@@ -243,8 +238,9 @@ class BookingUrlProcessSpecification(unittest.TestCase):
             mock.patch.object(
                 s7, "parse_s7_source", side_effect=adapter_parse_called
             ),
-            mock.patch.object(s7, "fetch_s7_order", side_effect=adapter_fetch_called),
-            mock.patch.object(s7.curl_requests, "Session", side_effect=network_called),
+            mock.patch.object(
+                carrier_http, "request_raw", side_effect=network_called
+            ),
         ):
             code, stdout, stderr = run_cli(S7_UNTRUSTED_PATH_URL)
 

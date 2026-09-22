@@ -47,7 +47,7 @@ def assert_private_tokens_redacted(testcase: unittest.TestCase, text: str) -> No
 class RedirectResolutionContractTests(unittest.TestCase):
     def test_click_mail_utair_redirect_must_resolve_to_https_utair_host(self) -> None:
         from flight_calendar.errors import CliFailure
-        from flight_calendar.utair_redirect import resolve_utair_booking_redirect
+        from flight_calendar.carriers.utair import resolve_utair_booking_redirect
 
         for resolved_url in (
             PRIVATE_RESOLVED_URL,
@@ -57,7 +57,7 @@ class RedirectResolutionContractTests(unittest.TestCase):
         ):
             with self.subTest(resolved_url=resolved_url):
                 with mock.patch(
-                    "flight_calendar.utair_redirect.carrier_http.resolve_redirect_url",
+                    "flight_calendar.carriers.utair.carrier_http.resolve_redirect_url",
                     return_value=resolved_url,
                 ):
                     with self.assertRaises(CliFailure) as ctx:
@@ -77,7 +77,7 @@ class RedirectResolutionContractTests(unittest.TestCase):
             stdout = io.StringIO()
             with (
                 mock.patch(
-                    "flight_calendar.utair_redirect.carrier_http.resolve_redirect_url",
+                    "flight_calendar.carriers.utair.carrier_http.resolve_redirect_url",
                     side_effect=carrier_http.TransportError(
                         "known booking redirect failed: network error (TimeoutError)"
                     ),
@@ -96,7 +96,7 @@ class RedirectResolutionContractTests(unittest.TestCase):
     def test_click_mail_utair_503_becomes_redacted_cli_failure(self) -> None:
         from flight_calendar import carrier_http
         from flight_calendar.errors import CliFailure
-        from flight_calendar.utair_redirect import resolve_utair_booking_redirect
+        from flight_calendar.carriers.utair import resolve_utair_booking_redirect
 
         class FakeResponse:
             status_code = 503

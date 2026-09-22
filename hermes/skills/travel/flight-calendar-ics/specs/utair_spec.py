@@ -108,7 +108,7 @@ class UtairCarrierSpecification(unittest.TestCase):
 
     def test_redirect_url_routes_and_normalizes_credentials(self) -> None:
         """The real click-mail shape resolves to the Utair manage URL contract."""
-        from flight_calendar.utair_redirect import resolve_utair_booking_redirect
+        from flight_calendar.carriers.utair import resolve_utair_booking_redirect
         from flight_calendar.route_detection import infer_build_route
         from flight_calendar import carrier_http
         from flight_calendar.carriers import utair
@@ -251,7 +251,7 @@ class UtairCarrierSpecification(unittest.TestCase):
         from flight_calendar import carrier_http
         from flight_calendar.carriers import utair
         from flight_calendar.route_detection import infer_build_route
-        from flight_calendar.utair_redirect import resolve_utair_booking_redirect
+        from flight_calendar.carriers.utair import resolve_utair_booking_redirect
 
         parsed = urlparse(UTAIR_SITE_DIRECT_URL)
         self.assertEqual(parsed.hostname, "www.utair.ru")

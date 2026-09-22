@@ -114,6 +114,7 @@ class RouteDetectionContractTests(unittest.TestCase):
         cases = (
             ("https://service.uralairlines.ru/", "ural"),
             ("https://www.utair.ru/order-manage", "utair"),
+            ("https://click.mail.utair.io/z9suvw/fixture-token", "utair"),
             ("https://flyredwings.com/booking/", "redwings"),
             ("https://myb.s7.ru/myb/manage-order", "s7"),
         )

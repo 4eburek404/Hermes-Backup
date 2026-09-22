@@ -15,8 +15,6 @@ import re
 from typing import Any
 from urllib.parse import parse_qs, urljoin, urlparse
 
-from curl_cffi import requests as curl_requests
-
 from flight_calendar import carrier_http
 from flight_calendar.errors import CliFailure
 
@@ -80,20 +78,6 @@ def browser_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
             **(extra or {}),
         }
     )
-
-
-def _response_text_or_die(response: Any, label: str) -> str:
-    status = int(getattr(response, "status_code", 0) or 0)
-    content_type = (
-        getattr(response, "headers", {}).get("Content-Type", "")
-        if getattr(response, "headers", None)
-        else ""
-    )
-    if status >= 400:
-        raise carrier_http.TransportError(
-            f"{label} returned HTTP {status} ({content_type})"
-        )
-    return str(getattr(response, "text", "") or "")
 
 
 def _attr(tag: str, name: str) -> str | None:
@@ -180,36 +164,38 @@ def extract_airs_data(html_text: str) -> list[Any]:
 
 def fetch_s7_order(booking_url: str, *, timeout: int = 60) -> list[Any]:
     """Fetch already-validated S7 manage-order HTML."""
-    session = curl_requests.Session(impersonate=carrier_http.IMPERSONATE_TARGET)
     headers = browser_headers()
-    try:
-        initial = session.get(booking_url, headers=headers, timeout=timeout)
-        initial_text = _response_text_or_die(initial, "S7 manage-order")
+    with carrier_http.open_session() as session:
+        initial = carrier_http.request_session_raw(
+            session,
+            booking_url,
+            headers=headers,
+            timeout=timeout,
+            label="S7 manage-order",
+        )
+        initial_text = carrier_http.response_text(initial, label="S7 manage-order")
         if "__r_airs_data" in initial_text:
             return extract_airs_data(initial_text)
         action, fields = _first_form(initial_text)
-        post_url = urljoin(str(getattr(initial, "url", booking_url)), action)
-        post = session.post(
+        post_url = urljoin(initial.url, action)
+        post = carrier_http.request_session_raw(
+            session,
             post_url,
+            method="POST",
             headers=browser_headers(
                 {
-                    "Referer": str(getattr(initial, "url", booking_url)),
+                    "Referer": initial.url,
                     "Content-Type": "application/x-www-form-urlencoded",
                 }
             ),
-            data=fields,
+            body=fields,
             timeout=timeout,
             allow_redirects=True,
+            label="S7 manage-order",
         )
-        return extract_airs_data(_response_text_or_die(post, "S7 manage-order"))
-    except carrier_http.TransportError:
-        raise
-    except ValueError:
-        raise
-    except Exception as exc:  # curl_cffi exposes several transport exception classes
-        raise carrier_http.TransportError(
-            f"S7 manage-order failed: network error ({type(exc).__name__})"
-        ) from exc
+        return extract_airs_data(
+            carrier_http.response_text(post, label="S7 manage-order")
+        )
 
 
 def _air_from_payload(data: Any) -> dict[str, Any]:
