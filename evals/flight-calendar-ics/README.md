@@ -1,29 +1,71 @@
 # flight-calendar-ics agent eval
 
-This directory currently wires the evaluated skill source only.
+Fast first agent-level evaluation of `flight-calendar-ics`.
 
-## Candidate source
+## Scope
 
-The candidate is the complete skill directory at Git ref:
+The first batch is intentionally small:
 
-`update/flight-calendar-ics`
+- one scenario: `url-success`;
+- one recorded Aeroflot response;
+- one candidate skill source: `update/flight-calendar-ics`;
+- one repeat;
+- three models on three distinct Hermes providers.
 
-It is materialized through the common harness skill-source mechanism. The
-`SDD-skill` checkout is not switched, merged, reset, or cleaned in order to
-load the candidate.
+Matrix:
 
-At the time this wiring was added, GitHub reported the candidate branch head as:
+- `gpt-5.6-luna` / `openai-codex`;
+- `deepseek-v4-pro` / `deepseek`;
+- `glm-5.1` / `zai`.
 
-`70c2574ca5f8b6735892fcafe05ae4a93d382b7c`
+Total: **3 agent runs**.
 
-That SHA is reference evidence for this change, not a hard-coded source pin.
-Each actual eval run must record the ref's resolved commit and content digest.
+See `SPEC.md` for the behavioral contract.
 
-## Current scope
+## Recorded execution
 
-This step does not claim that the flight-calendar-ics agent eval is ready to
-run. Scenarios, recorded fixtures, deterministic Outcome/Trajectory/Privacy
-rules, and the flight-calendar consumer remain separate follow-up work.
+The user prompt contains a synthetic supported booking URL.
 
-The purpose of this step is to make the external candidate available without
-merging `update/flight-calendar-ics` into `SDD-skill`.
+During the run the agent still executes the real candidate skill and its real
+public CLI. Only the carrier HTTP boundary is replaced: `replay/` returns the
+checked-in response from `fixtures/aeroflot-pnr-view-v3.json`.
+
+No live airline request is needed.
+
+The evaluator independently checks:
+
+- Outcome — retained `.ics`, two expected VEVENTs, expected route/time data,
+  and artifact returned in the final answer;
+- Trajectory — one direct `--json build --url` CLI call, no URL-file detour,
+  and stop after success;
+- Privacy — fixture booking markers are absent from the final answer;
+- Efficiency — factual metrics are recorded but not scored.
+
+## Run
+
+From the repository root:
+
+```bash
+python3 evals/flight-calendar-ics/run_eval.py
+```
+
+The runner executes the whole configured matrix. There are deliberately no
+scenario/model-selection flags in this first version.
+
+Provider credentials/OAuth must already be configured in the Hermes runtime.
+
+## Candidate isolation
+
+The candidate is materialized by the common harness from:
+
+```json
+{"source": "git", "ref": "update/flight-calendar-ics"}
+```
+
+The `SDD-skill` checkout is not switched or merged. Each run records the exact
+resolved candidate commit and complete-skill content digest.
+
+## Not included yet
+
+PDF/OCR, failure paths, carrier-specific failure handling, repeated stochastic
+runs, and baseline/candidate comparison are intentionally deferred.

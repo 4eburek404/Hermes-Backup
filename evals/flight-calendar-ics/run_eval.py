@@ -12,6 +12,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 REPO_ROOT = ROOT.parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
