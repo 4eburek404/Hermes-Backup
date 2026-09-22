@@ -39,6 +39,8 @@ ROOT_HTML = """
 </head><body></body></html>
 """
 ENV_JSON = {"API_URL": SYNTHETIC_API, "API_KEY": "synthetic-api-key-001"}
+STALE_API_KEY = "stale-api-key-001"
+REFRESHED_API_KEY = "fresh-api-key-002"
 RESERVATION_TEXT = (FIXTURES / "reservation.json").read_text(encoding="utf-8")
 
 
@@ -139,6 +141,182 @@ class UralConfigurationAndProtocolSpecification(unittest.TestCase):
     def tearDown(self) -> None:
         self.cache_patch.stop()
         self.tempdir.cleanup()
+
+    def _seed_cached_config(self, api_key: str) -> None:
+        cache_path = Path(self.tempdir.name) / "ural-deployment.json"
+        cache_path.write_text(
+            json.dumps(
+                {
+                    "version": "12345",
+                    "API_URL": SYNTHETIC_API,
+                    "API_KEY": api_key,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    def _recovery_transport(
+        self,
+        *,
+        reservation_statuses: list[int],
+        refresh_failure: str | None = None,
+    ) -> tuple[list[dict[str, Any]], Any]:
+        from flight_calendar.carriers import ural
+
+        calls: list[dict[str, Any]] = []
+        reservation_attempt = 0
+        stale_header = ural.generate_api_key_header(STALE_API_KEY, 1700000000000, 1000)
+        refreshed_header = ural.generate_api_key_header(REFRESHED_API_KEY, 1700000000000, 1000)
+
+        def transport(url: str, **kwargs: Any) -> tuple[int, str, str]:
+            nonlocal reservation_attempt
+            parsed = urlparse(url)
+            headers = kwargs.get("headers", {})
+            calls.append(
+                {
+                    "url": url,
+                    "method": kwargs.get("method", "GET"),
+                    "headers": headers,
+                }
+            )
+            if url == SYNTHETIC_FRONTEND:
+                if refresh_failure == "root":
+                    return 503, "text/plain", "frontend unavailable"
+                return 200, "text/html", ROOT_HTML
+            if parsed.path == "/12345/env/env.json":
+                if refresh_failure == "env":
+                    return 503, "text/plain", "env unavailable"
+                return 200, "application/json", json.dumps(
+                    {"API_URL": SYNTHETIC_API, "API_KEY": REFRESHED_API_KEY}
+                )
+            if parsed.path == "/api/settings/CurrentDateUtc":
+                return 200, "text/plain", "1700000000"
+            if parsed.path == "/api/Reservation":
+                reservation_attempt += 1
+                expected_header = (
+                    stale_header if reservation_attempt == 1 else refreshed_header
+                )
+                if headers.get("X-Api-Key") != expected_header:
+                    raise AssertionError("unexpected X-Api-Key for recovery attempt")
+                status = reservation_statuses[min(reservation_attempt - 1, len(reservation_statuses) - 1)]
+                if status == 401:
+                    return 401, "", ""
+                if status == 200:
+                    return 200, "application/json", RESERVATION_TEXT
+                return status, "text/plain", "synthetic reservation failure"
+            raise AssertionError(f"unexpected synthetic endpoint: {parsed.path}")
+
+        return calls, transport
+
+    def test_cached_auth_failure_refreshes_deployment_and_retries_once(self) -> None:
+        from flight_calendar import carrier_http
+        from flight_calendar.carriers import ural
+
+        calls, transport = self._recovery_transport(reservation_statuses=[401, 200])
+        self._seed_cached_config(STALE_API_KEY)
+        with (
+            mock.patch.object(carrier_http, "request_raw", side_effect=transport),
+            mock.patch.object(ural.time, "time", return_value=1699999999),
+        ):
+            result = ural.fetch_ural_reservation(
+                "ABC123",
+                "IVANOV",
+                frontend_base=SYNTHETIC_FRONTEND,
+            )
+
+        self.assertTrue(result["success"])
+        paths = [urlparse(call["url"]).path for call in calls]
+        reservation_indexes = [
+            index for index, path in enumerate(paths) if path == "/api/Reservation"
+        ]
+        self.assertEqual(len(reservation_indexes), 2)
+        self.assertEqual(paths.count("/"), 1)
+        self.assertEqual(paths.count("/12345/env/env.json"), 1)
+        self.assertNotIn("/", paths[: reservation_indexes[0]])
+        self.assertLess(reservation_indexes[0], paths.index("/"))
+        self.assertLess(paths.index("/"), reservation_indexes[1])
+
+    def test_cached_auth_failure_refreshes_and_retries_at_most_once(self) -> None:
+        from flight_calendar import carrier_http
+        from flight_calendar.carriers import ural
+
+        calls, transport = self._recovery_transport(reservation_statuses=[401, 401])
+        self._seed_cached_config(STALE_API_KEY)
+        with (
+            mock.patch.object(carrier_http, "request_raw", side_effect=transport),
+            mock.patch.object(ural.time, "time", return_value=1699999999),
+        ):
+            with self.assertRaises(carrier_http.TransportError):
+                ural.fetch_ural_reservation(
+                    "ABC123",
+                    "IVANOV",
+                    frontend_base=SYNTHETIC_FRONTEND,
+                )
+
+        paths = [urlparse(call["url"]).path for call in calls]
+        self.assertEqual(paths.count("/api/Reservation"), 2)
+        self.assertEqual(paths.count("/"), 1)
+        self.assertEqual(paths.count("/12345/env/env.json"), 1)
+
+    def test_non_authentication_error_does_not_refresh_cached_config(self) -> None:
+        from flight_calendar import carrier_http
+        from flight_calendar.carriers import ural
+
+        calls, transport = self._recovery_transport(reservation_statuses=[404])
+        self._seed_cached_config(STALE_API_KEY)
+        with (
+            mock.patch.object(carrier_http, "request_raw", side_effect=transport),
+            mock.patch.object(ural.time, "time", return_value=1699999999),
+        ):
+            with self.assertRaises(carrier_http.TransportError):
+                ural.fetch_ural_reservation(
+                    "ABC123",
+                    "IVANOV",
+                    frontend_base=SYNTHETIC_FRONTEND,
+                )
+
+        paths = [urlparse(call["url"]).path for call in calls]
+        self.assertEqual(paths.count("/api/Reservation"), 1)
+        self.assertNotIn("/", paths)
+        self.assertNotIn("/12345/env/env.json", paths)
+
+    def test_refresh_bootstrap_failure_is_propagated_without_retry_loop(self) -> None:
+        from flight_calendar import carrier_http
+        from flight_calendar.carriers import ural
+
+        for failure, expected_paths in (
+            ("root", ["/api/settings/CurrentDateUtc", "/api/Reservation", "/"]),
+            (
+                "env",
+                [
+                    "/api/settings/CurrentDateUtc",
+                    "/api/Reservation",
+                    "/",
+                    "/12345/env/env.json",
+                ],
+            ),
+        ):
+            with self.subTest(failure=failure):
+                calls, transport = self._recovery_transport(
+                    reservation_statuses=[401],
+                    refresh_failure=failure,
+                )
+                self._seed_cached_config(STALE_API_KEY)
+                with (
+                    mock.patch.object(carrier_http, "request_raw", side_effect=transport),
+                    mock.patch.object(ural.time, "time", return_value=1699999999),
+                ):
+                    with self.assertRaises(carrier_http.TransportError):
+                        ural.fetch_ural_reservation(
+                            "ABC123",
+                            "IVANOV",
+                            frontend_base=SYNTHETIC_FRONTEND,
+                        )
+
+                paths = [urlparse(call["url"]).path for call in calls]
+                self.assertEqual(paths, expected_paths)
+                self.assertEqual(paths.count("/api/Reservation"), 1)
 
     def test_cache_miss_uses_root_and_versioned_env_then_direct_reservation(self) -> None:
         from flight_calendar import carrier_http
