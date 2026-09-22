@@ -229,6 +229,8 @@ print("synthetic stderr", file=sys.stderr)
                 "skill_version",
                 "skill_sha256",
                 "candidate_skill_sha256",
+                "skill_source",
+                "skill_tree_sha256",
                 "baseline_commit",
                 "candidate_commit",
                 "fixture_base_sha",
@@ -254,6 +256,12 @@ print("synthetic stderr", file=sys.stderr)
             }
             self.assertTrue(required_metadata.issubset(metadata))
             self.assertIsInstance(metadata["hermes_executable"], str)
+            self.assertEqual("working_tree", metadata["skill_source"]["source"])
+            self.assertEqual(
+                manifest["skill_versions"]["candidate"]["source"],
+                metadata["skill_source"]["source"],
+            )
+            self.assertRegex(metadata["skill_tree_sha256"], r"^[0-9a-f]{64}$")
             self.assertEqual("PASS", run_record["score"]["trajectory"])
             self.assertEqual("UNDEFINED", run_record["score"]["outcome"])
 

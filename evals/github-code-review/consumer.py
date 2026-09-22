@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from evals.harness.core import RunSpec
+from evals.harness.skill_source import materialize_skill_source
 
 
 class GithubCodeReviewConsumer:
@@ -123,30 +124,26 @@ class GithubCodeReviewConsumer:
         self,
         version: str,
         root: Path,
-    ) -> tuple[Path, str, str, str]:
+    ) -> tuple[Path, str, str, dict[str, Any]]:
         target = root / "skills"
         shutil.copytree(self.repo_root / "hermes" / "skills", target, symlinks=False)
 
-        skill_path = Path(self.manifest["skill"]["path"])
-        relative_skill = skill_path.relative_to(Path("hermes") / "skills")
-        target_skill = target / relative_skill
-        version_cfg = self.manifest["skill_versions"][version]
+        skill_file = Path(self.manifest["skill"]["path"])
+        skill_dir = skill_file.parent
+        relative_dir = skill_dir.relative_to(Path("hermes") / "skills")
+        target_skill_dir = target / relative_dir
+        if target_skill_dir.exists():
+            shutil.rmtree(target_skill_dir)
 
-        if version_cfg["source"] == "git":
-            ref = version_cfg["ref"]
-            content = self._run(
-                ["git", "show", f"{ref}:{skill_path.as_posix()}"],
-                cwd=self.repo_root,
-            ).stdout
-            target_skill.write_text(content, encoding="utf-8")
-            source_identity = ref
-        elif version_cfg["source"] == "working_tree":
-            shutil.copy2(self.repo_root / skill_path, target_skill)
-            source_identity = self._git(self.repo_root, "rev-parse", "HEAD")
-        else:
-            raise ValueError(f"unsupported skill source: {version_cfg['source']}")
+        source_identity = materialize_skill_source(
+            self.repo_root,
+            skill_dir,
+            self.manifest["skill_versions"][version],
+            target_skill_dir,
+        )
 
-        current_skill = self.repo_root / skill_path
+        target_skill = target / skill_file.relative_to(Path("hermes") / "skills")
+        current_skill = self.repo_root / skill_file
         return (
             target,
             self.sha256(target_skill),
@@ -364,7 +361,13 @@ class GithubCodeReviewConsumer:
                 "skill_version": spec.skill_version,
                 "skill_sha256": skill_sha,
                 "candidate_skill_sha256": candidate_sha,
-                "skill_source_identity": source_identity,
+                "skill_source_identity": (
+                    source_identity["requested_ref"]
+                    if source_identity["source"] == "git"
+                    else source_identity["resolved_commit"]
+                ),
+                "skill_source": source_identity,
+                "skill_tree_sha256": source_identity["content_sha256"],
                 "baseline_commit": baseline_ref,
                 "candidate_commit": repo_head,
                 "candidate_skill_origin_commit": self.manifest["skill_versions"].get("candidate", {}).get("reference_commit"),
