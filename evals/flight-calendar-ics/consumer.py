@@ -179,6 +179,16 @@ class FlightCalendarIcsConsumer:
             self.manifest["skill_versions"][version],
             target_dir,
         )
+        replay_transport = self.root / "replay" / "carrier_http.py"
+        target_transport = (
+            target_dir / "scripts" / "flight_calendar" / "carrier_http.py"
+        )
+        target_transport.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(replay_transport, target_transport)
+        identity = {
+            **identity,
+            "transport_replay_sha256": self.sha256(replay_transport),
+        }
         return skill_root, identity
 
     def prepare(
@@ -228,9 +238,6 @@ class FlightCalendarIcsConsumer:
             )
             self._make_home(home, skill_root)
 
-            replay_dir = self.root / "replay"
-            replay_python = replay_dir / "replay_python.sh"
-            real_python = os.environ.get("HERMES_SKILLS_PYTHON") or "python3"
             env = os.environ.copy()
             env.update(
                 {
@@ -238,9 +245,6 @@ class FlightCalendarIcsConsumer:
                     "HOME": str(Path.home()),
                     "TERMINAL_CWD": str(prepared["workspace"]),
                     "PYTHONDONTWRITEBYTECODE": "1",
-                    "HERMES_SKILLS_PYTHON": str(replay_python),
-                    "FLIGHT_CALENDAR_EVAL_REAL_PYTHON": real_python,
-                    "FLIGHT_CALENDAR_EVAL_REPLAY_DIR": str(replay_dir),
                     "FLIGHT_CALENDAR_EVAL_HTTP_FIXTURE": str(prepared["fixture"]),
                 }
             )

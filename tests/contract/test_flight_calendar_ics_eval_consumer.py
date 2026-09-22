@@ -55,6 +55,9 @@ def make_repo(root: Path) -> Path:
         "print('synthetic')\n",
         encoding="utf-8",
     )
+    transport = skill / "scripts" / "flight_calendar" / "carrier_http.py"
+    transport.parent.mkdir(parents=True)
+    transport.write_text("ORIGINAL_TRANSPORT = True\n", encoding="utf-8")
     git(repo, "init", "-q")
     git(repo, "config", "user.name", "Eval Contract")
     git(repo, "config", "user.email", "eval@example.invalid")
@@ -267,6 +270,10 @@ class FlightCalendarEvalContract(unittest.TestCase):
                 self.assertEqual(
                     git(repo, "rev-parse", "candidate"),
                     run["skill_source"]["resolved_commit"],
+                )
+                self.assertRegex(
+                    run["skill_source"]["transport_replay_sha256"],
+                    r"^[0-9a-f]{64}$",
                 )
 
 

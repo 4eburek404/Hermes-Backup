@@ -26,11 +26,15 @@ See `SPEC.md` for the behavioral contract.
 
 The user prompt contains a synthetic supported booking URL.
 
-During the run the agent still executes the real candidate skill and its real
-public CLI. Only the carrier HTTP boundary is replaced: `replay/` returns the
-checked-in response from `fixtures/aeroflot-pnr-view-v3.json`.
+During the run the agent still executes the candidate skill and its real public
+CLI. Only the shared carrier HTTP module in the isolated materialized copy is
+overlaid with `replay/carrier_http.py`. For the Aeroflot success path that
+module returns the checked-in response from
+`fixtures/aeroflot-pnr-view-v3.json`.
 
-No live airline request is needed.
+The source branch is not modified. Because the replay is inside the isolated
+skill copy, the run stays offline even if a model invokes `python3` directly
+instead of using `HERMES_SKILLS_PYTHON`.
 
 The evaluator independently checks:
 
