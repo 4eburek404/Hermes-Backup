@@ -60,7 +60,7 @@ class FlightCalendarIcsConsumer:
     def _make_home(home: Path, skill_root: Path) -> None:
         home.mkdir(parents=True, exist_ok=True)
         (home / "skills").symlink_to(skill_root, target_is_directory=True)
-        for name in (".env", "auth.json"):
+        for name in (".env", "auth.json", "config.yaml"):
             source = Path.home() / ".hermes" / name
             if source.exists():
                 (home / name).symlink_to(source)
