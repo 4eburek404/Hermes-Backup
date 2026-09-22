@@ -30,7 +30,7 @@ Consumer / mode / evaluated skill source / expected and executed runs
 
 ## RESULTS
 One compact table per model/provider:
-Run | Result | Time | Tools | CLI | URL | Примечание
+Scenario | Run | Result | Time | Tools | CLI | URL | Примечание
 
 Then mean / median / range for that model.
 

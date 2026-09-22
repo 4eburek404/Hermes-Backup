@@ -282,6 +282,38 @@ class EvalHarnessContract(unittest.TestCase):
                 run["ended_at"],
             )
 
+    def test_h15_multi_scenario_report_labels_rows_and_scopes_url_integrity(self) -> None:
+        subject = load_subject()
+        case = base_case()
+        case["scenarios"] = ["url-success", "pdf-success"]
+        case["behaviors"]["url-success"] = case["behaviors"].pop("scenario-a")
+        case["behaviors"]["url-success"]["report_facts"] = {
+            "CLI": 1,
+            "URL": "exact",
+        }
+        case["behaviors"]["pdf-success"] = {
+            "execution": "completed",
+            "artifact": {"status": "correct"},
+            "tool_calls": ["required_cli"],
+            "final_answer": "done",
+            "secrets": [],
+            "report_facts": {"CLI": 1, "URL": "—", "Source": "PDF", "AnyDoc": 1},
+            "report_note": "Source: PDF; AnyDoc: 1",
+        }
+        case["rules"]["pdf-success"] = case["rules"]["scenario-a"].copy()
+        case["rules"]["url-success"] = case["rules"].pop("scenario-a")
+
+        with tempfile.TemporaryDirectory(prefix="eval-harness-report-multi-") as temp:
+            batch = subject.run_case(case, Path(temp))
+            report = Path(batch["report_path"]).read_text(encoding="utf-8")
+            self.assertIn("| Scenario | Run | Result | Time | Tools | CLI | URL | Примечание |", report)
+            self.assertIn("| url-success | 1 | PASS |", report)
+            self.assertIn("| pdf-success | 1 | PASS |", report)
+            self.assertIn("Source: PDF; AnyDoc: 1", report)
+            self.assertIn("**URL integrity**", report)
+            self.assertIn("- model-a: 1/1 exact", report)
+            self.assertNotIn("model-a: 1/2 exact", report)
+
 
 if __name__ == "__main__":
     unittest.main()

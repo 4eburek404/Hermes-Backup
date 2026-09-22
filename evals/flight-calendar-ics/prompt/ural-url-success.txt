@@ -1,0 +1,2 @@
+Создай .ics файл для этой поездки по ссылке бронирования:
+https://service.uralairlines.ru/?pnr=ABC123&lastName=IVANOV

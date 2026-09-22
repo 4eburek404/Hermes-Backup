@@ -1,143 +1,92 @@
-# flight-calendar-ics — Minimal Agent Eval Specification
+# flight-calendar-ics — Agent Eval Specification
 
-## Purpose
+## Scope and matrix
 
-Provide a fast first agent-level evaluation of the current
-`flight-calendar-ics` skill.
+The eval is recorded/offline and evaluates the complete candidate skill from Git
+ref `update/flight-calendar-ics`. The configured manifest contains three
+scenarios, one repeat, and nine configured agent runs: each scenario executes on
+these three provider/model pairs in order:
 
-This eval deliberately covers one normal successful booking-URL workflow only.
-It is not a complete behavioral suite. Additional scenarios are added only when
-there is a concrete defect, behavior change, or comparison need.
+- GPT-5.6 Luna: `gpt-5.6-luna` / `openai-codex`;
+- Neural Deep — Qwen 3.8 27B: `qwen3.8-27b` / `custom:neuraldeep`;
+- Ollama Cloud — Nemotron 3 Super: `nemotron-3-super` / `ollama-cloud`.
 
-## Evaluated skill
+The next selected matrix is `ural-url-success` plus `pdf-success`: six agent
+runs total. `url-success` remains configured and must continue to work.
 
-The candidate is the complete skill directory from Git ref:
+Every scenario owns a prompt, raw fixture, oracle, evaluation rules, prompt SHA,
+and fixture SHA. The evaluator oracle is not exposed to the agent.
 
-`update/flight-calendar-ics`
+## `url-success`
 
-The common eval harness resolves the ref to an exact commit and materializes the
-skill without merging or checking out that branch.
+This is the preserved synthetic Aeroflot booking-URL success flow. It requires
+one direct `--json build --url` CLI call, no URL-file detour, stop after success,
+two semantic VEVENTs, and the exact `MEDIA:` delivery protocol. Its existing
+fixture and oracle remain unchanged.
 
-## Evaluation matrix
+## `ural-url-success`
 
-One scenario is executed once on each of three real Hermes runtime
-provider/model pairs:
+The prompt is an ordinary request containing the synthetic URL:
 
-- GPT-5.6 Luna: `gpt-5.6-luna` / `openai-codex`
-- Neural Deep — Qwen 3.8 27B: `qwen3.8-27b` / `custom:neuraldeep`
-- Ollama Cloud — Nemotron 3 Super: `nemotron-3-super` / `ollama-cloud`
+`https://service.uralairlines.ru/?pnr=ABC123&lastName=IVANOV`
 
-The order is contractual: GPT-5.6 Luna is first, Qwen 3.8 27B through Neural
-Deep is second, and Nemotron 3 Super through Ollama Cloud is third.
+`fixtures/ural/reservation.json` is a checked-in raw carrier response copied from
+the candidate executable spec. It is not a prebuilt itinerary. The scenario-aware
+replay supplies deterministic responses for the service root, `/12345/env/env.json`,
+`/api/settings/CurrentDateUtc`, and `/api/Reservation`; no live HTTP is allowed.
+The isolated run sets a fresh `FLIGHT_CALENDAR_CACHE_DIR`.
 
-Therefore the first batch contains exactly 3 agent runs.
+Expected semantic output is two VEVENTs:
 
-The scenario, prompt, recorded external response, evaluated skill source, and
-evaluation rules are identical across the three runs.
+- `U6 273`, DME → SVX, 21.09.2026 08:25–12:55 local, Airbus A320;
+  `DTSTART:20260921T052500Z`, `DTEND:20260921T075500Z`;
+- `U6 270`, SVX → DME, 24.09.2026 20:30–21:00 local, Airbus A321;
+  `DTSTART:20260924T153000Z`, `DTEND:20260924T180000Z`.
 
-## M1 — supported booking URL succeeds
+The oracle is checked against the candidate production timezone catalog: DME is
+`Europe/Moscow`, SVX is `Asia/Yekaterinburg`. Outcome checks artifact existence,
+two events, flight number, route, UTC times, and aircraft. Trajectory requires
+one direct URL CLI call and stop-after-CLI. Privacy forbids the URL, credentials,
+synthetic passenger/ticket markers, and raw fixture markers in the final answer.
 
-### Given
+## `pdf-success`
 
-- the user supplies one supported Aeroflot manage-booking URL;
-- the URL contains synthetic booking credentials;
-- the synthetic `pnr_key` is exactly 64 lowercase hex characters derived as SHA-256 of the public fixed seed `flight-calendar-ics-eval-synthetic-pnr-key-v1`; it is deterministic test data, not a live credential, and avoids pathological repeated-character placeholders;
-- external carrier HTTP is replaced by one checked-in recorded response;
-- no live airline request is allowed;
-- the recorded response describes two flight segments.
+`fixtures/pdf/ticket.pdf` is fully synthetic and contains a human-readable
+itinerary, not JSON. `prepare()` copies it to the isolated workspace as exactly
+`ticket.pdf`; the prompt names that file. The eval-only executable `npx` shim
+accepts only the documented AnyDoc invocation and replays
+`fixtures/pdf/anydoc.md`. It performs no network request and rejects unexpected
+arguments.
 
-### When
+The agent must follow this trajectory:
 
-Hermes executes the task with `flight-calendar-ics`.
+1. load/use the skill;
+2. run `npx -y @firecrawl/anydoc ticket.pdf -o <private-markdown>` exactly once;
+3. extract flight facts from usable Markdown;
+4. write private itinerary JSON;
+5. call the production CLI exactly once with `--json build --input <json>`;
+6. return the exact `MEDIA:` value and stop.
 
-### Then — Outcome
+`--url`, `--url-file`, browser/web, OCR, Tesseract, and PyMuPDF fallbacks after
+usable AnyDoc are forbidden. Markdown must not be passed directly to the CLI.
+When unambiguous, the actual `--input` JSON is retained as run evidence for
+diagnostics, never used as the oracle.
 
-- the task completes successfully;
-- one generated `.ics` artifact is retained as run evidence;
-- the artifact is parseable as iCalendar;
-- it contains exactly 2 `VEVENT` components;
-- the events contain the expected fixture routes and times:
-  - SVX → SVO, 2037-09-23 13:30 → 13:50 local, Airbus A330-300;
-  - SVO → SVX, 2037-09-25 15:25 → 19:50 local, Boeing 737-800;
-- the final agent answer returns the generated `.ics` artifact.
+Expected semantic output is two VEVENTs:
 
-Outcome checks the resulting artifact, not the internal carrier parser
-implementation.
+- `SU9011`, SVO → SVX, 03.10.2037 09:15–13:45 local, Boeing 737-800;
+  `DTSTART:20371003T061500Z`, `DTEND:20371003T084500Z`;
+- `SU9012`, SVX → SVO, 06.10.2037 18:10–18:45 local, Airbus A320;
+  `DTSTART:20371006T131000Z`, `DTEND:20371006T154500Z`.
 
-### Then — Trajectory
+The catalog confirmation is SVO=`Europe/Moscow`, SVX=`Asia/Yekaterinburg`.
+The final answer must be only the exact `MEDIA:` success protocol and must not
+contain passenger, PNR, ticket, raw PDF text, or intermediate JSON contents.
 
-The agent must:
+## Common report contract
 
-1. use the booking-URL workflow;
-2. invoke the bundled `flight_calendar_ics.py` CLI with
-   `--json build --url <booking-url>`;
-3. invoke that build CLI exactly once;
-4. stop after the successful CLI result.
-
-The first fast eval exposes only the `terminal`, `file`, and `skills`
-toolsets. Browser/web fallback is deliberately not exercised yet.
-
-The run fails Trajectory if the agent:
-
-- creates a temporary URL file;
-- uses `--url-file` or `--url-stdin`;
-- uses `mktemp`, `echo`, or `printf` to move the URL through another input;
-- independently rewrites or parses the booking URL instead of giving it to the
-  CLI;
-- invokes the build CLI again after success;
-- performs additional tool actions after the successful build instead of
-  returning the artifact.
-
-Skill loading itself is allowed and is not counted as an extra booking action.
-
-### Then — Privacy
-
-The user-visible final answer must not contain:
-
-- the booking URL;
-- the synthetic PNR;
-- the synthetic booking key;
-- passenger names;
-- ticket numbers;
-- raw `.ics` contents.
-
-The booking URL is allowed in the terminal tool input because the skill must pass
-it to the CLI. Its presence there is not a Privacy failure.
-
-The retained `.ics` artifact may contain booking data by design and is not
-scanned as a forbidden user-visible channel.
-
-### Then — Efficiency
-
-Record factual metrics only:
-
-- tool-call count;
-- CLI build-call count;
-- agent turns/events when available;
-- token/usage metrics when available;
-- duration.
-
-No efficiency PASS/FAIL threshold is defined in this first eval.
-
-## Recorded fixture rule
-
-The external carrier response is fixed test data and is not fetched live during
-agent evaluation.
-
-The evaluator oracle is separate from the prompt and is not exposed to the
-agent.
-
-## Explicitly out of scope for the first eval
-
-Not evaluated yet:
-
-- `route_unknown`;
-- `route_input_insufficient`;
-- PDF input;
-- OCR fallback;
-- carrier-specific failure recovery;
-- separate Aeroflot/Ural/Utair/S7/Red Wings coverage;
-- baseline-versus-candidate comparison;
-- repeated stochastic runs.
-
-These can be added later without changing the common harness.
+The common `report.md` has one configured human timezone, `DD.MM.YYYY` dates,
+human durations, separate Outcome/Trajectory/Privacy results, and no raw
+microsecond timestamps. Multi-scenario model tables include an explicit
+`Scenario` column. Failed runs remain visible. URL-integrity summaries include
+only URL scenarios; PDF uses `URL = —` and reports source/AnyDoc facts.

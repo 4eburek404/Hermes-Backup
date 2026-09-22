@@ -1,8 +1,4 @@
-"""Recorded HTTP boundary for the minimal flight-calendar agent eval.
-
-This file replaces carrier_http.py only inside the isolated materialized skill
-used by the eval. It never modifies the production branch.
-"""
+"""Offline HTTP replay used only inside the isolated flight-calendar eval skill."""
 from __future__ import annotations
 
 import json
@@ -11,6 +7,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator
+from urllib.parse import urlparse
 
 
 class TransportError(ValueError):
@@ -33,6 +30,39 @@ def _fixture_text() -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _scenario() -> str:
+    return os.environ.get("FLIGHT_CALENDAR_EVAL_SCENARIO", "")
+
+
+def _ural_response(url: str, *, method: str) -> tuple[int, str, str]:
+    if method != "GET":
+        raise TransportError("recorded Ural replay supports GET only")
+    parsed = urlparse(url)
+    if parsed.path in {"", "/"} and parsed.netloc == "service.uralairlines.ru":
+        return (
+            200,
+            "text/html",
+            '<html><head><script src="/12345/js/app.synthetic.js"></script>'
+            '<link href="/12345/css/app.synthetic.css"></head><body></body></html>',
+        )
+    if parsed.path == "/12345/env/env.json" and parsed.netloc == "service.uralairlines.ru":
+        return (
+            200,
+            "application/json",
+            json.dumps(
+                {
+                    "API_URL": "https://ural-api.test/api/",
+                    "API_KEY": "synthetic-api-key-001",
+                }
+            ),
+        )
+    if parsed.netloc == "ural-api.test" and parsed.path == "/api/settings/CurrentDateUtc":
+        return 200, "text/plain", "1700000000"
+    if parsed.netloc == "ural-api.test" and parsed.path == "/api/Reservation":
+        return 200, "application/json", _fixture_text()
+    raise TransportError(f"recorded Ural replay does not provide endpoint: {parsed.path}")
+
+
 def browser_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
     headers = {
         "User-Agent": "Hermes-Eval-Replay",
@@ -53,35 +83,79 @@ def request_raw(
     label: str = "HTTP request",
     sleep: object = None,
 ) -> tuple[int, str, str]:
-    del url, method, headers, body, timeout, label, sleep
-    return 200, "application/json; charset=utf-8", _fixture_text()
+    del headers, body, timeout, label, sleep
+    if _scenario() == "ural-url-success":
+        return _ural_response(url, method=method)
+    if _scenario() == "url-success":
+        return 200, "application/json; charset=utf-8", _fixture_text()
+    raise TransportError("recorded eval does not provide live HTTP")
 
 
-def _unexpected(name: str) -> TransportError:
-    return TransportError(f"recorded eval does not provide transport path: {name}")
+def request_text(
+    url: str,
+    *,
+    method: str = "GET",
+    headers: dict[str, str] | None = None,
+    body: bytes | None = None,
+    timeout: int = 45,
+    label: str = "HTTP request",
+    sleep: object = None,
+) -> str:
+    status, content_type, text = request_raw(
+        url,
+        method=method,
+        headers=headers,
+        body=body,
+        timeout=timeout,
+        label=label,
+        sleep=sleep,
+    )
+    if status >= 400:
+        raise TransportError(
+            f"{label} returned HTTP {status} ({content_type})", status_code=status
+        )
+    return text
 
 
-def request_text(*args: Any, **kwargs: Any) -> str:
-    del args, kwargs
-    raise _unexpected("request_text")
-
-
-def request_json(*args: Any, **kwargs: Any) -> Any:
-    del args, kwargs
-    raise _unexpected("request_json")
+def request_json(
+    url: str,
+    *,
+    method: str = "GET",
+    headers: dict[str, str] | None = None,
+    json_body: dict[str, Any] | list[Any] | None = None,
+    form_body: dict[str, str] | None = None,
+    body: bytes | None = None,
+    timeout: int = 45,
+    label: str = "HTTP request",
+    sleep: object = None,
+) -> Any:
+    del json_body, form_body
+    text = request_text(
+        url,
+        method=method,
+        headers=headers,
+        body=body,
+        timeout=timeout,
+        label=label,
+        sleep=sleep,
+    )
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise TransportError(f"{label} returned a non-JSON response") from exc
 
 
 def resolve_redirect_url(*args: Any, **kwargs: Any) -> str:
     del args, kwargs
-    raise _unexpected("resolve_redirect_url")
+    raise TransportError("recorded eval does not provide redirect replay")
 
 
 @contextmanager
 def open_session() -> Iterator[Any]:
-    raise _unexpected("open_session")
+    raise TransportError("recorded eval does not provide session replay")
     yield None
 
 
 def request_session_raw(*args: Any, **kwargs: Any) -> TransportResponse:
     del args, kwargs
-    raise _unexpected("request_session_raw")
+    raise TransportError("recorded eval does not provide session replay")

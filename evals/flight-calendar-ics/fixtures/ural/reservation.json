@@ -1,0 +1,60 @@
+{
+  "success": true,
+  "errors": [],
+  "data": {
+    "number": "ABC123",
+    "bookingStatus": "CONFIRMED",
+    "passengers": [
+      {
+        "surname": "SANITIZED",
+        "firstName": "PASSENGER",
+        "middleName": null,
+        "documents": [],
+        "contacts": {
+          "email": null,
+          "phone": null
+        }
+      }
+    ],
+    "tickets": [
+      {
+        "number": "0000000000000",
+        "flightReferences": [
+          "segment-outbound",
+          "segment-return"
+        ]
+      }
+    ],
+    "services": [],
+    "fares": [],
+    "journey": {
+      "outboundFlights": [
+        {
+          "origin": "DME",
+          "destination": "SVX",
+          "departureDate": "2026-09-21T08:25:00",
+          "arrivalDate": "2026-09-21T12:55:00",
+          "marketingCarrier": "U6",
+          "operatingCarrier": "U6",
+          "flightNumber": "273",
+          "aircraft": "Airbus A320",
+          "referenceNumber": "segment-outbound"
+        }
+      ],
+      "returnFlights": [
+        {
+          "origin": "SVX",
+          "destination": "DME",
+          "departureDate": "2026-09-24T20:30:00",
+          "arrivalDate": "2026-09-24T21:00:00",
+          "marketingCarrier": "U6",
+          "operatingCarrier": "U6",
+          "flightNumber": "270",
+          "aircraft": "Airbus A321",
+          "referenceNumber": "segment-return"
+        }
+      ],
+      "separateFlights": []
+    }
+  }
+}

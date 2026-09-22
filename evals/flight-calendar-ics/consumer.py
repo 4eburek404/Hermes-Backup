@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -145,6 +146,24 @@ class FlightCalendarIcsConsumer:
         return rest.split(None, 1)[0], False
 
     @staticmethod
+    def _intermediate_input_path(
+        commands: list[str], workspace: Path
+    ) -> Path | None:
+        for command in commands:
+            try:
+                tokens = shlex.split(command)
+            except ValueError:
+                continue
+            if "--input" not in tokens:
+                continue
+            index = tokens.index("--input")
+            if index + 1 >= len(tokens):
+                continue
+            path = Path(tokens[index + 1])
+            return path if path.is_absolute() else workspace / path
+        return None
+
+    @staticmethod
     def _unfold_ics(text: str) -> str:
         return text.replace("\r\n ", "").replace("\n ", "")
 
@@ -212,13 +231,21 @@ class FlightCalendarIcsConsumer:
         }
         return skill_root, identity
 
+    @staticmethod
+    def _seed_timezone_cache(skill_root: Path, cache_dir: Path) -> None:
+        bundled = skill_root / "travel" / "flight-calendar-ics" / "data" / "airport-timezones.json"
+        shutil.copy2(bundled, cache_dir / "airport-timezones.json")
+        (cache_dir / "refresh-state.json").write_text(
+            json.dumps({"last_success": datetime.now(timezone.utc).isoformat()}) + "\n",
+            encoding="utf-8",
+        )
+
     def prepare(
         self,
         spec: RunSpec,
         run_dir: Path,
         case: dict[str, Any],
     ) -> dict[str, Any]:
-        del case
         cfg = self.manifest["scenarios"][spec.scenario]
         prompt = self.root / cfg["prompt"]
         fixture = self.root / cfg["fixture"]
@@ -234,12 +261,15 @@ class FlightCalendarIcsConsumer:
         )
         workspace = run_dir / "workspace"
         workspace.mkdir()
+        if spec.scenario == "pdf-success":
+            shutil.copy2(fixture, workspace / "ticket.pdf")
         return {
             "prompt": prompt,
             "fixture": fixture,
             "workspace": workspace,
             "prompt_sha256": prompt_sha,
             "actual_fixture_version": fixture_sha,
+            "pdf_input": workspace / "ticket.pdf" if spec.scenario == "pdf-success" else None,
         }
 
     def execute(
@@ -249,14 +279,17 @@ class FlightCalendarIcsConsumer:
         prepared: dict[str, Any],
         case: dict[str, Any],
     ) -> dict[str, Any]:
-        del case
         home = Path(tempfile.mkdtemp(prefix="hermes-home-", dir="/tmp"))
         skill_temp = Path(tempfile.mkdtemp(prefix="hermes-skills-", dir="/tmp"))
+        cache_dir = run_dir / "cache"
+        cache_dir.mkdir()
+        anydoc_log = run_dir / "anydoc-calls.log"
         try:
             skill_root, skill_source = self._build_skill_root(
                 spec.skill_version,
                 skill_temp,
             )
+            self._seed_timezone_cache(skill_root, cache_dir)
             self._make_home(home, skill_root)
 
             env = os.environ.copy()
@@ -267,8 +300,17 @@ class FlightCalendarIcsConsumer:
                     "TERMINAL_CWD": str(prepared["workspace"]),
                     "PYTHONDONTWRITEBYTECODE": "1",
                     "FLIGHT_CALENDAR_EVAL_HTTP_FIXTURE": str(prepared["fixture"]),
+                    "FLIGHT_CALENDAR_EVAL_SCENARIO": spec.scenario,
+                    "FLIGHT_CALENDAR_CACHE_DIR": str(cache_dir),
+                    "FLIGHT_CALENDAR_EVAL_ANYDOC_FIXTURE": str(
+                        self.root / "fixtures" / "pdf" / "anydoc.md"
+                    ),
+                    "FLIGHT_CALENDAR_EVAL_ANYDOC_LOG": str(anydoc_log),
                 }
             )
+            if spec.scenario == "pdf-success":
+                shim_dir = self.root / "replay" / "pdf"
+                env["PATH"] = f"{shim_dir}{os.pathsep}{env.get('PATH', '')}"
 
             execution = self.manifest["execution"]
             command = [
@@ -339,8 +381,10 @@ class FlightCalendarIcsConsumer:
                 for value in terminal_commands
                 if "flight_calendar_ics.py" in value and "build" in value
             )
-            prompt_url = self._booking_url(
-                prepared["prompt"].read_text(encoding="utf-8")
+            prompt_url = (
+                self._booking_url(prepared["prompt"].read_text(encoding="utf-8"))
+                if spec.scenario != "pdf-success"
+                else None
             )
             cli_commands = [
                 value
@@ -353,7 +397,9 @@ class FlightCalendarIcsConsumer:
                 first_cli_url, first_cli_quoted = self._cli_url_argument(
                     cli_commands[0]
                 )
-            if prompt_url and first_cli_url:
+            if spec.scenario == "pdf-success":
+                url_integrity = "—"
+            elif prompt_url and first_cli_url:
                 url_integrity = "exact" if prompt_url == first_cli_url else "changed"
             else:
                 url_integrity = "missing"
@@ -370,10 +416,30 @@ class FlightCalendarIcsConsumer:
             if cli_build_calls != 1:
                 report_notes.append(f"CLI вызван {cli_build_calls} раза")
 
+            anydoc_commands = [
+                value for value in terminal_commands if "@firecrawl/anydoc" in value
+            ]
+            intermediate_input = self._intermediate_input_path(
+                cli_commands, prepared["workspace"]
+            )
+            intermediate_evidence = None
+            if intermediate_input is not None and intermediate_input.is_file():
+                intermediate_evidence = run_dir / "intermediate-itinerary.json"
+                shutil.copy2(intermediate_input, intermediate_evidence)
+
+            if spec.scenario == "pdf-success" and len(anydoc_commands) != 1:
+                report_notes.append(f"AnyDoc вызван {len(anydoc_commands)} раз")
+            if spec.scenario == "pdf-success":
+                report_notes.insert(0, f"Source: PDF; AnyDoc: {len(anydoc_commands)}")
+
             report_facts = {
                 "CLI": cli_build_calls,
                 "URL": url_integrity,
             }
+            if spec.scenario == "pdf-success":
+                report_facts.update(
+                    {"Source": "PDF", "AnyDoc": len(anydoc_commands)}
+                )
             report_note = "; ".join(report_notes) if report_notes else None
 
             metrics = {
@@ -407,6 +473,11 @@ class FlightCalendarIcsConsumer:
                 "metrics": metrics,
                 "report_facts": report_facts,
                 "report_note": report_note,
+                "cache_dir": str(cache_dir),
+                "anydoc_calls": anydoc_commands,
+                "intermediate_input_path": str(intermediate_evidence)
+                if intermediate_evidence
+                else None,
             }
             (run_dir / "metadata.json").write_text(
                 json.dumps(metadata, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
@@ -468,30 +539,66 @@ class FlightCalendarIcsConsumer:
             final_answer = str(evidence.get("final_answer", ""))
             if "MEDIA:" not in final_answer or ".ics" not in final_answer:
                 return "FAIL"
+            if oracle.get("final_answer_exact_media") and not re.fullmatch(
+                r"MEDIA:[^\s]+\.ics", final_answer.strip()
+            ):
+                return "FAIL"
             return "PASS"
 
         if dimension == "trajectory":
             terminal_commands = list(evidence.get("terminal_commands", []))
+            cli_commands = [
+                command
+                for command in terminal_commands
+                if "flight_calendar_ics.py" in command and "build" in command
+            ]
             if rules.get("require_single_terminal_call") and len(terminal_commands) != 1:
                 return "FAIL"
-            if not terminal_commands:
+            if not cli_commands:
                 return "FAIL"
 
-            command = terminal_commands[0]
+            command = cli_commands[0]
             if not all(
                 fragment in command
                 for fragment in rules.get("required_cli_fragments", [])
             ):
                 return "FAIL"
             if any(
-                re.search(pattern, command, flags=re.IGNORECASE)
+                re.search(pattern, value, flags=re.IGNORECASE)
                 for pattern in rules.get("forbidden_command_patterns", [])
+                for value in terminal_commands
             ):
                 return "FAIL"
 
             forbidden_names = set(rules.get("forbidden_tool_names", []))
             if any(name in forbidden_names for name in evidence.get("tool_names", [])):
                 return "FAIL"
+
+            anydoc_calls = list(evidence.get("anydoc_calls", []))
+            if rules.get("require_single_anydoc_call") and len(anydoc_calls) != 1:
+                return "FAIL"
+            if rules.get("require_anydoc_before_cli"):
+                anydoc_positions = [
+                    index
+                    for index, value in enumerate(terminal_commands)
+                    if "@firecrawl/anydoc" in value
+                ]
+                cli_position = next(
+                    (
+                        index
+                        for index, value in enumerate(terminal_commands)
+                        if value == command
+                    ),
+                    None,
+                )
+                if not anydoc_positions or cli_position is None or anydoc_positions[0] >= cli_position:
+                    return "FAIL"
+            if rules.get("require_intermediate_input"):
+                input_path = evidence.get("intermediate_input_path")
+                if not input_path or not Path(str(input_path)).is_file():
+                    return "FAIL"
+                if Path(str(input_path)).suffix.lower() != ".json":
+                    return "FAIL"
 
             if rules.get("stop_after_cli"):
                 uses = list(evidence.get("tool_uses", []))
@@ -502,7 +609,7 @@ class FlightCalendarIcsConsumer:
                     and "flight_calendar_ics.py"
                     in str((use.get("input") or {}).get("command", ""))
                 ]
-                if len(cli_indexes) != 1:
+                if len(cli_indexes) != 1 or len(cli_commands) != 1:
                     return "FAIL"
                 if any(int(use["index"]) > cli_indexes[0] for use in uses):
                     return "FAIL"

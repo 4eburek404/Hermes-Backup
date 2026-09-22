@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+"""Offline eval-only npx shim for the recorded AnyDoc boundary."""
+from __future__ import annotations
+
+import os
+import sys
+from pathlib import Path
+
+
+EXPECTED = ["-y", "@firecrawl/anydoc"]
+
+
+def main() -> int:
+    argv = sys.argv[1:]
+    if len(argv) != 5 or argv[:2] != EXPECTED or argv[3] != "-o":
+        print(
+            "eval npx shim accepts only: npx -y @firecrawl/anydoc ticket.pdf -o OUTPUT",
+            file=sys.stderr,
+        )
+        return 2
+    input_path = Path(argv[2])
+    output_path = Path(argv[4])
+    if input_path.name != "ticket.pdf" or not input_path.is_file():
+        print("eval npx shim requires an existing ticket.pdf input", file=sys.stderr)
+        return 2
+    fixture = os.environ.get("FLIGHT_CALENDAR_EVAL_ANYDOC_FIXTURE")
+    if not fixture:
+        print("missing recorded AnyDoc fixture", file=sys.stderr)
+        return 2
+    fixture_path = Path(fixture)
+    if not fixture_path.is_file():
+        print("recorded AnyDoc fixture is missing", file=sys.stderr)
+        return 2
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(fixture_path.read_text(encoding="utf-8"), encoding="utf-8")
+    log_path = os.environ.get("FLIGHT_CALENDAR_EVAL_ANYDOC_LOG")
+    if log_path:
+        with Path(log_path).open("a", encoding="utf-8") as handle:
+            handle.write(" ".join(argv) + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

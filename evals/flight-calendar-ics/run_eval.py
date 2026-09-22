@@ -7,6 +7,7 @@ import json
 import shutil
 import subprocess
 import sys
+import argparse
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -52,37 +53,64 @@ def build_case(
     eval_root: Path,
     *,
     runtime_version: str,
+    selected_scenarios: list[str] | None = None,
 ) -> dict:
     models = list(manifest["models"])
     if len(models) != 3 or len({entry["provider"] for entry in models}) != 3:
         raise ValueError("minimal flight-calendar eval requires exactly three distinct providers")
 
-    scenarios = list(manifest["scenarios"])
-    if scenarios != ["url-success"]:
-        raise ValueError("minimal flight-calendar eval requires only url-success")
+    scenarios = selected_scenarios or list(manifest["scenarios"])
+    unknown = [name for name in scenarios if name not in manifest["scenarios"]]
+    if unknown:
+        raise ValueError(f"unknown scenario(s): {', '.join(unknown)}")
+    if not scenarios:
+        raise ValueError("at least one scenario is required")
 
-    scenario = scenarios[0]
-    cfg = manifest["scenarios"][scenario]
+    metadata = {
+        scenario: {
+            "fixture_version": sha256(eval_root / manifest["scenarios"][scenario]["fixture"]),
+            "prompt_version": sha256(eval_root / manifest["scenarios"][scenario]["prompt"]),
+        }
+        for scenario in scenarios
+    }
+    first = metadata[scenarios[0]]
     return {
         "consumer": manifest["name"],
         "scenarios": scenarios,
         "models": models,
         "skill_versions": ["candidate"],
         "repeats": 1,
-        "fixture_version": sha256(eval_root / cfg["fixture"]),
-        "prompt_version": sha256(eval_root / cfg["prompt"]),
+        "fixture_version": first["fixture_version"],
+        "prompt_version": first["prompt_version"],
+        "scenario_metadata": metadata,
         "runtime_version": runtime_version,
         "mode": manifest.get("mode", "recorded"),
         "report": manifest.get("report", {}),
-        "rules": {scenario: cfg.get("evaluation", {})},
+        "rules": {
+            scenario: manifest["scenarios"][scenario].get("evaluation", {})
+            for scenario in scenarios
+        },
     }
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--scenario",
+        action="append",
+        dest="scenarios",
+        help="run only this configured scenario; repeat for multiple scenarios",
+    )
+    args = parser.parse_args()
     manifest = load_manifest()
     hermes_command = [shutil.which("hermes") or "hermes"]
     runtime = hermes_version(hermes_command)
-    case = build_case(manifest, ROOT, runtime_version=runtime)
+    case = build_case(
+        manifest,
+        ROOT,
+        runtime_version=runtime,
+        selected_scenarios=args.scenarios,
+    )
 
     consumer = FlightCalendarIcsConsumer(
         ROOT,

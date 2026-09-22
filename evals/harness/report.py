@@ -213,8 +213,8 @@ def render_report(batch: dict[str, Any], case: dict[str, Any]) -> str:
         lines.extend([
             f"### {model} / {provider} — {passed}/{len(model_runs)} PASS",
             "",
-            "| Run | Result | Time | Tools | CLI | URL | Примечание |",
-            "|---|---|---:|---:|---:|---|---|",
+            "| Scenario | Run | Result | Time | Tools | CLI | URL | Примечание |",
+            "|---|---:|---|---:|---:|---:|---|---|",
         ])
         for run in sorted(model_runs, key=lambda item: int(item.get("repeat", 0))):
             metrics = run.get("metrics") if isinstance(run.get("metrics"), dict) else {}
@@ -222,6 +222,7 @@ def render_report(batch: dict[str, Any], case: dict[str, Any]) -> str:
             if cli == "—":
                 cli = str(metrics.get("cli_build_calls", "—"))
             row = [
+                str(run.get("scenario", "—")),
                 str(run.get("repeat", "—")),
                 _run_result(run),
                 format_run_duration(_duration_seconds(run)),
@@ -258,13 +259,15 @@ def render_report(batch: dict[str, Any], case: dict[str, Any]) -> str:
             f"{count_pass('trajectory')} | {count_pass('privacy')} |"
         )
 
-    has_url_facts = any(
-        isinstance(run.get("report_facts"), dict) and "URL" in run["report_facts"]
+    url_runs = [
+        run
         for run in runs
-    )
-    if has_url_facts:
+        if isinstance(run.get("report_facts"), dict)
+        and run["report_facts"].get("URL") not in {None, "—"}
+    ]
+    if url_runs:
         lines.extend(["", "**URL integrity**"])
-        for (model, _provider), model_runs in _model_groups(runs):
+        for (model, _provider), model_runs in _model_groups(url_runs):
             exact = sum(_fact(run, "URL").lower() == "exact" for run in model_runs)
             lines.append(f"- {model}: {exact}/{len(model_runs)} exact")
 

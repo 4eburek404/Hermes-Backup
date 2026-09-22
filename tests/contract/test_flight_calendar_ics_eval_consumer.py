@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Executable public-contract check for the minimal flight-calendar-ics eval."""
+"""Executable public-contract check for the flight-calendar-ics eval."""
 from __future__ import annotations
 
 import json
 import re
+import hashlib
 import sys
 from pathlib import Path
 from typing import NoReturn
@@ -40,17 +41,38 @@ def main() -> int:
         fail("manifest must contain exactly three distinct provider/model pairs")
 
     scenarios = manifest.get("scenarios")
-    if not isinstance(scenarios, dict) or list(scenarios) != ["url-success"]:
-        fail(f"expected exactly one scenario, url-success; got {scenarios!r}")
+    expected_scenarios = ["url-success", "ural-url-success", "pdf-success"]
+    if not isinstance(scenarios, dict) or list(scenarios) != expected_scenarios:
+        fail(f"expected three scenarios {expected_scenarios!r}; got {scenarios!r}")
     if manifest.get("repeats") != 1:
         fail(f"expected one repeat; got {manifest.get('repeats')!r}")
-    if len(models) * len(scenarios) * manifest["repeats"] != 3:
-        fail("minimal eval must contain exactly three agent runs")
+    if len(models) * len(scenarios) * manifest["repeats"] != 9:
+        fail("configured eval must contain exactly nine agent runs")
 
-    scenario = scenarios["url-success"]
-    for key in ("prompt", "fixture", "oracle", "evaluation"):
-        if key not in scenario:
-            fail(f"url-success scenario omits required field: {key}")
+    prompt_shas = set()
+    fixture_shas = set()
+    for name in expected_scenarios:
+        scenario = scenarios[name]
+        for key in ("prompt", "fixture", "oracle", "evaluation"):
+            if key not in scenario:
+                fail(f"{name} scenario omits required field: {key}")
+        prompt = EVAL / scenario["prompt"]
+        fixture = EVAL / scenario["fixture"]
+        if not prompt.is_file() or not fixture.is_file():
+            fail(f"{name} prompt/fixture missing")
+        prompt_shas.add(hashlib.sha256(prompt.read_bytes()).hexdigest())
+        fixture_shas.add(hashlib.sha256(fixture.read_bytes()).hexdigest())
+    if len(prompt_shas) != 3 or len(fixture_shas) != 3:
+        fail("scenarios must have distinct prompt and fixture versions")
+
+    if not (EVAL / "fixtures" / "ural" / "reservation.json").is_file():
+        fail("Ural raw reservation fixture missing")
+    if not (EVAL / "fixtures" / "pdf" / "ticket.pdf").is_file():
+        fail("PDF fixture missing")
+    if not (EVAL / "fixtures" / "pdf" / "anydoc.md").is_file():
+        fail("AnyDoc replay fixture missing")
+    if json.loads((EVAL / "fixtures" / "ural" / "reservation.json").read_text(encoding="utf-8"))["data"]["journey"] is None:
+        fail("Ural fixture is not a raw reservation response")
 
     docs = "\n".join(path.read_text(encoding="utf-8") for path in (SPEC, README))
     required_doc_values = (
@@ -72,15 +94,15 @@ def main() -> int:
     for value in FORBIDDEN_TEMPORARY_MODELS:
         if value in docs or value in MANIFEST.read_text(encoding="utf-8"):
             fail(f"temporary model remains in eval configuration: {value}")
-    if not re.search(r"one\s+scenario|1\s+scenario", docs, re.IGNORECASE):
-        fail("documentation must state that the eval has one scenario")
+    if not re.search(r"three\s+scenarios|3\s+scenarios", docs, re.IGNORECASE):
+        fail("documentation must state that the eval has three scenarios")
     if not re.search(r"one\s+repeat|1\s+repeat", docs, re.IGNORECASE):
         fail("documentation must state that the eval has one repeat")
-    if not re.search(r"three\s+agent\s+runs|3\s+agent\s+runs", docs, re.IGNORECASE):
-        fail("documentation must state that the eval has three agent runs")
+    if not re.search(r"nine\s+configured\s+agent\s+runs|9\s+agent\s+runs", docs, re.IGNORECASE):
+        fail("documentation must state that the configured eval has nine agent runs")
 
     print("PASS: exact three provider/model pairs in required order")
-    print("PASS: one url-success scenario, one repeat, three agent runs")
+    print("PASS: three scenarios, one repeat, nine configured agent runs")
     print("PASS: SPEC.md and README.md match the runtime matrix")
     return 0
 

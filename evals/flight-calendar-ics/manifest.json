@@ -68,6 +68,67 @@
           "stop_after_cli": true
         }
       }
+    },
+    "ural-url-success": {
+      "prompt": "prompt/ural-url-success.txt",
+      "fixture": "fixtures/ural/reservation.json",
+      "oracle": "expected/ural-url-success.json",
+      "evaluation": {
+        "trajectory": {
+          "required_cli_fragments": [
+            "flight_calendar_ics.py",
+            "--json",
+            "build",
+            "--url"
+          ],
+          "forbidden_command_patterns": [
+            "--url-file",
+            "--url-stdin",
+            "\\bmktemp\\b",
+            "\\becho\\b",
+            "\\bprintf\\b"
+          ],
+          "forbidden_tool_names": [
+            "write_file",
+            "patch",
+            "browser_navigate",
+            "web_search",
+            "web_extract"
+          ],
+          "require_single_terminal_call": true,
+          "stop_after_cli": true
+        }
+      }
+    },
+    "pdf-success": {
+      "prompt": "prompt/pdf-success.txt",
+      "fixture": "fixtures/pdf/ticket.pdf",
+      "oracle": "expected/pdf-success.json",
+      "evaluation": {
+        "trajectory": {
+          "required_cli_fragments": [
+            "flight_calendar_ics.py",
+            "--json",
+            "build",
+            "--input"
+          ],
+          "forbidden_command_patterns": [
+            "--url(?:-file)?",
+            "\\btesseract\\b",
+            "\\b(?:pymupdf|fitz)\\b",
+            "\\bocr\\b"
+          ],
+          "forbidden_tool_names": [
+            "browser_navigate",
+            "web_search",
+            "web_extract"
+          ],
+          "require_single_anydoc_call": true,
+          "require_anydoc_before_cli": true,
+          "require_intermediate_input": true,
+          "stop_after_cli": true
+        }
+      }
     }
   },
   "report": {

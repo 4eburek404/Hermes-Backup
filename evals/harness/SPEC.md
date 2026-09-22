@@ -301,7 +301,8 @@ The report must:
 - show dates as `DD.MM.YYYY` and batch periods as `HH:MM–HH:MM`;
 - show sub-minute run durations to one decimal place;
 - show longer durations as human units such as `3 мин 53 сек`;
-- keep every repeat visible while also providing model/provider aggregation;
+- show per-model/provider result tables with an explicit `Scenario` column so
+  different scenarios cannot be confused when repeats share the same number;
 - keep Outcome, Trajectory and Privacy separate;
 - expose concise factual failure notes without dumping raw traces;
 - never expose private fixture values merely to make the report readable.
