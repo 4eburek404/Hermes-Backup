@@ -19,7 +19,6 @@ from flight_calendar.errors import CliFailure
 
 UTAIR_WEB_BASE = "https://www.utair.ru/"
 UTAIR_API_BASE = "https://b.utair.ru/"
-UTAIR_REDIRECT_HOSTS = {"click.mail.utair.io"}
 
 
 def clean(value: Any) -> Any:
@@ -35,48 +34,6 @@ def browser_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
             **(extra or {}),
         }
     )
-
-
-def _hostname(url: str) -> str:
-    return (urlparse(url).hostname or "").lower()
-
-
-def _is_utair_booking_url(url: str) -> bool:
-    parsed = urlparse(url)
-    return (
-        parsed.scheme.lower() == "https"
-        and parsed.hostname == "www.utair.ru"
-        and parsed.path == "/order-manage"
-    )
-
-
-def resolve_utair_booking_redirect(raw_url: str) -> str:
-    """Resolve Utair's allowlisted mail wrapper before parsing credentials."""
-    host = _hostname(raw_url)
-    if host not in UTAIR_REDIRECT_HOSTS:
-        return raw_url
-    if urlparse(raw_url).scheme.lower() != "https":
-        raise CliFailure(
-            "known booking redirect must use HTTPS; provide the direct carrier booking URL",
-            code="redirect_resolution_failed",
-        )
-
-    try:
-        final_url = carrier_http.resolve_redirect_url(
-            raw_url, label="known booking redirect"
-        )
-    except carrier_http.TransportError as exc:
-        raise CliFailure(
-            "known booking redirect could not be resolved; provide the direct carrier booking URL",
-            code="redirect_resolution_failed",
-        ) from exc
-
-    if not _is_utair_booking_url(final_url):
-        raise CliFailure(
-            "known booking redirect resolved to an unsupported carrier host; provide the direct carrier booking URL",
-            code="redirect_resolution_failed",
-        )
-    return final_url
 
 
 def parse_utair_source(url: str) -> tuple[str, str, str]:
@@ -104,16 +61,20 @@ def parse_utair_source(url: str) -> tuple[str, str, str]:
         raise ValueError("Utair booking locator format looks invalid")
     if not re.fullmatch(r"[A-ZА-ЯЁ' -]{2,80}", surname, flags=re.IGNORECASE):
         raise ValueError("Utair last name format looks invalid")
-    return locator, surname, booking_url
+    canonical_url = (
+        UTAIR_WEB_BASE.rstrip("/")
+        + "/order-manage?"
+        + urlencode({"rloc": locator, "last_name": surname})
+    )
+    return locator, surname, canonical_url
 
 
 def build_itinerary(booking_url: str) -> dict[str, Any]:
-    normalized_url = resolve_utair_booking_redirect(booking_url)
-    locator, last_name, normalized_url = parse_utair_source(normalized_url)
+    locator, last_name, canonical_url = parse_utair_source(booking_url)
     token = fetch_utair_token()
     return convert_to_itinerary(
         fetch_utair_orders(locator, last_name, token=token),
-        booking_url=normalized_url,
+        booking_url=canonical_url,
     )
 
 
