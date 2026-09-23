@@ -229,6 +229,91 @@ def test_missing_token_metric_remains_distinct_from_measured_zero(
     assert (run_dir / "raw_stream.jsonl").read_bytes() == stream.encode()
 
 
+def test_reevaluation_is_deterministic_and_does_not_launch_runtime(tmp_path):
+    consumer, module = make_consumer()
+    run_eval = load_run_eval_module()
+    case = run_eval.build_case(
+        consumer.manifest,
+        EVAL,
+        runtime_version="test-runtime",
+        selected_scenarios=["url-success"],
+    )
+    case["models"] = [{"model": "test-model", "provider": "test-provider"}]
+    skill_root = tmp_path / "skills"
+    skill_root.mkdir()
+    events = [
+        {
+            "type": "tool_use",
+            "name": "terminal",
+            "input": {"command": "flight_calendar_ics.py --json build --url https://example.test/booking"},
+        },
+        {
+            "type": "tool_result",
+            "name": "terminal",
+            "output": json.dumps({"output": json.dumps({"ok": True}), "exit_code": 0}),
+        },
+        {"type": "result", "text": "Done."},
+    ]
+    stream = "\n".join(json.dumps(event) for event in events)
+
+    with (
+        patch.object(module.FlightCalendarIcsConsumer, "_build_skill_root", return_value=(skill_root, {})),
+        patch.object(module.FlightCalendarIcsConsumer, "_seed_timezone_cache"),
+        patch.object(module.FlightCalendarIcsConsumer, "_make_home"),
+        patch.object(
+            module.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+        ),
+    ):
+        initial_batch = Harness(consumer).run(case, tmp_path / "batch")
+
+    initial = initial_batch["runs"][0]
+    reevaluation_results = []
+    with (
+        patch.object(
+            module.subprocess,
+            "run",
+            side_effect=AssertionError("runtime/provider process launched during re-evaluation"),
+        ),
+        patch.object(
+            module.FlightCalendarIcsConsumer,
+            "_build_skill_root",
+            side_effect=AssertionError("skill setup invoked during re-evaluation"),
+        ),
+        patch.object(
+            module.FlightCalendarIcsConsumer,
+            "_seed_timezone_cache",
+            side_effect=AssertionError("fixture setup invoked during re-evaluation"),
+        ),
+        patch.object(
+            module.FlightCalendarIcsConsumer,
+            "_make_home",
+            side_effect=AssertionError("runtime home created during re-evaluation"),
+        ),
+    ):
+        for index in (1, 2):
+            batch = consumer.reevaluate_batch(
+                tmp_path / "batch", case, tmp_path / f"reevaluation-{index}"
+            )
+            reevaluation_results.append(batch["runs"][0])
+            assert batch["agent_execution_count"] == 0
+
+    def semantic_result(run):
+        return {
+            "execution_status": run["execution_status"],
+            "score": run["score"],
+            "diagnostics": run["diagnostics"],
+            "metrics": run["metrics"],
+            "final_answer": run["final_answer"],
+        }
+
+    first, second = reevaluation_results
+    assert semantic_result(first) == semantic_result(second)
+    assert first["execution_status"] == initial["execution_status"]
+    assert set(first["score"]) == {"outcome", "trajectory", "privacy"}
+
+
 def test_fixture_failure_is_not_reported_as_pass(tmp_path, capsys):
     consumer, _ = make_consumer()
     run_eval = load_run_eval_module()
