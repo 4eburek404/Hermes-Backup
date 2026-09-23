@@ -314,6 +314,108 @@ def test_reevaluation_is_deterministic_and_does_not_launch_runtime(tmp_path):
     assert set(first["score"]) == {"outcome", "trajectory", "privacy"}
 
 
+def test_reevaluation_preserves_source_evidence_and_writes_derived_result_separately(tmp_path):
+    consumer, module = make_consumer()
+    run_eval = load_run_eval_module()
+    case = run_eval.build_case(
+        consumer.manifest,
+        EVAL,
+        runtime_version="test-runtime",
+        selected_scenarios=["url-success"],
+    )
+    case["models"] = [{"model": "test-model", "provider": "test-provider"}]
+    skill_root = tmp_path / "skills"
+    skill_root.mkdir()
+    artifact_source = tmp_path / "runtime-result.ics"
+    artifact_source.write_text(
+        "BEGIN:VCALENDAR\r\n"
+        "VERSION:2.0\r\n"
+        "BEGIN:VEVENT\r\n"
+        "DTSTART:20261110T100000Z\r\n"
+        "DTEND:20261110T110000Z\r\n"
+        "DESCRIPTION:Saved source artifact\r\n"
+        "END:VEVENT\r\n"
+        "END:VCALENDAR\r\n",
+        encoding="utf-8",
+    )
+    events = [
+        {
+            "type": "tool_use",
+            "name": "terminal",
+            "input": {"command": "flight_calendar_ics.py --json build --url https://example.test/booking"},
+        },
+        {
+            "type": "tool_result",
+            "name": "terminal",
+            "output": json.dumps({"output": json.dumps({"ok": True}), "exit_code": 0}),
+        },
+        {"type": "result", "text": "Done."},
+    ]
+    events[-1]["text"] = f"MEDIA:{artifact_source}"
+    stream = "\n".join(json.dumps(event) for event in events)
+    source_batch_dir = tmp_path / "source-batch"
+
+    with (
+        patch.object(module.FlightCalendarIcsConsumer, "_build_skill_root", return_value=(skill_root, {})),
+        patch.object(module.FlightCalendarIcsConsumer, "_seed_timezone_cache"),
+        patch.object(module.FlightCalendarIcsConsumer, "_make_home"),
+        patch.object(
+            module.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+        ),
+    ):
+        initial_batch = Harness(consumer).run(case, source_batch_dir)
+
+    initial = initial_batch["runs"][0]
+    run_dir = Path(initial["evidence_path"]).parent
+    source_evidence_path = Path(initial["evidence_path"])
+    original_score_path = Path(initial["score_path"])
+    source_files = {
+        "raw runtime stream": run_dir / "raw_stream.jsonl",
+        "raw runtime stderr": run_dir / "raw_stderr.txt",
+        "captured terminal answer": run_dir / "raw_final_answer.txt",
+        "execution-produced artifact": run_dir / "artifact.ics",
+        "normalized source evidence": source_evidence_path,
+        "execution metadata": run_dir / "metadata.json",
+    }
+    assert all(path.is_file() for path in source_files.values())
+    source_bytes_before = {
+        name: path.read_bytes() for name, path in source_files.items()
+    }
+    original_score_before = original_score_path.read_bytes()
+    original_report_path = Path(initial_batch["report_path"])
+    original_report_before = original_report_path.read_bytes()
+
+    for index in (1, 2):
+        output_dir = tmp_path / f"reevaluation-{index}"
+        reevaluated_batch = consumer.reevaluate_batch(
+            source_batch_dir, case, output_dir
+        )
+        reevaluated = reevaluated_batch["runs"][0]
+        evaluation_path = (
+            output_dir / "runs" / initial["run_id"] / "evaluation.json"
+        )
+
+        assert evaluation_path.is_file()
+        assert evaluation_path != source_evidence_path
+        evaluation = json.loads(evaluation_path.read_text(encoding="utf-8"))
+        assert evaluation["source_evidence"] == str(source_evidence_path)
+        assert evaluation["execution_status"] == reevaluated["execution_status"]
+        assert evaluation["score"] == reevaluated["score"]
+        assert evaluation["diagnostics"] == reevaluated["diagnostics"]
+        assert Path(reevaluated["evidence_path"]) == source_evidence_path
+        assert Path(reevaluated_batch["report_path"]).parent == output_dir
+        assert Path(reevaluated_batch["report_path"]).is_file()
+        assert Path(reevaluated_batch["report_path"]) != original_report_path
+
+        for name, path in source_files.items():
+            assert path.read_bytes() == source_bytes_before[name], name
+        assert original_score_path.read_bytes() == original_score_before
+        assert original_report_path.read_bytes() == original_report_before
+        assert json.loads(original_score_path.read_text(encoding="utf-8"))["score"] == initial["score"]
+
+
 def test_fixture_failure_is_not_reported_as_pass(tmp_path, capsys):
     consumer, _ = make_consumer()
     run_eval = load_run_eval_module()
