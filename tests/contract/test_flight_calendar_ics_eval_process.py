@@ -122,6 +122,58 @@ def test_terminal_result_survives_tool_result_in_saved_evidence(tmp_path):
     assert [attempt["success"] for attempt in run["cli_attempts"]] == [True]
 
 
+def test_terminal_result_token_fields_are_preserved_in_saved_metrics(tmp_path):
+    consumer, module = make_consumer()
+    run_eval = load_run_eval_module()
+    case = run_eval.build_case(
+        consumer.manifest,
+        EVAL,
+        runtime_version="test-runtime",
+        selected_scenarios=["url-success"],
+    )
+    case["models"] = [{"model": "test-model", "provider": "test-provider"}]
+    skill_root = tmp_path / "skills"
+    skill_root.mkdir()
+
+    token_usage = {
+        "input": 1234,
+        "output": 567,
+        "total": 2468,
+        "cache_read": 89,
+        "cache_write": 13,
+    }
+    stream = json.dumps(
+        {"type": "result", "text": "Done.", "tokens": token_usage}
+    )
+
+    with (
+        patch.object(module.FlightCalendarIcsConsumer, "_build_skill_root", return_value=(skill_root, {})),
+        patch.object(module.FlightCalendarIcsConsumer, "_seed_timezone_cache"),
+        patch.object(module.FlightCalendarIcsConsumer, "_make_home"),
+        patch.object(
+            module.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+        ),
+    ):
+        batch = Harness(consumer).run(case, tmp_path / "batch")
+
+    run = batch["runs"][0]
+    run_dir = Path(run["evidence_path"]).parent
+    saved_evidence = json.loads((run_dir / "evidence.json").read_text())
+    assert saved_evidence["metrics"]["usage"] == token_usage
+    raw_stream_path = run_dir / "raw_stream.jsonl"
+    raw_stream_before = raw_stream_path.read_bytes()
+    assert raw_stream_before == stream.encode()
+
+    reevaluated = consumer.reevaluate_batch(
+        tmp_path / "batch", case, tmp_path / "reevaluations"
+    )
+    assert reevaluated["agent_execution_count"] == 0
+    assert reevaluated["runs"][0]["metrics"]["usage"] == token_usage
+    assert raw_stream_path.read_bytes() == raw_stream_before
+
+
 def test_fixture_failure_is_not_reported_as_pass(tmp_path, capsys):
     consumer, _ = make_consumer()
     run_eval = load_run_eval_module()

@@ -123,14 +123,16 @@ class FlightCalendarIcsConsumer:
             {},
         )
         final_answer = str(result_event.get("text", ""))
-        usage = next(
-            (
-                event.get("usage")
-                for event in reversed(events)
-                if isinstance(event.get("usage"), dict)
-            ),
-            None,
-        )
+        usage = result_event.get("tokens")
+        if not isinstance(usage, dict):
+            usage = next(
+                (
+                    event.get("usage")
+                    for event in reversed(events)
+                    if isinstance(event.get("usage"), dict)
+                ),
+                None,
+            )
         terminal_commands = [
             str(use["input"].get("command", ""))
             for use in tool_uses
