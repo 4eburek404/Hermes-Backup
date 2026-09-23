@@ -5,7 +5,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+import re
+from urllib.parse import parse_qsl, urlparse
 
 from flight_calendar.errors import CliFailure
 
@@ -30,6 +31,38 @@ def first_url_from_args(args: argparse.Namespace) -> str | None:
     return url
 
 
+def _embedded_ural_route(url: str) -> str | None:
+    """Identify the carrier from the supported Ural mail wrapper without rewriting it."""
+    wrapper = urlparse(url)
+    if (
+        wrapper.scheme.lower() != "https"
+        or wrapper.netloc.lower() != "tn-hgl.mckx.ru"
+        or re.search(r"%(?![0-9a-fA-F]{2})", wrapper.query)
+    ):
+        return None
+    try:
+        parameters = parse_qsl(
+            wrapper.query,
+            keep_blank_values=True,
+            strict_parsing=True,
+            encoding="utf-8",
+            errors="strict",
+        )
+    except (UnicodeDecodeError, ValueError):
+        return None
+    if len(parameters) != 1 or parameters[0][0] != "u" or not parameters[0][1]:
+        return None
+
+    target = urlparse(parameters[0][1].strip())
+    if (
+        target.scheme.lower() == "https"
+        and target.netloc.lower() == "service.uralairlines.ru"
+        and target.path in {"", "/", "/services"}
+    ):
+        return "ural"
+    return None
+
+
 def trusted_route(url: str) -> str | None:
     """Return the carrier for a trusted scheme/host/path fingerprint only."""
     parsed = urlparse(url)
@@ -37,6 +70,10 @@ def trusted_route(url: str) -> str | None:
     path = parsed.path
     if parsed.scheme.lower() != "https":
         return None
+    if host == "click.mail.utair.io" and parsed.netloc.lower() == "click.mail.utair.io":
+        return "utair"
+    if host == "tn-hgl.mckx.ru":
+        return _embedded_ural_route(url)
     if host == "www.aeroflot.ru" and path == "/sb/pnr/app/ru-ru":
         return "aeroflot"
     if (
