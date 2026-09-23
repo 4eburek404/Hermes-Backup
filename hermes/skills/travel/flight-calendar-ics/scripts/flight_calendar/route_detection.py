@@ -35,8 +35,6 @@ def trusted_route(url: str) -> str | None:
     parsed = urlparse(url)
     host = (parsed.hostname or "").lower()
     path = parsed.path
-    if host == "click.mail.utair.io" and parsed.scheme.lower() in {"http", "https"}:
-        return "utair"
     if parsed.scheme.lower() != "https":
         return None
     if host == "www.aeroflot.ru" and path == "/sb/pnr/app/ru-ru":
