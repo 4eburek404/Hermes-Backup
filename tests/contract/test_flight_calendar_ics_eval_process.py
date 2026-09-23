@@ -174,6 +174,61 @@ def test_terminal_result_token_fields_are_preserved_in_saved_metrics(tmp_path):
     assert raw_stream_path.read_bytes() == raw_stream_before
 
 
+@pytest.mark.parametrize(
+    ("tokens", "has_output"),
+    [
+        pytest.param(
+            {"input": 91, "total": 91, "cache_read": 0, "cache_write": 0},
+            False,
+            id="output-missing",
+        ),
+        pytest.param(
+            {"input": 91, "output": 0, "total": 91, "cache_read": 0, "cache_write": 0},
+            True,
+            id="output-measured-zero",
+        ),
+    ],
+)
+def test_missing_token_metric_remains_distinct_from_measured_zero(
+    tmp_path, tokens, has_output
+):
+    consumer, module = make_consumer()
+    run_eval = load_run_eval_module()
+    case = run_eval.build_case(
+        consumer.manifest,
+        EVAL,
+        runtime_version="test-runtime",
+        selected_scenarios=["url-success"],
+    )
+    case["models"] = [{"model": "test-model", "provider": "test-provider"}]
+    skill_root = tmp_path / "skills"
+    skill_root.mkdir()
+    stream = json.dumps({"type": "result", "text": "Done.", "tokens": tokens})
+
+    with (
+        patch.object(module.FlightCalendarIcsConsumer, "_build_skill_root", return_value=(skill_root, {})),
+        patch.object(module.FlightCalendarIcsConsumer, "_seed_timezone_cache"),
+        patch.object(module.FlightCalendarIcsConsumer, "_make_home"),
+        patch.object(
+            module.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+        ),
+    ):
+        batch = Harness(consumer).run(case, tmp_path / "batch")
+
+    run = batch["runs"][0]
+    run_dir = Path(run["evidence_path"]).parent
+    saved_evidence = json.loads((run_dir / "evidence.json").read_text())
+    usage = saved_evidence["metrics"]["usage"]
+    assert saved_evidence["execution_status"] == "COMPLETED"
+    assert usage == tokens
+    assert ("output" in usage) is has_output
+    if has_output:
+        assert usage["output"] == 0
+    assert (run_dir / "raw_stream.jsonl").read_bytes() == stream.encode()
+
+
 def test_fixture_failure_is_not_reported_as_pass(tmp_path, capsys):
     consumer, _ = make_consumer()
     run_eval = load_run_eval_module()
