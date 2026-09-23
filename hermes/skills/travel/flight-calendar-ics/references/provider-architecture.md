@@ -1,9 +1,6 @@
 # Provider Architecture
 
-> Target architecture. The executable contract is
-> `specs/provider_routing_spec.py`. Until the implementation step is complete,
-> that specification is expected to be RED against code that still performs
-> common source normalization before provider dispatch.
+The executable routing contract is `specs/provider_routing_spec.py`.
 
 The booking-URL runtime has three responsibilities:
 
