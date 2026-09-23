@@ -87,14 +87,16 @@ def test_eval_owned_timeout_keeps_partial_evidence_and_continues_matrix(tmp_path
             from pathlib import Path
 
             model = sys.argv[sys.argv.index("--model") + 1]
-            if model == "timeout-model":
+            run_id = Path.cwd().parent.name
+            repeat = int(run_id.rsplit("--r", 1)[1])
+            if model == "timeout-model" and repeat == 1:
                 print(json.dumps({"type": "tool_use", "name": "terminal", "input": {"command": "partial output"}}), flush=True)
-                print(json.dumps({"type": "result", "text": "result before process hang"}), flush=True)
+                print(json.dumps({"type": "result", "text": f"partial result for {model} repeat {repeat}"}), flush=True)
                 print("partial stderr before timeout", file=sys.stderr, flush=True)
                 time.sleep(0.65)
                 Path(os.environ["EVAL_TIMEOUT_MARKER"]).write_text("process outlived deadline")
             else:
-                print(json.dumps({"type": "result", "text": "next run completed"}), flush=True)
+                print(json.dumps({"type": "result", "text": f"completed {model} repeat {repeat}"}), flush=True)
             """
         ),
         encoding="utf-8",
@@ -112,16 +114,37 @@ def test_eval_owned_timeout_keeps_partial_evidence_and_continues_matrix(tmp_path
     ):
         batch = Harness(consumer).run(case, tmp_path / "batch")
 
-    first, second = batch["runs"]
-    assert first["metrics"]["duration_seconds"] < 0.4
-    assert first["execution_status"] == "RUNTIME_FAILURE"
-    assert "timeout" in first.get("runtime_failure_reason", "").lower()
-    assert "partial output" in Path(first["raw_stream_path"]).read_text(encoding="utf-8")
-    assert "partial stderr before timeout" in Path(first["raw_stderr_path"]).read_text(encoding="utf-8")
-    assert Path(first["raw_final_answer_path"]).read_text(encoding="utf-8") == "result before process hang"
+    runs = {
+        (run["model"], run["repeat"]): run
+        for run in batch["runs"]
+    }
+    expected_runs = {
+        ("timeout-model", 1),
+        ("timeout-model", 2),
+        ("next-model", 1),
+        ("next-model", 2),
+    }
+    assert set(runs) == expected_runs
+    assert len(batch["expected_run_ids"]) == 4
+    assert set(batch["executed_run_ids"]) == set(batch["expected_run_ids"])
+    assert batch["agent_execution_count"] == 4
+
+    timed_out = runs[("timeout-model", 1)]
+    assert timed_out["metrics"]["duration_seconds"] < 0.4
+    assert timed_out["execution_status"] == "RUNTIME_FAILURE"
+    assert "timeout" in timed_out.get("runtime_failure_reason", "").lower()
+    assert "partial output" in Path(timed_out["raw_stream_path"]).read_text(encoding="utf-8")
+    assert "partial stderr before timeout" in Path(timed_out["raw_stderr_path"]).read_text(encoding="utf-8")
+    assert Path(timed_out["raw_final_answer_path"]).read_text(encoding="utf-8") == "partial result for timeout-model repeat 1"
     assert not marker.exists()
-    assert second["execution_status"] == "COMPLETED"
-    assert second["run_id"] in batch["executed_run_ids"]
+
+    for (model, repeat), run in runs.items():
+        if (model, repeat) == ("timeout-model", 1):
+            continue
+        assert run["execution_status"] == "COMPLETED"
+        assert run["run_id"] in batch["executed_run_ids"]
+        assert run["agent_started"] is True
+        assert Path(run["raw_final_answer_path"]).read_text(encoding="utf-8") == f"completed {model} repeat {repeat}"
 
 
 def test_oracles_describe_observable_renderer_contract_only():
