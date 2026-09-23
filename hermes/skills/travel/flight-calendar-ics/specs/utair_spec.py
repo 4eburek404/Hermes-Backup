@@ -156,10 +156,7 @@ class UtairCarrierSpecification(unittest.TestCase):
             headers = {"Location": UTAIR_DIRECT_URL}
 
         with tempfile.TemporaryDirectory(prefix="flight-redirect-stdout.") as tmp:
-            tmp_path = Path(tmp)
-            url_file = tmp_path / "url.txt"
-            output = tmp_path / "trip.ics"
-            url_file.write_text(UTAIR_REDIRECT_URL, encoding="utf-8")
+            output = Path(tmp) / "trip.ics"
             stdout = io.StringIO()
             stderr = io.StringIO()
             with (
@@ -180,8 +177,8 @@ class UtairCarrierSpecification(unittest.TestCase):
                     [
                         "--json",
                         "build",
-                        "--url-file",
-                        str(url_file),
+                        "--url",
+                        UTAIR_REDIRECT_URL,
                         "--output",
                         str(output),
                     ]
