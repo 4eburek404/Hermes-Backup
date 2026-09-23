@@ -3,11 +3,14 @@
 This skill has three runtime layers:
 
 - **Orchestration/router** — `scripts/flight_calendar/parser.py` accepts the
-  compact CLI sources, reads the URL, asks `route_detection.py` for a trusted
-  source fingerprint, dispatches the selected provider, then applies the
-  common itinerary contract and ICS renderer. Routing is explicit today: a
-  new provider adds one trusted fingerprint and one dispatch branch. There is
-  no registry or plugin framework.
+  compact CLI sources. Before carrier selection, `source_normalization.py`
+  may unwrap a known carrier-neutral mail wrapper into its embedded HTTPS
+  destination. Only the resulting URL is passed to `route_detection.py` for
+  carrier identification. A wrapper host or wrapper path is never itself a
+  carrier fingerprint. The selected provider then applies its carrier-specific
+  source contract, and the parser applies the common itinerary contract and
+  ICS renderer. Routing remains explicit; there is no registry or plugin
+  framework.
 - **Provider** — one module under `scripts/flight_calendar/carriers/` owns a
   carrier's URL shape, credential aliases and validation, endpoints, headers,
   query/body, authentication, multi-request protocol, recovery/cache, response
@@ -19,6 +22,11 @@ This skill has three runtime layers:
   redaction-safe transport errors.
 
 ## Provider boundary
+
+Source normalization is intentionally carrier-neutral. It may decode the
+single embedded URL from an allowlisted wrapper, but it must not inspect PNR
+fields, infer an airline from the wrapper, or perform HTTP redirects merely to
+discover the carrier. Carrier routing happens only after normalization.
 
 A provider should:
 
