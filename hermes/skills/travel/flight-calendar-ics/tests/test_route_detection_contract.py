@@ -125,16 +125,15 @@ class RouteDetectionContractTests(unittest.TestCase):
                 )
                 self.assertEqual(route["route"], expected_route)
 
-    def test_utair_mail_wrapper_is_not_a_carrier_fingerprint(self) -> None:
-        from flight_calendar.errors import CliFailure
+    def test_utair_mail_wrapper_routes_to_utair(self) -> None:
         from flight_calendar.route_detection import infer_build_route
 
-        with self.assertRaises(CliFailure) as ctx:
-            infer_build_route(
-                argparse.Namespace(url=None, url_file=None),
-                url_override="https://click.mail.utair.io/z9suvw/SYNTHETIC_TOKEN",
-            )
-        self.assertEqual(ctx.exception.code, "route_unknown")
+        route = infer_build_route(
+            argparse.Namespace(url=None, url_file=None),
+            url_override="https://click.mail.utair.io/z9suvw/SYNTHETIC_TOKEN",
+        )
+
+        self.assertEqual(route["route"], "utair")
 
     def test_ural_canonical_source_remains_ural(self) -> None:
         from flight_calendar.route_detection import infer_build_route
@@ -149,8 +148,7 @@ class RouteDetectionContractTests(unittest.TestCase):
 
         self.assertEqual(route["route"], "ural")
 
-    def test_mail_wrapper_is_not_a_carrier_fingerprint(self) -> None:
-        from flight_calendar.errors import CliFailure
+    def test_ural_mail_wrapper_routes_by_embedded_carrier_destination(self) -> None:
         from flight_calendar.route_detection import infer_build_route
 
         target = (
@@ -161,12 +159,12 @@ class RouteDetectionContractTests(unittest.TestCase):
             "https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/"
             f"?u={quote(target, safe='')}"
         )
-        with self.assertRaises(CliFailure) as ctx:
-            infer_build_route(
-                argparse.Namespace(url=None, url_file=None),
-                url_override=wrapper,
-            )
-        self.assertEqual(ctx.exception.code, "route_unknown")
+        route = infer_build_route(
+            argparse.Namespace(url=None, url_file=None),
+            url_override=wrapper,
+        )
+
+        self.assertEqual(route["route"], "ural")
 
     def test_redwings_canonical_find_source_remains_redwings(self) -> None:
         from flight_calendar.route_detection import infer_build_route
