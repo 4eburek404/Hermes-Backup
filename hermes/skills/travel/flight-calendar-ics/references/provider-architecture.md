@@ -4,9 +4,9 @@ This skill has three runtime layers:
 
 - **Orchestration/router** — `scripts/flight_calendar/parser.py` accepts the
   compact CLI sources. Before carrier selection, `source_normalization.py`
-  may unwrap a known carrier-neutral mail wrapper into its embedded HTTPS
-  destination. Only the resulting URL is passed to `route_detection.py` for
-  carrier identification. A wrapper host or wrapper path is never itself a
+  may unwrap an embedded destination or resolve one allowlisted opaque mail
+  wrapper to reveal its HTTPS destination. Only the resulting URL is passed to
+  `route_detection.py` for carrier identification. A wrapper host or wrapper path is never itself a
   carrier fingerprint. The selected provider then applies its carrier-specific
   source contract, and the parser applies the common itinerary contract and
   ICS renderer. Routing remains explicit; there is no registry or plugin
@@ -24,9 +24,10 @@ This skill has three runtime layers:
 ## Provider boundary
 
 Source normalization is intentionally carrier-neutral. It may decode the
-single embedded URL from an allowlisted wrapper, but it must not inspect PNR
-fields, infer an airline from the wrapper, or perform HTTP redirects merely to
-discover the carrier. Carrier routing happens only after normalization.
+single embedded URL from an allowlisted wrapper. When an allowlisted wrapper
+is opaque, it may perform the minimum redirect lookup needed to reveal one
+destination URL. It must not inspect PNR fields or infer an airline from the
+wrapper. Carrier routing happens only after normalization.
 
 A provider should:
 
@@ -57,8 +58,7 @@ complex:
 - Aeroflot's PNR payload and anti-bot HTML handling;
 - Ural deployment discovery, generated API key, clock synchronization, and
   cached-auth recovery;
-- Utair OAuth followed by the orders lookup, plus the allowlisted Utair
-  mail-click redirect;
+- Utair OAuth followed by the orders lookup;
 - Red Wings' GraphQL operation and access-key payload;
 - S7's auto-submit form, same-session POST, and `__r_airs_data` extraction.
 
