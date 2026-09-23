@@ -1,7 +1,7 @@
 ---
 name: flight-calendar-ics
 description: Create an importable .ics calendar file from a supported airline booking URL or a flight ticket PDF.
-version: 3.05
+version: 3.06
 metadata:
   hermes:
     category: travel
