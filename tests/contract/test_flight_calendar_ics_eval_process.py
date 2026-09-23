@@ -6,6 +6,8 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from evals.harness.core import Harness
 from evals.harness.report import render_report
 
@@ -169,6 +171,67 @@ def test_tool_result_without_terminal_result_is_not_terminal_evidence(tmp_path):
     assert saved_evidence["tool_uses"][0]["name"] == "terminal"
     assert saved_evidence["cli_attempts"][0]["success"] is True
     assert saved_evidence["execution_status"] == "RUNTIME_FAILURE"
+
+
+@pytest.mark.parametrize(
+    ("has_terminal_result", "expected_status"),
+    [(True, "AGENT_FAILURE"), (False, "RUNTIME_FAILURE")],
+)
+def test_nonzero_exit_status_matches_saved_evidence_reevaluation(
+    tmp_path, has_terminal_result, expected_status
+):
+    consumer, module = make_consumer()
+    run_eval = load_run_eval_module()
+    case = run_eval.build_case(
+        consumer.manifest,
+        EVAL,
+        runtime_version="test-runtime",
+        selected_scenarios=["url-success"],
+    )
+    case["models"] = [{"model": "test-model", "provider": "test-provider"}]
+    skill_root = tmp_path / "skills"
+    skill_root.mkdir()
+
+    final_answer = "The agent could not complete this request." if has_terminal_result else ""
+    command = "flight_calendar_ics.py --json build --url https://example.test/booking"
+    events = [
+        {"type": "tool_use", "name": "terminal", "input": {"command": command}},
+        {
+            "type": "tool_result",
+            "name": "terminal",
+            "output": json.dumps(
+                {"output": json.dumps({"ok": False}), "exit_code": 1}
+            ),
+        },
+    ]
+    if has_terminal_result:
+        events.append({"type": "result", "text": final_answer})
+    stream = "\n".join(json.dumps(event) for event in events)
+
+    with (
+        patch.object(module.FlightCalendarIcsConsumer, "_build_skill_root", return_value=(skill_root, {})),
+        patch.object(module.FlightCalendarIcsConsumer, "_seed_timezone_cache"),
+        patch.object(module.FlightCalendarIcsConsumer, "_make_home"),
+        patch.object(
+            module.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess([], 1, stdout=stream, stderr=""),
+        ),
+    ):
+        batch = Harness(consumer).run(case, tmp_path / "batch")
+
+    initial = batch["runs"][0]
+    run_dir = Path(initial["evidence_path"]).parent
+    saved_evidence = json.loads((run_dir / "evidence.json").read_text())
+    reevaluated = consumer.reevaluate_batch(
+        tmp_path / "batch", case, tmp_path / "reevaluations"
+    )["runs"][0]
+    assert reevaluated["execution_status"] == initial["execution_status"]
+    assert initial["execution_status"] == expected_status
+    assert saved_evidence["event_summary"]["has_result"] is has_terminal_result
+    assert saved_evidence["final_answer"] == final_answer
+    assert len(saved_evidence["cli_attempts"]) == 1
+    assert reevaluated["final_answer"] == initial["final_answer"]
 
 
 def test_agent_failure_with_real_result_is_not_runtime_failure():

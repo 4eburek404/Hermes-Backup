@@ -662,11 +662,6 @@ class FlightCalendarIcsConsumer:
 
             return {
                 **metadata,
-                "execution_status": (
-                    "COMPLETED"
-                    if proc.returncode == 0 and summary["has_result"]
-                    else "RUNTIME_FAILURE"
-                ),
                 "final_answer": final_answer,
                 "tool_uses": summary["tool_uses"],
                 "tool_names": summary["tool_names"],
