@@ -5,22 +5,59 @@ from __future__ import annotations
 import re
 from urllib.parse import parse_qsl, urlparse
 
+from flight_calendar import carrier_http
 from flight_calendar.errors import CliFailure
 
 
-MAIL_WRAPPER_HOST = "tn-hgl.mckx.ru"
+EMBEDDED_URL_WRAPPER_HOST = "tn-hgl.mckx.ru"
+REDIRECT_URL_WRAPPER_HOST = "click.mail.utair.io"
 
 
 def normalize_url_source(raw_url: str) -> str:
     """Return the embedded HTTPS URL for a known mail wrapper, otherwise input."""
     source = raw_url.strip()
     wrapper = urlparse(source)
-    if (wrapper.hostname or "").lower() != MAIL_WRAPPER_HOST:
+    host = (wrapper.hostname or "").lower()
+
+    if host == REDIRECT_URL_WRAPPER_HOST:
+        if (
+            wrapper.scheme.lower() != "https"
+            or wrapper.netloc.lower() != REDIRECT_URL_WRAPPER_HOST
+        ):
+            raise CliFailure(
+                "known booking redirect must use HTTPS",
+                code="redirect_resolution_failed",
+            )
+        try:
+            target = carrier_http.resolve_redirect_url(
+                source,
+                label="known booking redirect",
+            )
+        except carrier_http.TransportError as exc:
+            raise CliFailure(
+                "known booking redirect could not be resolved",
+                code="redirect_resolution_failed",
+            ) from exc
+
+        parsed_target = urlparse(target)
+        if (
+            parsed_target.scheme.lower() != "https"
+            or not parsed_target.hostname
+            or parsed_target.username is not None
+            or parsed_target.password is not None
+        ):
+            raise CliFailure(
+                "known booking redirect has an invalid destination",
+                code="redirect_resolution_failed",
+            )
+        return target
+
+    if host != EMBEDDED_URL_WRAPPER_HOST:
         return source
 
     if (
         wrapper.scheme.lower() != "https"
-        or wrapper.netloc.lower() != MAIL_WRAPPER_HOST
+        or wrapper.netloc.lower() != EMBEDDED_URL_WRAPPER_HOST
         or re.search(r"%(?![0-9a-fA-F]{2})", wrapper.query)
     ):
         raise CliFailure("booking URL wrapper is invalid", code="route_unknown")
