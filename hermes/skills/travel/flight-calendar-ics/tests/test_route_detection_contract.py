@@ -114,7 +114,6 @@ class RouteDetectionContractTests(unittest.TestCase):
         cases = (
             ("https://service.uralairlines.ru/", "ural"),
             ("https://www.utair.ru/order-manage", "utair"),
-            ("https://click.mail.utair.io/z9suvw/fixture-token", "utair"),
             ("https://flyredwings.com/booking/", "redwings"),
             ("https://myb.s7.ru/myb/manage-order", "s7"),
         )
@@ -125,6 +124,17 @@ class RouteDetectionContractTests(unittest.TestCase):
                     url_override=url,
                 )
                 self.assertEqual(route["route"], expected_route)
+
+    def test_utair_mail_wrapper_is_not_a_carrier_fingerprint(self) -> None:
+        from flight_calendar.errors import CliFailure
+        from flight_calendar.route_detection import infer_build_route
+
+        with self.assertRaises(CliFailure) as ctx:
+            infer_build_route(
+                argparse.Namespace(url=None, url_file=None),
+                url_override="https://click.mail.utair.io/z9suvw/SYNTHETIC_TOKEN",
+            )
+        self.assertEqual(ctx.exception.code, "route_unknown")
 
     def test_ural_canonical_source_remains_ural(self) -> None:
         from flight_calendar.route_detection import infer_build_route
