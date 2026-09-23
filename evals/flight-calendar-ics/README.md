@@ -14,7 +14,7 @@ Scenarios:
 
 The provider/model order is contractual:
 
-1. GPT-5.6 Luna — `gpt-5.6-luna` / `openai-codex`;
+1. GPT-6 Luna — `gpt-6-luna` / `openai-codex`;
 2. Neural Deep — Qwen 3.8 27B — `qwen3.8-27b` / `custom:neuraldeep`;
 3. Ollama Cloud — Nemotron 3 Super — `nemotron-3-super` / `ollama-cloud`.
 

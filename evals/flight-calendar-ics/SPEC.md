@@ -7,7 +7,7 @@ ref `update/flight-calendar-ics`. The configured manifest contains three
 scenarios, one repeat, and nine configured agent runs: each scenario executes on
 these three provider/model pairs in order:
 
-- GPT-5.6 Luna: `gpt-5.6-luna` / `openai-codex`;
+- GPT-6 Luna: `gpt-6-luna` / `openai-codex`;
 - Neural Deep — Qwen 3.8 27B: `qwen3.8-27b` / `custom:neuraldeep`;
 - Ollama Cloud — Nemotron 3 Super: `nemotron-3-super` / `ollama-cloud`.
 
