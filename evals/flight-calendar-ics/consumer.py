@@ -122,6 +122,7 @@ class FlightCalendarIcsConsumer:
             (event for event in reversed(events) if event.get("type") == "result"),
             {},
         )
+        final_answer = str(result_event.get("text", ""))
         usage = next(
             (
                 event.get("usage")
@@ -174,7 +175,7 @@ class FlightCalendarIcsConsumer:
             "cli_attempts": cli_attempts,
             "successful_cli_index": successful_cli_index,
             "has_result": bool(result_event),
-            "final_answer": str(result_event.get("text", "")),
+            "final_answer": final_answer,
             "usage": usage,
         }
     @staticmethod

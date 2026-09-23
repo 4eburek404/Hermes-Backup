@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
 from evals.harness.core import Harness
 from evals.harness.report import render_report
@@ -66,6 +68,56 @@ def test_cli_result_parser_distinguishes_failed_and_successful_attempts():
     summary = module.FlightCalendarIcsConsumer._event_summary(stream)
     assert [item["success"] for item in summary["cli_attempts"]] == [False, True]
     assert summary["successful_cli_index"] is not None
+
+
+def test_terminal_result_survives_tool_result_in_saved_evidence(tmp_path):
+    consumer, module = make_consumer()
+    run_eval = load_run_eval_module()
+    case = run_eval.build_case(
+        consumer.manifest,
+        EVAL,
+        runtime_version="test-runtime",
+        selected_scenarios=["url-success"],
+    )
+    case["models"] = [{"model": "test-model", "provider": "test-provider"}]
+    skill_root = tmp_path / "skills"
+    skill_root.mkdir()
+
+    terminal_text = "MEDIA:/tmp/result.ics"
+    command = "flight_calendar_ics.py --json build --url https://example.test/booking"
+    stream = "\n".join(
+        json.dumps(event)
+        for event in (
+            {"type": "tool_use", "name": "terminal", "input": {"command": command}},
+            {
+                "type": "tool_result",
+                "name": "terminal",
+                "output": json.dumps(
+                    {"output": json.dumps({"ok": True, "media": terminal_text}), "exit_code": 0}
+                ),
+            },
+            {"type": "result", "text": terminal_text},
+        )
+    )
+
+    with (
+        patch.object(module.FlightCalendarIcsConsumer, "_build_skill_root", return_value=(skill_root, {})),
+        patch.object(module.FlightCalendarIcsConsumer, "_seed_timezone_cache"),
+        patch.object(module.FlightCalendarIcsConsumer, "_make_home"),
+        patch.object(
+            module.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+        ),
+    ):
+        batch = Harness(consumer).run(case, tmp_path / "batch")
+
+    run = batch["runs"][0]
+    run_dir = Path(run["evidence_path"]).parent
+    saved_evidence = json.loads((run_dir / "evidence.json").read_text())
+    assert saved_evidence["final_answer"] == terminal_text
+    assert (run_dir / "raw_final_answer.txt").read_text() == terminal_text
+    assert [attempt["success"] for attempt in run["cli_attempts"]] == [True]
 
 
 def test_agent_failure_with_real_result_is_not_runtime_failure():
