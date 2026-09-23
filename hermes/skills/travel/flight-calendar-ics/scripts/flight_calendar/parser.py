@@ -17,7 +17,6 @@ from flight_calendar import ics_render, itinerary_contract, timezone_catalog
 from flight_calendar.carriers import aeroflot, redwings, s7, ural, utair
 from flight_calendar.errors import CliFailure
 from flight_calendar.route_detection import first_url_from_args, infer_build_route
-from flight_calendar.source_normalization import normalize_url_source
 
 
 PUBLIC_USAGE = "use --json build with exactly one source: --url, --url-file, or --input"
@@ -92,21 +91,20 @@ def _source_args_for_url_file(url_file: Path) -> argparse.Namespace:
 def _build_itinerary_from_url(
     raw_url: str, tz_items: list[str]
 ) -> dict[str, Any]:
-    booking_url = normalize_url_source(raw_url)
-    source_args = argparse.Namespace(url=booking_url, url_file=None)
+    source_args = argparse.Namespace(url=raw_url, url_file=None)
     route = str(infer_build_route(source_args)["route"])
 
     tz_map = build_timezone_map(parse_cli_tz_overrides(tz_items))
     if route == "aeroflot":
-        itinerary = aeroflot.build_itinerary(booking_url)
+        itinerary = aeroflot.build_itinerary(raw_url)
     elif route == "ural":
-        itinerary = ural.build_itinerary(booking_url)
+        itinerary = ural.build_itinerary(raw_url)
     elif route == "utair":
-        itinerary = utair.build_itinerary(booking_url)
+        itinerary = utair.build_itinerary(raw_url)
     elif route == "redwings":
-        itinerary = redwings.build_itinerary(booking_url)
+        itinerary = redwings.build_itinerary(raw_url)
     elif route == "s7":
-        itinerary = s7.build_itinerary(booking_url)
+        itinerary = s7.build_itinerary(raw_url)
     else:
         raise CliFailure("unsupported booking URL route", code="route_unknown")
     return validate_itinerary_contract(itinerary, tz_map)
