@@ -75,7 +75,7 @@ def build_case(
         "scenarios": scenarios,
         "models": models,
         "skill_versions": ["candidate"],
-        "repeats": 1,
+        "repeats": manifest["repeats"],
         "fixture_version": first["fixture_version"],
         "prompt_version": first["prompt_version"],
         "scenario_metadata": metadata,
