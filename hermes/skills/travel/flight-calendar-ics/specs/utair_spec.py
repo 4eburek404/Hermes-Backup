@@ -50,6 +50,9 @@ UTAIR_DIRECT_URL = (
     + "/order-manage?rloc=ABC123&last_name=EXAMPLE"
     + "&utm_source=mail&utm_campaign=booking"
 )
+UTAIR_CANONICAL_URL = (
+    UTAIR_WEB_BASE + "/order-manage?rloc=ABC123&last_name=EXAMPLE"
+)
 # Sanitized shape observed in the second, direct-from-site URL.
 UTAIR_SITE_DIRECT_URL = (
     UTAIR_WEB_BASE
@@ -106,34 +109,43 @@ def fixture_http_response(observed: list[dict[str, Any]]):
 class UtairCarrierSpecification(unittest.TestCase):
     """Behavior required from supported Utair booking URLs."""
 
-    def test_redirect_url_routes_and_normalizes_credentials(self) -> None:
-        """The real click-mail shape resolves to the Utair manage URL contract."""
-        from flight_calendar.carriers.utair import resolve_utair_booking_redirect
-        from flight_calendar.route_detection import infer_build_route
+    def test_mail_redirect_is_normalized_before_carrier_routing(self) -> None:
+        """The opaque mail link resolves first; only its destination identifies Utair."""
         from flight_calendar import carrier_http
         from flight_calendar.carriers import utair
+        from flight_calendar.errors import CliFailure
+        from flight_calendar.route_detection import infer_build_route
+        from flight_calendar.source_normalization import normalize_url_source
 
         class FakeResponse:
             status_code = 307
             headers = {"Location": UTAIR_DIRECT_URL}
+
+        with self.assertRaises(CliFailure) as ctx:
+            infer_build_route(
+                argparse.Namespace(url=None, url_file=None),
+                url_override=UTAIR_REDIRECT_URL,
+            )
+        self.assertEqual(ctx.exception.code, "route_unknown")
 
         with mock.patch.object(
             carrier_http._requests,
             "request",
             return_value=FakeResponse(),
         ):
-            resolved_url = resolve_utair_booking_redirect(UTAIR_REDIRECT_URL)
+            resolved_url = normalize_url_source(UTAIR_REDIRECT_URL)
 
-        self.assertEqual(urlparse(resolved_url).hostname, "www.utair.ru")
+        self.assertEqual(resolved_url, UTAIR_DIRECT_URL)
         route = infer_build_route(
             argparse.Namespace(url=None, url_file=None), url_override=resolved_url
         )
         self.assertEqual(route["route"], "utair")
 
-        locator, surname, normalized_url = utair.parse_utair_source(resolved_url)
+        locator, surname, canonical_url = utair.parse_utair_source(resolved_url)
         self.assertEqual(locator, EXPECTED_LOCATOR)
         self.assertEqual(surname, EXPECTED_SURNAME)
-        self.assertEqual(normalized_url, UTAIR_DIRECT_URL)
+        self.assertEqual(canonical_url, UTAIR_CANONICAL_URL)
+
 
     def test_public_redirect_url_builds_valid_ics_without_private_output(self) -> None:
         """The public CLI completes the real redirect-to-ICS Utair flow."""
@@ -189,6 +201,11 @@ class UtairCarrierSpecification(unittest.TestCase):
                 ics_text, expected_events=payload["segments_count"]
             )
             self.assertEqual(ics_text.count("BEGIN:VEVENT"), payload["segments_count"])
+            unfolded = ics_text.replace("\n ", "")
+            self.assertIn(UTAIR_CANONICAL_URL, unfolded)
+            self.assertNotIn("click.mail.utair.io", unfolded)
+            self.assertNotIn("utm_source=", unfolded)
+            self.assertNotIn("utm_campaign=", unfolded)
 
         emitted = stdout.getvalue() + stderr.getvalue()
         for private_value in (
@@ -244,14 +261,12 @@ class UtairCarrierSpecification(unittest.TestCase):
         ):
             self.assertNotIn(private_value, emitted)
 
-    def test_direct_site_url_routes_without_redirect_and_normalizes_credentials(
-        self,
-    ) -> None:
-        """The observed site URL is already a carrier booking URL."""
+    def test_direct_site_url_routes_without_redirect_and_canonicalizes(self) -> None:
+        """The observed direct URL routes immediately and drops tracking parameters."""
         from flight_calendar import carrier_http
         from flight_calendar.carriers import utair
         from flight_calendar.route_detection import infer_build_route
-        from flight_calendar.carriers.utair import resolve_utair_booking_redirect
+        from flight_calendar.source_normalization import normalize_url_source
 
         parsed = urlparse(UTAIR_SITE_DIRECT_URL)
         self.assertEqual(parsed.hostname, "www.utair.ru")
@@ -265,17 +280,21 @@ class UtairCarrierSpecification(unittest.TestCase):
             "resolve_redirect_url",
             side_effect=AssertionError("direct Utair URL must not be fetched"),
         ):
-            resolved_url = resolve_utair_booking_redirect(UTAIR_SITE_DIRECT_URL)
+            source_url = normalize_url_source(UTAIR_SITE_DIRECT_URL)
 
-        self.assertEqual(resolved_url, UTAIR_SITE_DIRECT_URL)
+        self.assertEqual(source_url, UTAIR_SITE_DIRECT_URL)
         route = infer_build_route(
-            argparse.Namespace(url=None, url_file=None), url_override=resolved_url
+            argparse.Namespace(url=None, url_file=None), url_override=source_url
         )
         self.assertEqual(route["route"], "utair")
-        locator, surname, normalized_url = utair.parse_utair_source(resolved_url)
+        locator, surname, canonical_url = utair.parse_utair_source(source_url)
         self.assertEqual(locator, "SITE123")
         self.assertEqual(surname, "EXAMPLE")
-        self.assertEqual(normalized_url, UTAIR_SITE_DIRECT_URL)
+        self.assertEqual(
+            canonical_url,
+            UTAIR_WEB_BASE + "/order-manage?rloc=SITE123&last_name=EXAMPLE",
+        )
+
 
     def test_oauth_and_orders_requests_follow_the_real_api_contract(self) -> None:
         """Production request construction uses the observed OAuth and orders API."""
@@ -334,7 +353,7 @@ class UtairCarrierSpecification(unittest.TestCase):
         api_response = json.loads(UTAIR_FIXTURE_TEXT)
         itinerary = utair.convert_to_itinerary(
             api_response,
-            booking_url=UTAIR_DIRECT_URL,
+            booking_url=UTAIR_CANONICAL_URL,
         )
 
         itinerary_contract.validate_itinerary_schema(itinerary)
@@ -345,7 +364,7 @@ class UtairCarrierSpecification(unittest.TestCase):
         self.assertEqual(itinerary["pnr"], EXPECTED_LOCATOR)
         self.assertEqual(itinerary["passenger"], "EXAMPLE TEST")
         self.assertEqual(itinerary["ticket_number"], "0000000000000")
-        self.assertEqual(itinerary["booking_url"], UTAIR_DIRECT_URL)
+        self.assertEqual(itinerary["booking_url"], UTAIR_CANONICAL_URL)
 
         self.assertEqual(
             itinerary["flights"],
