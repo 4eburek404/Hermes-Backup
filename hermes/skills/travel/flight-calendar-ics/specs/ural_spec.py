@@ -675,7 +675,7 @@ class UralCliPrivacySpecification(unittest.TestCase):
             ),
             (
                 "https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/?u="
-                + quote(valid_target.replace("/?pnr=", "/unsupported?pnr="), safe=""),
+                + quote(valid_target.replace("/services?pnr=", "/unsupported?pnr="), safe=""),
                 "route_unknown",
             ),
             (
