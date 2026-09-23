@@ -261,6 +261,51 @@ class UtairCarrierSpecification(unittest.TestCase):
         ):
             self.assertNotIn(private_value, emitted)
 
+    def test_mail_redirect_destination_is_routed_after_resolution(self) -> None:
+        """A known wrapper does not make an unsupported destination into Utair."""
+        from flight_calendar import carrier_http, parser
+
+        class RedirectResponse:
+            status_code = 307
+            headers = {
+                "Location": (
+                    "https://evil.example/order-manage"
+                    "?rloc=ABC123&last_name=EXAMPLE"
+                )
+            }
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(
+                carrier_http._requests,
+                "request",
+                return_value=RedirectResponse(),
+            ),
+            mock.patch.object(
+                carrier_http,
+                "request_raw",
+                side_effect=AssertionError(
+                    "unsupported redirect destination must not reach provider transport"
+                ),
+            ),
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
+        ):
+            code = parser.main(
+                ["--json", "build", "--url", UTAIR_REDIRECT_URL]
+            )
+
+        self.assertEqual(code, 2, stdout.getvalue() + stderr.getvalue())
+        payload = json.loads(stdout.getvalue())
+        assert_valid_cli_envelope(self, payload)
+        self.assertIs(payload["ok"], False)
+        self.assertEqual(payload["error"]["code"], "route_unknown")
+        emitted = stdout.getvalue() + stderr.getvalue()
+        self.assertNotIn("evil.example", emitted)
+        self.assertNotIn("ABC123", emitted)
+        self.assertNotIn("EXAMPLE", emitted)
+
     def test_direct_site_url_routes_without_redirect_and_canonicalizes(self) -> None:
         """The observed direct URL routes immediately and drops tracking parameters."""
         from flight_calendar import carrier_http
