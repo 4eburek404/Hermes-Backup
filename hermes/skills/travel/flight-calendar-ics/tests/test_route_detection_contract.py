@@ -132,12 +132,31 @@ class RouteDetectionContractTests(unittest.TestCase):
         route = infer_build_route(
             argparse.Namespace(url=None, url_file=None),
             url_override=(
-                "https://service.uralairlines.ru/"
+                "https://service.uralairlines.ru/services"
                 "?pnr=ABC123&lastName=IVANOV"
             ),
         )
 
         self.assertEqual(route["route"], "ural")
+
+    def test_mail_wrapper_is_not_a_carrier_fingerprint(self) -> None:
+        from flight_calendar.errors import CliFailure
+        from flight_calendar.route_detection import infer_build_route
+
+        target = (
+            "https://service.uralairlines.ru/services"
+            "?pnr=ABC123&lastName=IVANOV"
+        )
+        wrapper = (
+            "https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/"
+            f"?u={quote(target, safe='')}"
+        )
+        with self.assertRaises(CliFailure) as ctx:
+            infer_build_route(
+                argparse.Namespace(url=None, url_file=None),
+                url_override=wrapper,
+            )
+        self.assertEqual(ctx.exception.code, "route_unknown")
 
     def test_redwings_canonical_find_source_remains_redwings(self) -> None:
         from flight_calendar.route_detection import infer_build_route
