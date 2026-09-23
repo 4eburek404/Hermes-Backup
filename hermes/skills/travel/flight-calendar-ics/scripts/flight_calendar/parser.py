@@ -17,6 +17,7 @@ from flight_calendar import ics_render, itinerary_contract, timezone_catalog
 from flight_calendar.carriers import aeroflot, redwings, s7, ural, utair
 from flight_calendar.errors import CliFailure
 from flight_calendar.route_detection import first_url_from_args, infer_build_route
+from flight_calendar.source_normalization import normalize_url_source
 
 
 PUBLIC_USAGE = "use --json build with exactly one source: --url, --url-file, or --input"
@@ -91,7 +92,7 @@ def _source_args_for_url_file(url_file: Path) -> argparse.Namespace:
 def _build_itinerary_from_url(
     raw_url: str, tz_items: list[str]
 ) -> dict[str, Any]:
-    booking_url = raw_url.strip()
+    booking_url = normalize_url_source(raw_url)
     source_args = argparse.Namespace(url=booking_url, url_file=None)
     route = str(infer_build_route(source_args)["route"])
 
