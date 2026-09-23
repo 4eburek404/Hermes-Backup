@@ -106,8 +106,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _result_label(run: dict) -> str:
-    if run.get("execution_status") == "RUNTIME_FAILURE":
-        return "RUNTIME_FAILURE"
+    if run.get("execution_status") in {
+        "RUNTIME_FAILURE",
+        "SETUP_FAILURE",
+        "FIXTURE_FAILURE",
+    }:
+        return run["execution_status"]
     score = run.get("score") or {}
     if any(value in {"FAIL", "ERROR"} for value in score.values()):
         return "FAIL"

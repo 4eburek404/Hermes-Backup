@@ -122,6 +122,38 @@ def test_terminal_result_survives_tool_result_in_saved_evidence(tmp_path):
     assert [attempt["success"] for attempt in run["cli_attempts"]] == [True]
 
 
+def test_fixture_failure_is_not_reported_as_pass(tmp_path, capsys):
+    consumer, _ = make_consumer()
+    run_eval = load_run_eval_module()
+    case = run_eval.build_case(
+        consumer.manifest,
+        EVAL,
+        runtime_version="test-runtime",
+        selected_scenarios=["url-success"],
+    )
+    case["models"] = [{"model": "test-model", "provider": "test-provider"}]
+    case["scenario_metadata"]["url-success"]["fixture_version"] = "stale-fixture-identity"
+
+    batch = Harness(consumer).run(
+        case, tmp_path / "batch", progress=run_eval._progress
+    )
+    run = batch["runs"][0]
+    progress = capsys.readouterr().out
+
+    assert run["execution_status"] == "FIXTURE_FAILURE"
+    assert run["comparable"] is False
+    assert run["agent_started"] is False
+    assert batch["agent_execution_count"] == 0
+    assert run["score"] == {
+        "outcome": "UNDEFINED",
+        "trajectory": "UNDEFINED",
+        "privacy": "UNDEFINED",
+    }
+    assert run_eval._result_label(run) == "FIXTURE_FAILURE"
+    assert "FIXTURE_FAILURE" in progress
+    assert "PASS" not in progress
+
+
 def test_tool_result_without_terminal_result_is_not_terminal_evidence(tmp_path):
     consumer, module = make_consumer()
     run_eval = load_run_eval_module()
