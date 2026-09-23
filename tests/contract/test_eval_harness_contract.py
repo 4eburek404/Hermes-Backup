@@ -13,6 +13,10 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
+
+from evals.harness import core
+from evals.harness.report import write_report
 
 
 SUBJECT_MODULE = "evals.harness.contract_subject"
@@ -336,6 +340,65 @@ class EvalHarnessContract(unittest.TestCase):
             self.assertIn("URL integrity", report)
             self.assertIn("- model-a: 1/1 exact", report)
             self.assertNotIn("model-a: 1/2 exact", report)
+
+    def test_es20_report_regeneration_is_presentation_only(self) -> None:
+        subject = load_subject()
+        case = base_case()
+        behavior = case["behaviors"]["scenario-a"]
+        behavior["tool_calls"] = ["required_cli", "browser"]
+        behavior["final_answer"] = "done FIXTURE_SECRET_7F3C"
+        behavior["metrics"] = {"tool_calls": 2, "duration_seconds": 12.5}
+        behavior["report_facts"] = {"CLI": 1, "URL": "exact"}
+        case["rules"]["scenario-a"]["privacy"]["forbidden_markers"] = [
+            "FIXTURE_SECRET_7F3C"
+        ]
+
+        with tempfile.TemporaryDirectory(prefix="eval-harness-es20-") as temp:
+            output_dir = Path(temp)
+            batch = subject.run_case(case, output_dir)
+            persisted_batch_path = output_dir / "batch_manifest.json"
+            persisted_batch = json.loads(persisted_batch_path.read_text(encoding="utf-8"))
+            run = only_run(persisted_batch)
+            self.assertEqual("COMPLETED", run["execution_status"])
+            self.assertEqual(
+                {"outcome": "PASS", "trajectory": "FAIL", "privacy": "FAIL"},
+                run["score"],
+            )
+            self.assertEqual("FAIL", run["diagnostics"]["trajectory"]["status"])
+            self.assertEqual("FAIL", run["diagnostics"]["privacy"]["status"])
+
+            saved_paths = [
+                persisted_batch_path,
+                Path(run["evidence_path"]),
+                Path(run["score_path"]),
+            ]
+            before = {path: path.read_bytes() for path in saved_paths}
+            report_path = Path(batch["report_path"])
+
+            def forbidden(*args: Any, **kwargs: Any) -> Any:
+                raise AssertionError("presentation attempted evaluation, execution, or evidence I/O")
+
+            consumer = subject._last_harness.consumer
+            with (
+                patch.object(consumer, "execute", side_effect=forbidden),
+                patch.object(consumer, "evaluate_dimension", side_effect=forbidden),
+                patch.object(core, "evaluate_dimension_details", side_effect=forbidden),
+                patch.object(core, "_read_json", side_effect=forbidden),
+                patch.object(core, "_write_json", side_effect=forbidden),
+                patch("subprocess.Popen", side_effect=forbidden),
+                patch.object(Path, "read_text", side_effect=forbidden),
+            ):
+                generated_path = write_report(persisted_batch, case, output_dir)
+
+            self.assertEqual(report_path, generated_path)
+            self.assertTrue(report_path.is_file())
+            report = report_path.read_text(encoding="utf-8")
+            self.assertIn("| model-a | FAIL · 12.5 сек |", report)
+            self.assertIn("| model-a | 1/1 | 0/1 | 0/1 |", report)
+            self.assertIn("CLI calls: 1; URL: exact", report)
+            self.assertIn("Trajectory: FAIL —", report)
+            self.assertIn("Privacy: FAIL —", report)
+            self.assertEqual(before, {path: path.read_bytes() for path in saved_paths})
 
 
 if __name__ == "__main__":
