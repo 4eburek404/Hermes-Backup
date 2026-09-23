@@ -344,6 +344,11 @@ class EvalHarnessContract(unittest.TestCase):
     def test_es20_report_regeneration_is_presentation_only(self) -> None:
         subject = load_subject()
         case = base_case()
+        case["scenarios"] = ["scenario-a", "scenario-runtime-failure"]
+        case["behaviors"]["scenario-runtime-failure"] = {
+            "execution": "runtime_failure",
+        }
+        case["rules"]["scenario-runtime-failure"] = case["rules"]["scenario-a"].copy()
         behavior = case["behaviors"]["scenario-a"]
         behavior["tool_calls"] = ["required_cli", "browser"]
         behavior["final_answer"] = "done FIXTURE_SECRET_7F3C"
@@ -358,20 +363,22 @@ class EvalHarnessContract(unittest.TestCase):
             batch = subject.run_case(case, output_dir)
             persisted_batch_path = output_dir / "batch_manifest.json"
             persisted_batch = json.loads(persisted_batch_path.read_text(encoding="utf-8"))
-            run = only_run(persisted_batch)
+            runs = {run["scenario"]: run for run in persisted_batch["runs"]}
+            run = runs["scenario-a"]
             self.assertEqual("COMPLETED", run["execution_status"])
             self.assertEqual(
                 {"outcome": "PASS", "trajectory": "FAIL", "privacy": "FAIL"},
                 run["score"],
             )
+            self.assertEqual("RUNTIME_FAILURE", runs["scenario-runtime-failure"]["execution_status"])
             self.assertEqual("FAIL", run["diagnostics"]["trajectory"]["status"])
             self.assertEqual("FAIL", run["diagnostics"]["privacy"]["status"])
 
-            saved_paths = [
-                persisted_batch_path,
-                Path(run["evidence_path"]),
-                Path(run["score_path"]),
-            ]
+            saved_paths = [persisted_batch_path]
+            for persisted_run in runs.values():
+                saved_paths.extend(
+                    [Path(persisted_run["evidence_path"]), Path(persisted_run["score_path"])]
+                )
             before = {path: path.read_bytes() for path in saved_paths}
             report_path = Path(batch["report_path"])
 
@@ -393,8 +400,9 @@ class EvalHarnessContract(unittest.TestCase):
             self.assertEqual(report_path, generated_path)
             self.assertTrue(report_path.is_file())
             report = report_path.read_text(encoding="utf-8")
-            self.assertIn("| model-a | FAIL · 12.5 сек |", report)
-            self.assertIn("| model-a | 1/1 | 0/1 | 0/1 |", report)
+            self.assertIn("FAIL · 12.5 сек | RUNTIME_FAILURE · —", report)
+            self.assertIn("| model-a | 1/2 | 0/2 | 0/2 |", report)
+            self.assertIn("RUNTIME_FAILURE", report)
             self.assertIn("CLI calls: 1; URL: exact", report)
             self.assertIn("Trajectory: FAIL —", report)
             self.assertIn("Privacy: FAIL —", report)

@@ -654,6 +654,36 @@ def test_persisted_evaluator_provenance_tracks_effective_inputs(tmp_path):
     assert provenance_a1["identity_sha256"] != provenance_b["identity_sha256"]
 
 
+def test_setup_failure_is_not_reported_as_pass(tmp_path):
+    consumer, module = make_consumer()
+    run_eval = load_run_eval_module()
+    case = run_eval.build_case(
+        consumer.manifest,
+        EVAL,
+        runtime_version="test-runtime",
+        selected_scenarios=["url-success"],
+    )
+    case["models"] = [{"model": "test-model", "provider": "test-provider"}]
+
+    with patch.object(
+        module.FlightCalendarIcsConsumer,
+        "prepare",
+        side_effect=RuntimeError("synthetic setup failure"),
+    ):
+        batch = Harness(consumer).run(case, tmp_path / "batch")
+
+    run = batch["runs"][0]
+    assert run["execution_status"] == "SETUP_FAILURE"
+    assert run["score"] == {
+        "outcome": "UNDEFINED",
+        "trajectory": "UNDEFINED",
+        "privacy": "UNDEFINED",
+    }
+    assert batch["agent_execution_count"] == 0
+    assert run_eval._result_label(run) == "SETUP_FAILURE"
+    assert run_eval._result_label(run) != "PASS"
+
+
 def test_fixture_failure_is_not_reported_as_pass(tmp_path, capsys):
     consumer, _ = make_consumer()
     run_eval = load_run_eval_module()
