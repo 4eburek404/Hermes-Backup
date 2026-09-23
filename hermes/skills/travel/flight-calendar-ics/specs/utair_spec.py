@@ -253,50 +253,63 @@ class UtairCarrierSpecification(unittest.TestCase):
         ):
             self.assertNotIn(private_value, emitted)
 
-    def test_utair_adapter_rejects_redirect_to_unsupported_destination(self) -> None:
-        """After Utair is selected, its adapter validates its redirect destination."""
+    def test_utair_adapter_rejects_unsupported_redirect_destinations(self) -> None:
+        """Only HTTPS www.utair.ru/order-manage is accepted after the mail redirect."""
         from flight_calendar import carrier_http, parser
 
-        class RedirectResponse:
-            status_code = 307
-            headers = {
-                "Location": (
-                    "https://evil.example/order-manage"
-                    "?rloc=ABC123&last_name=EXAMPLE"
+        unsupported_destinations = (
+            "https://evil.example/order-manage?rloc=ABC123&last_name=EXAMPLE",
+            "https://foo.utair.ru/order-manage?rloc=ABC123&last_name=EXAMPLE",
+            "https://www.utair.ru/random?rloc=ABC123&last_name=EXAMPLE",
+            "http://www.utair.ru/order-manage?rloc=ABC123&last_name=EXAMPLE",
+        )
+
+        for destination in unsupported_destinations:
+            with self.subTest(destination=urlparse(destination).netloc):
+                class RedirectResponse:
+                    status_code = 307
+                    headers = {"Location": destination}
+
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with (
+                    mock.patch.object(
+                        carrier_http._requests,
+                        "request",
+                        return_value=RedirectResponse(),
+                    ) as redirect_request,
+                    mock.patch.object(
+                        carrier_http,
+                        "request_raw",
+                        side_effect=AssertionError(
+                            "unsupported redirect destination must not reach provider transport"
+                        ),
+                    ) as api_request,
+                    contextlib.redirect_stdout(stdout),
+                    contextlib.redirect_stderr(stderr),
+                ):
+                    code = parser.main(
+                        ["--json", "build", "--url", UTAIR_REDIRECT_URL]
+                    )
+
+                self.assertEqual(code, 2, stdout.getvalue() + stderr.getvalue())
+                payload = json.loads(stdout.getvalue())
+                assert_valid_cli_envelope(self, payload)
+                self.assertIs(payload["ok"], False)
+                self.assertEqual(
+                    payload["error"]["code"], "redirect_resolution_failed"
                 )
-            }
-
-        stdout = io.StringIO()
-        stderr = io.StringIO()
-        with (
-            mock.patch.object(
-                carrier_http._requests,
-                "request",
-                return_value=RedirectResponse(),
-            ),
-            mock.patch.object(
-                carrier_http,
-                "request_raw",
-                side_effect=AssertionError(
-                    "unsupported redirect destination must not reach provider transport"
-                ),
-            ),
-            contextlib.redirect_stdout(stdout),
-            contextlib.redirect_stderr(stderr),
-        ):
-            code = parser.main(
-                ["--json", "build", "--url", UTAIR_REDIRECT_URL]
-            )
-
-        self.assertEqual(code, 2, stdout.getvalue() + stderr.getvalue())
-        payload = json.loads(stdout.getvalue())
-        assert_valid_cli_envelope(self, payload)
-        self.assertIs(payload["ok"], False)
-        self.assertEqual(payload["error"]["code"], "redirect_resolution_failed")
-        emitted = stdout.getvalue() + stderr.getvalue()
-        self.assertNotIn("evil.example", emitted)
-        self.assertNotIn("ABC123", emitted)
-        self.assertNotIn("EXAMPLE", emitted)
+                self.assertEqual(redirect_request.call_count, 1)
+                api_request.assert_not_called()
+                emitted = stdout.getvalue() + stderr.getvalue()
+                for private_value in (
+                    UTAIR_REDIRECT_URL,
+                    "fixture-token",
+                    destination,
+                    "ABC123",
+                    "EXAMPLE",
+                ):
+                    self.assertNotIn(private_value, emitted)
 
     def test_direct_site_url_routes_and_utair_adapter_canonicalizes(self) -> None:
         """A direct Utair URL needs no redirect and loses tracking parameters."""

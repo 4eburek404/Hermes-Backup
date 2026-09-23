@@ -19,16 +19,8 @@ sys.path.insert(0, str(ROOT / "specs"))
 
 from cli_envelope import assert_valid_cli_envelope
 
-RAW_CLICK_URL = "https://click.mail.utair.io/private-token?x=secret"
+RAW_CLICK_URL = "https://click.mail.utair.io/z9suvw/SYNTHETIC_TOKEN"
 DIRECT_UTAIR_URL = "https://www.utair.ru/order-manage?rloc=ABC123&last_name=EXAMPLE"
-PRIVATE_RESOLVED_URL = "https://evil.example/order-manage?rloc=ABC123&last_name=IVANOV"
-UTAIR_SUFFIX_RESOLVED_URL = (
-    "https://foo.utair.ru/order-manage?rloc=ABC123&last_name=IVANOV"
-)
-UTAIR_WRONG_PATH_RESOLVED_URL = (
-    "https://www.utair.ru/random?rloc=ABC123&last_name=IVANOV"
-)
-HTTP_UTAIR_URL = "http://www.utair.ru/order-manage?rloc=ABC123&last_name=IVANOV"
 REDACTED_TOKENS = (
     "click.mail.utair.io",
     "utair.ru/order-manage",
@@ -45,29 +37,6 @@ def assert_private_tokens_redacted(testcase: unittest.TestCase, text: str) -> No
 
 
 class RedirectResolutionContractTests(unittest.TestCase):
-    def test_click_mail_utair_redirect_must_resolve_to_https_utair_host(self) -> None:
-        from flight_calendar.errors import CliFailure
-        from flight_calendar.carriers.utair import resolve_utair_booking_redirect
-
-        for resolved_url in (
-            PRIVATE_RESOLVED_URL,
-            UTAIR_SUFFIX_RESOLVED_URL,
-            UTAIR_WRONG_PATH_RESOLVED_URL,
-            HTTP_UTAIR_URL,
-        ):
-            with self.subTest(resolved_url=resolved_url):
-                with mock.patch(
-                    "flight_calendar.carriers.utair.carrier_http.resolve_redirect_url",
-                    return_value=resolved_url,
-                ):
-                    with self.assertRaises(CliFailure) as ctx:
-                        resolve_utair_booking_redirect(RAW_CLICK_URL)
-
-                self.assertEqual(ctx.exception.code, "redirect_resolution_failed")
-                message = str(ctx.exception)
-                assert_private_tokens_redacted(self, message)
-                self.assertNotIn("evil.example", message)
-
     def test_click_mail_utair_transport_failure_is_redacted_cli_error(self) -> None:
         from flight_calendar import carrier_http, parser
 
@@ -93,25 +62,47 @@ class RedirectResolutionContractTests(unittest.TestCase):
         serialized = json.dumps(payload, ensure_ascii=False)
         assert_private_tokens_redacted(self, serialized)
 
-    def test_click_mail_utair_503_becomes_redacted_cli_failure(self) -> None:
-        from flight_calendar import carrier_http
-        from flight_calendar.errors import CliFailure
-        from flight_calendar.carriers.utair import resolve_utair_booking_redirect
+    def test_click_mail_utair_503_is_redacted_public_cli_failure(self) -> None:
+        from flight_calendar import carrier_http, parser
 
         class FakeResponse:
             status_code = 503
             headers: dict[str, str] = {}
 
-        with mock.patch.object(
-            carrier_http._requests,
-            "request",
-            return_value=FakeResponse(),
-        ):
-            with self.assertRaises(CliFailure) as cli_ctx:
-                resolve_utair_booking_redirect(RAW_CLICK_URL)
+        redirect_requests: list[tuple[str, str]] = []
 
-        self.assertEqual(cli_ctx.exception.code, "redirect_resolution_failed")
-        assert_private_tokens_redacted(self, str(cli_ctx.exception))
+        def fake_request(method: str, url: str, **kwargs: object) -> FakeResponse:
+            del kwargs
+            redirect_requests.append((method, url))
+            return FakeResponse()
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(
+                carrier_http._requests,
+                "request",
+                side_effect=fake_request,
+            ),
+            mock.patch.object(
+                carrier_http,
+                "request_raw",
+                side_effect=AssertionError("Utair API transport must not run"),
+            ),
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
+        ):
+            code = parser.main(["--json", "build", "--url", RAW_CLICK_URL])
+
+        payload = json.loads(stdout.getvalue())
+        assert_valid_cli_envelope(self, payload)
+        self.assertEqual(code, 2)
+        self.assertIs(payload["ok"], False)
+        self.assertEqual(payload["error"]["code"], "redirect_resolution_failed")
+        self.assertEqual(redirect_requests, [("GET", RAW_CLICK_URL)])
+        serialized = json.dumps(payload, ensure_ascii=False) + stderr.getvalue()
+        assert_private_tokens_redacted(self, serialized)
+        self.assertNotIn(RAW_CLICK_URL, serialized)
 
 class CarrierHttpRedirectContractTests(unittest.TestCase):
     def test_resolve_redirect_url_reads_location_without_auto_follow_or_body(
