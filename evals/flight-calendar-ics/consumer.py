@@ -141,7 +141,7 @@ class FlightCalendarIcsConsumer:
             if event.get("type") != "tool_use" or event.get("name") != "terminal":
                 continue
             command = str((event.get("input") or {}).get("command", ""))
-            result_event = next(
+            tool_result_event = next(
                 (
                     candidate
                     for candidate in events[index + 1 :]
@@ -150,7 +150,7 @@ class FlightCalendarIcsConsumer:
                 ),
                 {},
             )
-            decoded = FlightCalendarIcsConsumer._decode_tool_result(result_event)
+            decoded = FlightCalendarIcsConsumer._decode_tool_result(tool_result_event)
             payload = decoded.get("payload") or {}
             terminal_invocations.append(
                 {
@@ -663,7 +663,9 @@ class FlightCalendarIcsConsumer:
             return {
                 **metadata,
                 "execution_status": (
-                    "COMPLETED" if proc.returncode == 0 else "RUNTIME_FAILURE"
+                    "COMPLETED"
+                    if proc.returncode == 0 and summary["has_result"]
+                    else "RUNTIME_FAILURE"
                 ),
                 "final_answer": final_answer,
                 "tool_uses": summary["tool_uses"],

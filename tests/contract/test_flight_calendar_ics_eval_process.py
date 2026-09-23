@@ -120,6 +120,57 @@ def test_terminal_result_survives_tool_result_in_saved_evidence(tmp_path):
     assert [attempt["success"] for attempt in run["cli_attempts"]] == [True]
 
 
+def test_tool_result_without_terminal_result_is_not_terminal_evidence(tmp_path):
+    consumer, module = make_consumer()
+    run_eval = load_run_eval_module()
+    case = run_eval.build_case(
+        consumer.manifest,
+        EVAL,
+        runtime_version="test-runtime",
+        selected_scenarios=["url-success"],
+    )
+    case["models"] = [{"model": "test-model", "provider": "test-provider"}]
+    skill_root = tmp_path / "skills"
+    skill_root.mkdir()
+
+    tool_output = "MEDIA:/tmp/tool-result.ics"
+    command = "flight_calendar_ics.py --json build --url https://example.test/booking"
+    stream = "\n".join(
+        json.dumps(event)
+        for event in (
+            {"type": "tool_use", "name": "terminal", "input": {"command": command}},
+            {
+                "type": "tool_result",
+                "name": "terminal",
+                "output": json.dumps(
+                    {"output": json.dumps({"ok": True, "media": tool_output}), "exit_code": 0}
+                ),
+            },
+        )
+    )
+
+    with (
+        patch.object(module.FlightCalendarIcsConsumer, "_build_skill_root", return_value=(skill_root, {})),
+        patch.object(module.FlightCalendarIcsConsumer, "_seed_timezone_cache"),
+        patch.object(module.FlightCalendarIcsConsumer, "_make_home"),
+        patch.object(
+            module.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+        ),
+    ):
+        batch = Harness(consumer).run(case, tmp_path / "batch")
+
+    run = batch["runs"][0]
+    run_dir = Path(run["evidence_path"]).parent
+    saved_evidence = json.loads((run_dir / "evidence.json").read_text())
+    assert saved_evidence["event_summary"]["has_result"] is False
+    assert saved_evidence["final_answer"] == ""
+    assert saved_evidence["tool_uses"][0]["name"] == "terminal"
+    assert saved_evidence["cli_attempts"][0]["success"] is True
+    assert saved_evidence["execution_status"] == "RUNTIME_FAILURE"
+
+
 def test_agent_failure_with_real_result_is_not_runtime_failure():
     _, module = make_consumer()
     summary = {"event_count": 2, "tool_uses": [{"index": 0, "name": "terminal"}], "final_answer": "task failed"}
