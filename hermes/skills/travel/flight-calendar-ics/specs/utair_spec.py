@@ -109,42 +109,37 @@ def fixture_http_response(observed: list[dict[str, Any]]):
 class UtairCarrierSpecification(unittest.TestCase):
     """Behavior required from supported Utair booking URLs."""
 
-    def test_mail_redirect_is_normalized_before_carrier_routing(self) -> None:
-        """The opaque mail link resolves first; only its destination identifies Utair."""
+    def test_mail_wrapper_routes_first_and_utair_adapter_owns_redirect(self) -> None:
+        """Routing selects Utair from the raw mail URL; the adapter resolves it."""
         from flight_calendar import carrier_http
         from flight_calendar.carriers import utair
-        from flight_calendar.errors import CliFailure
         from flight_calendar.route_detection import infer_build_route
-        from flight_calendar.source_normalization import normalize_url_source
 
-        class FakeResponse:
-            status_code = 307
-            headers = {"Location": UTAIR_DIRECT_URL}
-
-        with self.assertRaises(CliFailure) as ctx:
-            infer_build_route(
-                argparse.Namespace(url=None, url_file=None),
-                url_override=UTAIR_REDIRECT_URL,
-            )
-        self.assertEqual(ctx.exception.code, "route_unknown")
-
-        with mock.patch.object(
-            carrier_http._requests,
-            "request",
-            return_value=FakeResponse(),
-        ):
-            resolved_url = normalize_url_source(UTAIR_REDIRECT_URL)
-
-        self.assertEqual(resolved_url, UTAIR_DIRECT_URL)
         route = infer_build_route(
-            argparse.Namespace(url=None, url_file=None), url_override=resolved_url
+            argparse.Namespace(url=None, url_file=None),
+            url_override=UTAIR_REDIRECT_URL,
         )
         self.assertEqual(route["route"], "utair")
 
-        locator, surname, canonical_url = utair.parse_utair_source(resolved_url)
-        self.assertEqual(locator, EXPECTED_LOCATOR)
-        self.assertEqual(surname, EXPECTED_SURNAME)
-        self.assertEqual(canonical_url, UTAIR_CANONICAL_URL)
+        observed: list[dict[str, Any]] = []
+        with (
+            mock.patch.object(
+                carrier_http,
+                "resolve_redirect_url",
+                return_value=UTAIR_DIRECT_URL,
+            ) as redirect_mock,
+            mock.patch.object(
+                carrier_http,
+                "request_raw",
+                side_effect=fixture_http_response(observed),
+            ),
+        ):
+            itinerary = utair.build_itinerary(UTAIR_REDIRECT_URL)
+
+        self.assertEqual(redirect_mock.call_count, 1)
+        self.assertEqual(redirect_mock.call_args.args[0], UTAIR_REDIRECT_URL)
+        self.assertEqual(itinerary["booking_url"], UTAIR_CANONICAL_URL)
+        self.assertEqual(itinerary["pnr"], EXPECTED_LOCATOR)
 
 
     def test_public_redirect_url_builds_valid_ics_without_private_output(self) -> None:
@@ -215,8 +210,8 @@ class UtairCarrierSpecification(unittest.TestCase):
         ):
             self.assertNotIn(private_value, emitted)
 
-    def test_http_redirect_wrapper_fails_closed_before_transport(self) -> None:
-        """HTTP Utair wrappers fail before private booking data reaches transport."""
+    def test_http_mail_source_fails_closed_before_provider_transport(self) -> None:
+        """Only the trusted HTTPS mail source is eligible for Utair routing."""
         from flight_calendar import carrier_http, parser
 
         with tempfile.TemporaryDirectory(prefix="flight-http-redirect-stdout.") as tmp:
@@ -249,7 +244,7 @@ class UtairCarrierSpecification(unittest.TestCase):
         payload = json.loads(stdout.getvalue())
         assert_valid_cli_envelope(self, payload)
         self.assertIs(payload["ok"], False)
-        self.assertEqual(payload["error"]["code"], "redirect_resolution_failed")
+        self.assertEqual(payload["error"]["code"], "route_unknown")
         emitted = stdout.getvalue() + stderr.getvalue()
         for private_value in (
             UTAIR_HTTP_REDIRECT_URL,
@@ -258,8 +253,8 @@ class UtairCarrierSpecification(unittest.TestCase):
         ):
             self.assertNotIn(private_value, emitted)
 
-    def test_mail_redirect_destination_is_routed_after_resolution(self) -> None:
-        """A known wrapper does not make an unsupported destination into Utair."""
+    def test_utair_adapter_rejects_redirect_to_unsupported_destination(self) -> None:
+        """After Utair is selected, its adapter validates its redirect destination."""
         from flight_calendar import carrier_http, parser
 
         class RedirectResponse:
@@ -297,18 +292,17 @@ class UtairCarrierSpecification(unittest.TestCase):
         payload = json.loads(stdout.getvalue())
         assert_valid_cli_envelope(self, payload)
         self.assertIs(payload["ok"], False)
-        self.assertEqual(payload["error"]["code"], "route_unknown")
+        self.assertEqual(payload["error"]["code"], "redirect_resolution_failed")
         emitted = stdout.getvalue() + stderr.getvalue()
         self.assertNotIn("evil.example", emitted)
         self.assertNotIn("ABC123", emitted)
         self.assertNotIn("EXAMPLE", emitted)
 
-    def test_direct_site_url_routes_without_redirect_and_canonicalizes(self) -> None:
-        """The observed direct URL routes immediately and drops tracking parameters."""
+    def test_direct_site_url_routes_and_utair_adapter_canonicalizes(self) -> None:
+        """A direct Utair URL needs no redirect and loses tracking parameters."""
         from flight_calendar import carrier_http
         from flight_calendar.carriers import utair
         from flight_calendar.route_detection import infer_build_route
-        from flight_calendar.source_normalization import normalize_url_source
 
         parsed = urlparse(UTAIR_SITE_DIRECT_URL)
         self.assertEqual(parsed.hostname, "www.utair.ru")
@@ -317,19 +311,21 @@ class UtairCarrierSpecification(unittest.TestCase):
         self.assertEqual(query["rloc"], ["SITE123"])
         self.assertEqual(query["last_name"], ["EXAMPLE"])
 
+        route = infer_build_route(
+            argparse.Namespace(url=None, url_file=None),
+            url_override=UTAIR_SITE_DIRECT_URL,
+        )
+        self.assertEqual(route["route"], "utair")
+
         with mock.patch.object(
             carrier_http,
             "resolve_redirect_url",
-            side_effect=AssertionError("direct Utair URL must not be fetched"),
+            side_effect=AssertionError("direct Utair URL must not be redirected"),
         ):
-            source_url = normalize_url_source(UTAIR_SITE_DIRECT_URL)
+            locator, surname, canonical_url = utair.parse_utair_source(
+                UTAIR_SITE_DIRECT_URL
+            )
 
-        self.assertEqual(source_url, UTAIR_SITE_DIRECT_URL)
-        route = infer_build_route(
-            argparse.Namespace(url=None, url_file=None), url_override=source_url
-        )
-        self.assertEqual(route["route"], "utair")
-        locator, surname, canonical_url = utair.parse_utair_source(source_url)
         self.assertEqual(locator, "SITE123")
         self.assertEqual(surname, "EXAMPLE")
         self.assertEqual(
