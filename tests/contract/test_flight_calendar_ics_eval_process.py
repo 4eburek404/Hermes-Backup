@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from evals.harness.core import Harness
+from evals.harness.core import Harness, build_matrix
 from evals.harness.report import render_report
 
 
@@ -41,6 +41,23 @@ def make_consumer():
     module = load_consumer_module()
     manifest = json.loads((EVAL / "manifest.json").read_text(encoding="utf-8"))
     return module.FlightCalendarIcsConsumer(EVAL, ROOT, manifest), module
+
+
+def test_build_case_preserves_manifest_repeats_for_selected_matrix():
+    consumer, _ = make_consumer()
+    run_eval = load_run_eval_module()
+
+    case = run_eval.build_case(
+        consumer.manifest,
+        EVAL,
+        runtime_version="test-runtime",
+        selected_scenarios=["ural-url-success", "pdf-success"],
+    )
+
+    assert case["repeats"] == consumer.manifest["repeats"] == 2
+    specs = build_matrix(case)
+    assert len(specs) == 12
+    assert {spec.repeat for spec in specs} == {1, 2}
 
 
 def test_eval_owned_timeout_keeps_partial_evidence_and_continues_matrix(tmp_path):
