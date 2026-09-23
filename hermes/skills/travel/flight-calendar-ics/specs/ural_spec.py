@@ -21,7 +21,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -540,6 +540,172 @@ class UralConversionSpecification(unittest.TestCase):
 
 
 class UralCliPrivacySpecification(unittest.TestCase):
+    def test_ural_mail_wrapper_builds_calendar_through_public_url_cli(self) -> None:
+        from flight_calendar import carrier_http, parser
+
+        target_url = "https://service.uralairlines.ru/?pnr=ABC123&lastName=IVANOV&utm_source=synthetic"
+        wrapper_url = (
+            "https://tn-hgl.mckx.ru/c/synthetic-click/"
+            f"?u={quote(target_url, safe='')}"
+        )
+        transport_calls: list[tuple[str, str]] = []
+
+        def transport(url: str, **kwargs: Any) -> tuple[int, str, str]:
+            parsed = urlparse(url)
+            transport_calls.append((parsed.path, parsed.query))
+            if parsed.path == "/api/settings/CurrentDateUtc":
+                return 200, "text/plain", "1700000000"
+            if parsed.path == "/api/Reservation":
+                return 200, "application/json", RESERVATION_TEXT
+            raise AssertionError("unexpected Ural transport endpoint")
+
+        with tempfile.TemporaryDirectory(prefix="ural-wrapper-cli.") as tmp:
+            cache_dir = Path(tmp) / "cache"
+            cache_dir.mkdir(mode=0o700)
+            (cache_dir / "ural-deployment.json").write_text(
+                json.dumps(
+                    {
+                        "version": "12345",
+                        "API_URL": SYNTHETIC_API,
+                        "API_KEY": "synthetic-api-key-001",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = Path(tmp) / "flight.ics"
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with (
+                mock.patch.dict(os.environ, {"FLIGHT_CALENDAR_CACHE_DIR": str(cache_dir)}),
+                mock.patch.object(carrier_http, "request_raw", side_effect=transport),
+                mock.patch.object(
+                    carrier_http,
+                    "resolve_redirect_url",
+                    side_effect=AssertionError("mail destination is already in the source URL"),
+                ),
+                mock.patch.object(
+                    parser,
+                    "build_timezone_map",
+                    return_value={"DME": "Europe/Moscow", "SVX": "Asia/Yekaterinburg"},
+                ),
+                contextlib.redirect_stdout(stdout),
+                contextlib.redirect_stderr(stderr),
+            ):
+                code = parser.main(
+                    ["--json", "build", "--url", wrapper_url, "--output", str(output)]
+                )
+
+            self.assertEqual(code, 0, stdout.getvalue() + stderr.getvalue())
+            payload = json.loads(stdout.getvalue())
+            self.assertIs(payload["ok"], True)
+            self.assertEqual(payload["media"], f"MEDIA:{output.resolve()}")
+            self.assertEqual(payload["segments_count"], 2)
+            self.assertTrue(output.is_file())
+            self.assertEqual(
+                [path for path, _query in transport_calls],
+                ["/api/settings/CurrentDateUtc", "/api/Reservation"],
+            )
+            reservation_query = parse_qs(transport_calls[-1][1])
+            self.assertEqual(
+                reservation_query,
+                {"pnrNumber": ["ABC123"], "lastName": ["IVANOV"]},
+            )
+            emitted = stdout.getvalue() + stderr.getvalue()
+            for private_value in (
+                wrapper_url,
+                target_url,
+                "ABC123",
+                "IVANOV",
+                "synthetic-click",
+            ):
+                self.assertNotIn(private_value, emitted)
+
+    def test_ural_mail_wrapper_rejects_untrusted_shapes_and_targets(self) -> None:
+        from flight_calendar import carrier_http, parser
+
+        valid_target = "https://service.uralairlines.ru/?pnr=ABC123&lastName=IVANOV"
+        invalid_sources = (
+            (
+                "http://tn-hgl.mckx.ru/c/synthetic-click/?u="
+                + quote(valid_target, safe=""),
+                "route_unknown",
+            ),
+            (
+                "https://tracker.example/c/synthetic-click/?u="
+                + quote(valid_target, safe=""),
+                "route_unknown",
+            ),
+            (
+                "https://tn-hgl.mckx.ru/other/synthetic-click/?u="
+                + quote(valid_target, safe=""),
+                "route_unknown",
+            ),
+            ("https://tn-hgl.mckx.ru/c/synthetic-click/", "redirect_resolution_failed"),
+            (
+                "https://tn-hgl.mckx.ru/c/synthetic-click/?u="
+                + quote(valid_target, safe="")
+                + "&u="
+                + quote(valid_target, safe=""),
+                "redirect_resolution_failed",
+            ),
+            (
+                "https://tn-hgl.mckx.ru/c/synthetic-click/?u="
+                + quote("https://service.uralairlines.ru/?pnr=ABC123", safe="")
+                + "&lastName=IVANOV",
+                "redirect_resolution_failed",
+            ),
+            (
+                "https://tn-hgl.mckx.ru/c/synthetic-click/?u=%ZZ",
+                "redirect_resolution_failed",
+            ),
+            (
+                "https://tn-hgl.mckx.ru/c/synthetic-click/?u="
+                + quote(valid_target.replace("https://", "http://"), safe=""),
+                "redirect_resolution_failed",
+            ),
+            (
+                "https://tn-hgl.mckx.ru/c/synthetic-click/?u="
+                + quote(valid_target.replace("service.uralairlines.ru", "evil.example"), safe=""),
+                "redirect_resolution_failed",
+            ),
+            (
+                "https://tn-hgl.mckx.ru/c/synthetic-click/?u="
+                + quote(valid_target.replace("/?pnr=", "/unsupported?pnr="), safe=""),
+                "redirect_resolution_failed",
+            ),
+            (
+                "https://tracker.example/click?u=" + quote(valid_target, safe=""),
+                "route_unknown",
+            ),
+        )
+        network_calls: list[str] = []
+
+        def network_called(*args: Any, **kwargs: Any) -> None:
+            del args, kwargs
+            network_calls.append("carrier_http")
+            raise AssertionError("untrusted target reached network")
+
+        with (
+            mock.patch.object(carrier_http, "request_raw", side_effect=network_called),
+            mock.patch.object(carrier_http, "resolve_redirect_url", side_effect=network_called),
+            mock.patch.object(parser, "build_timezone_map", return_value={}),
+        ):
+            for source_url, expected_code in invalid_sources:
+                with self.subTest(expected_code=expected_code, source=source_url.split("?", 1)[0]):
+                    stdout = io.StringIO()
+                    stderr = io.StringIO()
+                    with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                        code = parser.main(["--json", "build", "--url", source_url])
+                    self.assertEqual(code, 2, stdout.getvalue() + stderr.getvalue())
+                    payload = json.loads(stdout.getvalue())
+                    self.assertIs(payload["ok"], False)
+                    self.assertEqual(payload["error"]["code"], expected_code)
+                    emitted = stdout.getvalue() + stderr.getvalue()
+                    for private_value in (source_url, "ABC123", "IVANOV", "evil.example"):
+                        self.assertNotIn(private_value, emitted)
+
+        self.assertEqual(network_calls, [])
+
     def test_bootstrap_failure_is_redacted_at_public_json_cli_boundary(self) -> None:
         from flight_calendar import carrier_http, parser
 
