@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Executable specification for raw booking-URL routing.
 
-Target behavior:
+Required behavior:
 
     raw URL -> carrier selection -> same raw URL -> selected carrier adapter
 
