@@ -20,11 +20,13 @@ Common to all carriers: keep credential-bearing URLs private and never expose th
 
 ## Ural Airlines
 
-- Use a trusted direct Ural booking source for live lookup. The known HTTPS mail source `tn-hgl.mckx.ru/c/<id>/?u=<URL-encoded Ural URL>` is also supported; pass the original wrapper through `--url` and let the CLI validate and normalize it. Do not decode or rewrite it manually. Wrappers from other hosts remain unsupported.
-- If neither a direct supported Ural booking URL nor the known Ural mail source is available, use the PDF/minimal-itinerary flow instead.
-- A link carrying only `pnrOrTicket=` is a form-prefill signal, not sufficient evidence: the live lookup also needs the passenger surname in the URL. A missing-surname error here is the correct outcome, not a generator failure; use a complete manage-booking URL or minimal itinerary JSON.
-- The adapter keeps only deployment configuration (`version`, `API_URL`, and `API_KEY`) in the runtime cache. A cache miss reads the trusted frontend root and its versioned `env/env.json`; a cache hit skips both. No undocumented cache TTL is assumed; explicit refresh is available to the adapter, while auth-triggered refresh remains deferred until the API error contract is reliable.
-- The Reservation request uses the locally generated time-bucketed `X-Api-Key` and direct `GET Reservation`; it does not download app/helper JavaScript, invoke Node.js, create a Session, or send `X-Session`. Generated keys and booking credentials remain private.
+- The canonical manage-booking URL is `https://service.uralairlines.ru/services?pnr=<PNR>&lastName=<SURNAME>`. The URL needs the PNR and passenger surname; the passenger first name is not part of the URL. Tracking parameters are not part of the canonical link.
+- Ural booking links from email can be wrapped by `tn-hgl.mckx.ru`. In the observed mail format, the query parameter `u` contains the complete direct booking URL URL-encoded, for example `https://tn-hgl.mckx.ru/.../?u=<encoded https://service.uralairlines.ru/services?...>`.
+- The mail wrapper is not an Ural Airlines fingerprint. The CLI first unwraps a supported mail source, then performs ordinary carrier routing on the decoded destination. Ural is identified from the resulting `service.uralairlines.ru` URL.
+- Pass either the direct booking URL or the original mail URL through the normal `--url` interface. The agent must not decode `u`, extract credentials, or reconstruct the direct URL itself.
+- A link carrying only `pnrOrTicket=` remains unverified for the Reservation flow. Do not treat it as a PNR alias without evidence; the current live Reservation lookup requires a PNR and surname.
+- The adapter keeps only deployment configuration (`version`, `API_URL`, and `API_KEY`) in the runtime cache. A cache miss reads the trusted frontend root and its versioned `env/env.json`; a cache hit skips both.
+- The Reservation request uses the locally generated time-bucketed `X-Api-Key` and direct `GET Reservation`. Generated keys and booking credentials remain private.
 
 ## S7 Airlines
 
