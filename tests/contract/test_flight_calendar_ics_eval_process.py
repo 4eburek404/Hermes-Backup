@@ -416,6 +416,159 @@ def test_reevaluation_preserves_source_evidence_and_writes_derived_result_separa
         assert json.loads(original_score_path.read_text(encoding="utf-8"))["score"] == initial["score"]
 
 
+def test_persisted_evaluator_provenance_tracks_effective_inputs(tmp_path):
+    _, module = make_consumer()
+    run_eval = load_run_eval_module()
+    manifest = json.loads((EVAL / "manifest.json").read_text(encoding="utf-8"))
+    eval_root = tmp_path / "eval-root"
+    (eval_root / "expected").mkdir(parents=True)
+    for relative in (
+        manifest["scenarios"]["url-success"]["prompt"],
+        manifest["scenarios"]["url-success"]["fixture"],
+    ):
+        target = eval_root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((EVAL / relative).read_bytes())
+
+    oracle_relative = manifest["scenarios"]["url-success"]["oracle"]
+    oracle_path = eval_root / oracle_relative
+    oracle_a = {
+        "expected_event_count": 1,
+        "events": [
+            {
+                "dtstart": "20261110T100000Z",
+                "dtend": "20261110T110000Z",
+                "description_fragments": ["Saved source artifact"],
+            }
+        ],
+        "privacy_forbidden_final_answer": [],
+    }
+    oracle_b = {
+        **oracle_a,
+        "privacy_forbidden_final_answer": ["Done."],
+    }
+    oracle_path.write_text(json.dumps(oracle_a, indent=2) + "\n", encoding="utf-8")
+    consumer = module.FlightCalendarIcsConsumer(eval_root, ROOT, manifest)
+    case = run_eval.build_case(
+        manifest,
+        EVAL,
+        runtime_version="test-runtime",
+        selected_scenarios=["url-success"],
+    )
+    case["models"] = [{"model": "test-model", "provider": "test-provider"}]
+
+    skill_root = tmp_path / "skills"
+    skill_root.mkdir()
+    artifact_source = tmp_path / "runtime-result.ics"
+    artifact_source.write_text(
+        "BEGIN:VCALENDAR\r\n"
+        "VERSION:2.0\r\n"
+        "BEGIN:VEVENT\r\n"
+        "DTSTART:20261110T100000Z\r\n"
+        "DTEND:20261110T110000Z\r\n"
+        "DESCRIPTION:Saved source artifact\r\n"
+        "END:VEVENT\r\n"
+        "END:VCALENDAR\r\n",
+        encoding="utf-8",
+    )
+    command = "flight_calendar_ics.py --json build --url https://example.test/booking"
+    events = [
+        {"type": "tool_use", "name": "terminal", "input": {"command": command}},
+        {
+            "type": "tool_result",
+            "name": "terminal",
+            "output": json.dumps({"output": json.dumps({"ok": True}), "exit_code": 0}),
+        },
+        {"type": "result", "text": f"MEDIA:{artifact_source} Done."},
+    ]
+    stream = "\n".join(json.dumps(event) for event in events)
+    source_batch_dir = tmp_path / "source-batch"
+    with (
+        patch.object(module.FlightCalendarIcsConsumer, "_build_skill_root", return_value=(skill_root, {})),
+        patch.object(module.FlightCalendarIcsConsumer, "_seed_timezone_cache"),
+        patch.object(module.FlightCalendarIcsConsumer, "_make_home"),
+        patch.object(
+            module.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+        ),
+    ):
+        initial_batch = Harness(consumer).run(case, source_batch_dir)
+
+    initial = initial_batch["runs"][0]
+    source_evidence_path = Path(initial["evidence_path"])
+    source_bytes = {
+        "raw_stream": (source_evidence_path.parent / "raw_stream.jsonl").read_bytes(),
+        "evidence": source_evidence_path.read_bytes(),
+        "artifact": (source_evidence_path.parent / "artifact.ics").read_bytes(),
+    }
+
+    def reevaluate(name):
+        output_dir = tmp_path / name
+        batch = consumer.reevaluate_batch(source_batch_dir, case, output_dir)
+        run = batch["runs"][0]
+        evaluation_path = output_dir / "runs" / initial["run_id"] / "evaluation.json"
+        assert evaluation_path.is_file()
+        evaluation = json.loads(evaluation_path.read_text(encoding="utf-8"))
+        assert evaluation["source_evidence"] == str(source_evidence_path)
+        assert Path(run["evidence_path"]) == source_evidence_path
+        return run, evaluation
+
+    alternate_relative = "expected/alternate-url-success.json"
+    (eval_root / alternate_relative).write_text(
+        json.dumps(oracle_a, indent=2) + "\n", encoding="utf-8"
+    )
+    reevaluated = []
+    with patch.object(
+        module.subprocess,
+        "run",
+        side_effect=AssertionError("agent/runtime execution during re-evaluation"),
+    ):
+        run_a1, evaluation_a1 = reevaluate("reevaluation-a1")
+        run_a2, evaluation_a2 = reevaluate("reevaluation-a2")
+        consumer.manifest["scenarios"]["url-success"]["oracle"] = alternate_relative
+        run_a3, evaluation_a3 = reevaluate("reevaluation-a-alternate-path")
+        consumer.manifest["scenarios"]["url-success"]["oracle"] = oracle_relative
+        oracle_path.write_text(json.dumps(oracle_b, indent=2) + "\n", encoding="utf-8")
+        run_b, evaluation_b = reevaluate("reevaluation-b")
+        reevaluated.extend(
+            [
+                (run_a1, evaluation_a1),
+                (run_a2, evaluation_a2),
+                (run_a3, evaluation_a3),
+                (run_b, evaluation_b),
+            ]
+        )
+
+    assert run_a1["score"]["privacy"] == "PASS"
+    assert run_b["score"]["privacy"] == "FAIL"
+    assert source_evidence_path.read_bytes() == source_bytes["evidence"]
+    assert (source_evidence_path.parent / "raw_stream.jsonl").read_bytes() == source_bytes["raw_stream"]
+    assert (source_evidence_path.parent / "artifact.ics").read_bytes() == source_bytes["artifact"]
+
+    initial_score = json.loads(Path(initial["score_path"]).read_text(encoding="utf-8"))
+    provenance_records = [
+        initial_score.get("evaluator_provenance"),
+        *(evaluation.get("evaluator_provenance") for _, evaluation in reevaluated),
+    ]
+    assert all(isinstance(item, dict) for item in provenance_records), (
+        "persisted score/evaluation is missing effective evaluator provenance",
+        provenance_records,
+    )
+    provenance_a1, provenance_a2, provenance_a3, provenance_b = provenance_records[1:]
+    assert provenance_records[0] == provenance_a1 == provenance_a2 == provenance_a3
+    assert provenance_a1["effective_rules"] == case["rules"]["url-success"]
+    assert provenance_a1["effective_oracle"] == oracle_a
+    assert provenance_b["effective_rules"] == case["rules"]["url-success"]
+    assert provenance_b["effective_oracle"] == oracle_b
+    assert provenance_a1["identity_sha256"] == provenance_a2["identity_sha256"]
+    assert provenance_a1["identity_sha256"] == provenance_a3["identity_sha256"]
+    assert provenance_a1["implementation_sha256"] == provenance_b["implementation_sha256"]
+    assert provenance_a1["rules_sha256"] == provenance_b["rules_sha256"]
+    assert provenance_a1["oracle_sha256"] != provenance_b["oracle_sha256"]
+    assert provenance_a1["identity_sha256"] != provenance_b["identity_sha256"]
+
+
 def test_fixture_failure_is_not_reported_as_pass(tmp_path, capsys):
     consumer, _ = make_consumer()
     run_eval = load_run_eval_module()

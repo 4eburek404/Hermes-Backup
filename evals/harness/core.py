@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from .report import write_report
 
@@ -132,6 +132,17 @@ def evaluate_dimension_details(
                 "reason": f"evaluator error: {type(exc).__name__}: {exc}",
             }
     return details
+
+
+def _capture_evaluator_provenance(
+    consumer: Consumer,
+    evidence: dict[str, Any],
+    rules: dict[str, Any],
+) -> dict[str, Any] | None:
+    capture = getattr(consumer, "evaluation_provenance", None)
+    if not callable(capture):
+        return None
+    return cast(dict[str, Any] | None, capture(evidence, rules))
 
 
 def _undefined_details(status: str, reason: str) -> dict[str, dict[str, str]]:
@@ -309,9 +320,13 @@ class Harness:
             }
 
         rules = case.get("rules", {}).get(spec.scenario, {})
+        evaluator_provenance = None
         if evidence.get("execution_status") in {"COMPLETED", "AGENT_FAILURE"}:
             diagnostics = evaluate_dimension_details(self.consumer, evidence, rules)
             score = _score_from_details(diagnostics)
+            evaluator_provenance = _capture_evaluator_provenance(
+                self.consumer, evidence, rules
+            )
         else:
             diagnostics = _undefined_details(
                 "UNDEFINED",
@@ -320,31 +335,46 @@ class Harness:
             score = _score_from_details(diagnostics)
         evidence["diagnostics"] = diagnostics
         evidence["agent_execution_count"] = self.agent_execution_count
-        return self._persist(run_dir, evidence, score)
+        return self._persist(
+            run_dir, evidence, score, evaluator_provenance=evaluator_provenance
+        )
 
     def _persist(
         self,
         run_dir: Path,
         evidence: dict[str, Any],
         score: dict[str, str],
+        evaluator_provenance: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         evidence_path = run_dir / "evidence.json"
         score_path = run_dir / "score.json"
         _write_json(evidence_path, evidence)
-        _write_json(score_path, {"score": score})
-        return {
+        score_record = {"score": score}
+        if evaluator_provenance is not None:
+            score_record["evaluator_provenance"] = evaluator_provenance
+        _write_json(score_path, score_record)
+        run_record = {
             **evidence,
             "evidence_id": evidence["run_id"],
             "evidence_path": str(evidence_path),
             "score_path": str(score_path),
             "score": score,
         }
+        if evaluator_provenance is not None:
+            run_record["evaluator_provenance"] = evaluator_provenance
+        return run_record
 
     def reevaluate(self, evidence_path: Path, rules: dict[str, Any]) -> dict[str, Any]:
         evidence = _read_json(evidence_path)
         diagnostics = evaluate_dimension_details(self.consumer, evidence, rules)
-        return {
+        result = {
             "score": _score_from_details(diagnostics),
             "diagnostics": diagnostics,
             "agent_execution_count": evidence.get("agent_execution_count", self.agent_execution_count),
         }
+        evaluator_provenance = _capture_evaluator_provenance(
+            self.consumer, evidence, rules
+        )
+        if evaluator_provenance is not None:
+            result["evaluator_provenance"] = evaluator_provenance
+        return result

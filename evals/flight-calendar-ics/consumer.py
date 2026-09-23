@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import os
 import re
@@ -14,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from evals.harness.core import RunSpec
+from evals.harness.core import DIMENSIONS, RunSpec, _score_from_details, evaluate_dimension_details
 from evals.harness.report import write_report
 from evals.harness.skill_source import materialize_skill_source
 
@@ -62,6 +63,13 @@ class FlightCalendarIcsConsumer:
             for chunk in iter(lambda: fh.read(1024 * 1024), b""):
                 h.update(chunk)
         return h.hexdigest()
+
+    @staticmethod
+    def _canonical_sha256(value: Any) -> str:
+        canonical = json.dumps(
+            value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+        return hashlib.sha256(canonical).hexdigest()
 
     @staticmethod
     def _make_home(home: Path, skill_root: Path) -> None:
@@ -267,6 +275,49 @@ class FlightCalendarIcsConsumer:
     def _oracle(self, scenario: str) -> dict[str, Any]:
         path = self.root / self.manifest["scenarios"][scenario]["oracle"]
         return json.loads(path.read_text(encoding="utf-8"))
+
+    def evaluation_provenance(
+        self, evidence: dict[str, Any], rules: dict[str, Any]
+    ) -> dict[str, Any]:
+        scenario = str(evidence.get("scenario") or "url-success")
+        effective_rules = json.loads(
+            json.dumps(rules, sort_keys=True, ensure_ascii=False)
+        )
+        effective_oracle = self._oracle(scenario)
+        implementation_source = [
+            inspect.getsource(type(self).evaluate_dimension_diagnostic),
+            inspect.getsource(type(self)._oracle),
+            inspect.getsource(type(self)._event_summary),
+            inspect.getsource(type(self)._decode_tool_result),
+            inspect.getsource(type(self).classify_saved_evidence),
+            inspect.getsource(classify_execution_status),
+            inspect.getsource(evaluate_dimension_details),
+            inspect.getsource(_score_from_details),
+        ]
+        implementation_sha256 = self._canonical_sha256(
+            {"dimensions": DIMENSIONS, "source": implementation_source}
+        )
+        rules_sha256 = self._canonical_sha256(effective_rules)
+        oracle_sha256 = self._canonical_sha256(effective_oracle)
+        identity_sha256 = self._canonical_sha256(
+            {
+                "evaluator": self.name,
+                "scenario": scenario,
+                "implementation_sha256": implementation_sha256,
+                "rules_sha256": rules_sha256,
+                "oracle_sha256": oracle_sha256,
+            }
+        )
+        return {
+            "evaluator": self.name,
+            "scenario": scenario,
+            "identity_sha256": identity_sha256,
+            "implementation_sha256": implementation_sha256,
+            "effective_rules": effective_rules,
+            "rules_sha256": rules_sha256,
+            "effective_oracle": effective_oracle,
+            "oracle_sha256": oracle_sha256,
+        }
 
     @staticmethod
     def _reference_itinerary(scenario: str) -> dict[str, Any]:
@@ -862,15 +913,15 @@ class FlightCalendarIcsConsumer:
                 json.loads(evidence_path.read_text(encoding="utf-8"))
             )
             rules = case.get("rules", {}).get(str(evidence.get("scenario")), {})
-            from evals.harness.core import evaluate_dimension_details
-
             diagnostics = evaluate_dimension_details(self, evidence, rules)
             score = {name: detail["status"] for name, detail in diagnostics.items()}
+            evaluator_provenance = self.evaluation_provenance(evidence, rules)
             run = {
                 **source_run,
                 **evidence,
                 "score": score,
                 "diagnostics": diagnostics,
+                "evaluator_provenance": evaluator_provenance,
                 "report_note": None,
             }
             run_dir = output_dir / "runs" / str(run["run_id"])
@@ -882,6 +933,7 @@ class FlightCalendarIcsConsumer:
                         "execution_status": run.get("execution_status"),
                         "score": score,
                         "diagnostics": diagnostics,
+                        "evaluator_provenance": evaluator_provenance,
                     },
                     indent=2,
                     sort_keys=True,
