@@ -37,7 +37,10 @@ Common to all carriers: keep credential-bearing URLs private and never expose th
 
 ## Utair
 
-- Evidence is `rloc` (locator) plus `last_name` from the order-manage URL; Cyrillic surnames and URL-encoding are handled, `utm_*` parameters are ignored. In the compact public CLI, pass the full URL through `--url` or `--url-file`, or use minimal itinerary JSON with `--input`.
-- The carrier-specific known redirect form at `click.mail.utair.io/...` is resolved and validated to `utair.ru/order-manage?...`; the CLI handles this known Utair redirect automatically. This is not a generic redirect or nested-URL fallback. If redirect resolution fails, provide the direct Utair `order-manage` URL.
+- The canonical manage-booking URL is `https://www.utair.ru/order-manage?rloc=<PNR>&last_name=<SURNAME>`. The observed direct link may also contain `utm_source` and `utm_campaign`; those tracking parameters are not required and are not part of the canonical booking link.
+- Booking emails may use the opaque click wrapper `https://click.mail.utair.io/<...>`. Unlike Ural's embedded-`u` wrapper, this URL does not contain the destination or booking credentials, so one HTTP redirect lookup is required to reveal the destination.
+- The mail wrapper is not a Utair carrier fingerprint. Source normalization resolves the known HTTPS wrapper once, then ordinary carrier routing runs on the returned URL. Utair is identified only from the resulting `https://www.utair.ru/order-manage?...` URL.
+- Pass either the direct booking URL or the original mail-click URL through the normal `--url` interface. The agent must not follow the redirect manually, extract credentials, or reconstruct a direct URL itself.
+- The current live API flow uses the booking locator plus passenger surname: OAuth client credentials, then the orders lookup. Cyrillic surnames and URL encoding are supported.
 - A smoke run with a fake locator/surname is a safe reachability check: token success plus a redacted "no orders found" confirms the flow without real booking data.
 - Baggage is included only when explicit in booking data; it is never inferred from the fare brand.
