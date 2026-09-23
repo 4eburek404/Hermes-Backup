@@ -12,13 +12,14 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlencode, urljoin, urlparse
+from urllib.parse import parse_qs, parse_qsl, urlencode, urljoin, urlparse
 
 from flight_calendar import carrier_http
 from flight_calendar.errors import CliFailure
 
 
 URAL_SERVICE_BASE = "https://service.uralairlines.ru/"
+URAL_MAIL_WRAPPER_HOST = "tn-hgl.mckx.ru"
 URAL_CONFIG_FILENAME = "ural-deployment.json"
 URAL_CONFIG_CACHE_DIR = Path.home() / ".hermes" / "cache" / "flight-calendar-ics"
 TIME_BUCKET_MS = 60_000
@@ -60,8 +61,59 @@ def http_json(
     )
 
 
+def _unwrap_ural_source(raw_url: str) -> str:
+    """Unwrap the supported Ural mail source; leave direct URLs unchanged."""
+    source = raw_url.strip()
+    wrapper = urlparse(source)
+    if (wrapper.hostname or "").lower() != URAL_MAIL_WRAPPER_HOST:
+        return source
+
+    if (
+        wrapper.scheme.lower() != "https"
+        or wrapper.netloc.lower() != URAL_MAIL_WRAPPER_HOST
+        or re.search(r"%(?![0-9a-fA-F]{2})", wrapper.query)
+    ):
+        raise CliFailure(
+            "Ural Airlines mail source is invalid",
+            code="route_input_insufficient",
+        )
+
+    try:
+        parameters = parse_qsl(
+            wrapper.query,
+            keep_blank_values=True,
+            strict_parsing=True,
+            encoding="utf-8",
+            errors="strict",
+        )
+    except (UnicodeDecodeError, ValueError):
+        raise CliFailure(
+            "Ural Airlines mail source is invalid",
+            code="route_input_insufficient",
+        ) from None
+
+    if len(parameters) != 1 or parameters[0][0] != "u" or not parameters[0][1]:
+        raise CliFailure(
+            "Ural Airlines mail source is invalid",
+            code="route_input_insufficient",
+        )
+
+    target = parameters[0][1].strip()
+    parsed_target = urlparse(target)
+    if (
+        parsed_target.scheme.lower() != "https"
+        or parsed_target.netloc.lower() != "service.uralairlines.ru"
+        or parsed_target.path not in {"", "/", "/services"}
+    ):
+        raise CliFailure(
+            "Ural Airlines mail source has an unsupported destination",
+            code="route_input_insufficient",
+        )
+    return target
+
+
 def parse_ural_source(url: str) -> tuple[str, str, str]:
-    booking_url = url.strip()
+    booking_url = _unwrap_ural_source(url)
     parsed = urlparse(booking_url)
     qs = parse_qs(parsed.query)
     pnr = (qs.get("pnr") or qs.get("pnrNumber") or qs.get("pnrnumber") or [None])[0]
