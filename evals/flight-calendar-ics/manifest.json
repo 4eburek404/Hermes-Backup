@@ -25,7 +25,7 @@
       "provider": "ollama-cloud"
     }
   ],
-  "repeats": 1,
+  "repeats": 2,
   "execution": {
     "toolsets": [
       "terminal",

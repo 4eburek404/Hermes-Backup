@@ -1,7 +1,7 @@
 # flight-calendar-ics agent eval
 
 Recorded, offline agent-level evaluation of the candidate `flight-calendar-ics`
-skill. The configured manifest has **three scenarios**, one repeat, and **nine
+skill. The configured manifest has **three scenarios**, two repeats, and **18
 configured agent runs**: three provider/model pairs for each scenario.
 
 Scenarios:
@@ -28,7 +28,7 @@ python3 evals/flight-calendar-ics/run_eval.py \
   --scenario pdf-success
 ```
 
-That selection produces **2 scenarios × 3 models × 1 repeat = 6 agent runs**.
+That selection produces **2 scenarios × 3 models × 2 repeats = 12 agent runs**.
 Without `--scenario`, the runner executes all three configured scenarios. The
 runner supports configured scenario names generically; it does not hardcode the
 selected pair.

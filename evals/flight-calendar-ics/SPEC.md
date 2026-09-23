@@ -4,14 +4,14 @@
 
 The eval is recorded/offline and evaluates the complete candidate skill from Git
 ref `update/flight-calendar-ics`. The configured manifest contains three
-scenarios, one repeat, and nine configured agent runs: each scenario executes on
+scenarios, two repeats, and 18 configured agent runs: each scenario executes on
 these three provider/model pairs in order:
 
 - GPT-6 Luna: `gpt-6-luna` / `openai-codex`;
 - Neural Deep — Qwen 3.8 27B: `qwen3.8-27b` / `custom:neuraldeep`;
 - Ollama Cloud — Nemotron 3 Super: `nemotron-3-super` / `ollama-cloud`.
 
-The next selected matrix is `ural-url-success` plus `pdf-success`: six agent
+The next selected matrix is `ural-url-success` plus `pdf-success`: twelve agent
 runs total. `url-success` remains configured and must continue to work.
 
 Every scenario owns a prompt, raw fixture, oracle, evaluation rules, prompt SHA,
