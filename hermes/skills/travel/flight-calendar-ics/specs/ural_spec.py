@@ -29,7 +29,7 @@ SCRIPTS = ROOT / "scripts"
 FIXTURES = ROOT / "specs" / "fixtures" / "ural"
 sys.path.insert(0, str(SCRIPTS))
 
-BOOKING_URL = "https://service.uralairlines.ru/?pnr=ABC123&lastName=IVANOV"
+BOOKING_URL = "https://service.uralairlines.ru/services?pnr=ABC123&lastName=IVANOV"
 SYNTHETIC_FRONTEND = "https://ural-frontend.test/"
 SYNTHETIC_API = "https://ural-api.test/api/"
 ROOT_HTML = """
@@ -98,8 +98,10 @@ class UralSourceSpecification(unittest.TestCase):
                     f"{SYNTHETIC_FRONTEND}?{query}"
                 )
                 self.assertEqual((locator, surname), ("ABC123", "IVANOV"))
-                if "utm_" in query:
-                    self.assertIn("utm_", normalized)
+                self.assertEqual(
+                    normalized,
+                    "https://service.uralairlines.ru/services?pnr=ABC123&lastName=IVANOV",
+                )
 
     def test_missing_and_invalid_credentials_fail_before_network_without_leak(self) -> None:
         from flight_calendar.carriers import ural
@@ -543,9 +545,9 @@ class UralCliPrivacySpecification(unittest.TestCase):
     def test_ural_mail_wrapper_builds_calendar_through_public_url_cli(self) -> None:
         from flight_calendar import carrier_http, parser
 
-        target_url = "https://service.uralairlines.ru/?pnr=ABC123&lastName=IVANOV&utm_source=synthetic"
+        target_url = "https://service.uralairlines.ru/services?pnr=ABC123&lastName=IVANOV&utm_source=synthetic"
         wrapper_url = (
-            "https://tn-hgl.mckx.ru/c/synthetic-click/"
+            "https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/"
             f"?u={quote(target_url, safe='')}"
         )
         transport_calls: list[tuple[str, str]] = []
@@ -601,6 +603,14 @@ class UralCliPrivacySpecification(unittest.TestCase):
             self.assertEqual(payload["media"], f"MEDIA:{output.resolve()}")
             self.assertEqual(payload["segments_count"], 2)
             self.assertTrue(output.is_file())
+            ics_text = output.read_text(encoding="utf-8").replace("\n ", "")
+            canonical_url = (
+                "https://service.uralairlines.ru/services"
+                "?pnr=ABC123&lastName=IVANOV"
+            )
+            self.assertIn(canonical_url, ics_text)
+            self.assertNotIn("tn-hgl.mckx.ru", ics_text)
+            self.assertNotIn("utm_source=", ics_text)
             self.assertEqual(
                 [path for path, _query in transport_calls],
                 ["/api/settings/CurrentDateUtc", "/api/Reservation"],
@@ -623,7 +633,7 @@ class UralCliPrivacySpecification(unittest.TestCase):
     def test_ural_mail_wrapper_rejects_untrusted_shapes_and_targets(self) -> None:
         from flight_calendar import carrier_http, parser
 
-        valid_target = "https://service.uralairlines.ru/?pnr=ABC123&lastName=IVANOV"
+        valid_target = "https://service.uralairlines.ru/services?pnr=ABC123&lastName=IVANOV"
         invalid_sources = (
             (
                 "http://tn-hgl.mckx.ru/c/synthetic-click/?u="
@@ -635,41 +645,36 @@ class UralCliPrivacySpecification(unittest.TestCase):
                 + quote(valid_target, safe=""),
                 "route_unknown",
             ),
+            ("https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/", "redirect_resolution_failed"),
             (
-                "https://tn-hgl.mckx.ru/other/synthetic-click/?u="
-                + quote(valid_target, safe=""),
-                "route_unknown",
-            ),
-            ("https://tn-hgl.mckx.ru/c/synthetic-click/", "redirect_resolution_failed"),
-            (
-                "https://tn-hgl.mckx.ru/c/synthetic-click/?u="
+                "https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/?u="
                 + quote(valid_target, safe="")
                 + "&u="
                 + quote(valid_target, safe=""),
                 "redirect_resolution_failed",
             ),
             (
-                "https://tn-hgl.mckx.ru/c/synthetic-click/?u="
+                "https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/?u="
                 + quote("https://service.uralairlines.ru/?pnr=ABC123", safe="")
                 + "&lastName=IVANOV",
                 "redirect_resolution_failed",
             ),
             (
-                "https://tn-hgl.mckx.ru/c/synthetic-click/?u=%ZZ",
+                "https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/?u=%ZZ",
                 "redirect_resolution_failed",
             ),
             (
-                "https://tn-hgl.mckx.ru/c/synthetic-click/?u="
+                "https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/?u="
                 + quote(valid_target.replace("https://", "http://"), safe=""),
-                "redirect_resolution_failed",
+                "route_unknown",
             ),
             (
-                "https://tn-hgl.mckx.ru/c/synthetic-click/?u="
+                "https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/?u="
                 + quote(valid_target.replace("service.uralairlines.ru", "evil.example"), safe=""),
-                "redirect_resolution_failed",
+                "route_unknown",
             ),
             (
-                "https://tn-hgl.mckx.ru/c/synthetic-click/?u="
+                "https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/?u="
                 + quote(valid_target.replace("/?pnr=", "/unsupported?pnr="), safe=""),
                 "redirect_resolution_failed",
             ),
@@ -709,7 +714,7 @@ class UralCliPrivacySpecification(unittest.TestCase):
     def test_bootstrap_failure_is_redacted_at_public_json_cli_boundary(self) -> None:
         from flight_calendar import carrier_http, parser
 
-        private_url = "https://service.uralairlines.ru/?pnr=ABC123&lastName=IVANOV"
+        private_url = "https://service.uralairlines.ru/services?pnr=ABC123&lastName=IVANOV"
 
         def transport(url: str, **kwargs: Any) -> tuple[int, str, str]:
             if url == "https://service.uralairlines.ru/":
