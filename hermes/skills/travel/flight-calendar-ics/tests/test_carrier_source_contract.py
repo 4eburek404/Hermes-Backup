@@ -20,28 +20,32 @@ class CarrierSourceContractTests(unittest.TestCase):
                 ural.parse_ural_source,
                 "https://service.uralairlines.ru/?pnrNumber=abc123&surname=ivanov",
                 ("ABC123", "IVANOV"),
+                "https://service.uralairlines.ru/services?pnr=ABC123&lastName=IVANOV",
             ),
             (
                 utair.parse_utair_source,
                 "https://www.utair.ru/order-manage?pnr=abc123&lastName=ivanov",
                 ("ABC123", "IVANOV"),
+                None,
             ),
             (
                 redwings.parse_redwings_source,
                 "https://flyredwings.com/booking/#/find/abc123/ACCESS_KEY/Submit",
                 ("ABC123", "ACCESS_KEY"),
+                None,
             ),
             (
                 s7.parse_s7_source,
                 "https://myb.s7.ru/myb/manage-order?booking_id=abc123&passenger_id=ivanov",
                 ("ABC123", "ivanov"),
+                None,
             ),
         )
-        for parse_source, url, expected in cases:
+        for parse_source, url, expected, expected_normalized in cases:
             with self.subTest(url=url):
                 locator, passenger, normalized_url = parse_source(url)
                 self.assertEqual((locator, passenger), expected)
-                self.assertEqual(normalized_url, url)
+                self.assertEqual(normalized_url, expected_normalized or url)
 
     def test_adapters_report_missing_source_credentials(self) -> None:
         from flight_calendar.carriers import redwings, s7, ural, utair
