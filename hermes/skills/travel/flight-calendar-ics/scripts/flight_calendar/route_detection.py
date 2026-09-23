@@ -35,24 +35,17 @@ def trusted_route(url: str) -> str | None:
     parsed = urlparse(url)
     host = (parsed.hostname or "").lower()
     path = parsed.path
-    path_parts = path.split("/")
-    if (
-        parsed.scheme.lower() == "https"
-        and host == "tn-hgl.mckx.ru"
-        and parsed.netloc.lower() == "tn-hgl.mckx.ru"
-        and len(path_parts) == 4
-        and path_parts[1] == "c"
-        and bool(path_parts[2])
-        and path_parts[3] == ""
-    ):
-        return "ural"
     if host == "click.mail.utair.io" and parsed.scheme.lower() in {"http", "https"}:
         return "utair"
     if parsed.scheme.lower() != "https":
         return None
     if host == "www.aeroflot.ru" and path == "/sb/pnr/app/ru-ru":
         return "aeroflot"
-    if host == "service.uralairlines.ru":
+    if (
+        host == "service.uralairlines.ru"
+        and parsed.netloc.lower() == "service.uralairlines.ru"
+        and path in {"", "/", "/services"}
+    ):
         return "ural"
     if host == "www.utair.ru" and path == "/order-manage":
         return "utair"
