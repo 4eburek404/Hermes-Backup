@@ -28,6 +28,11 @@ Choose the route from the user's source - Booking URL or PDF itinerary.
   --url '<booking-url>'
 ```
 
+The CLI receives the original booking URL unchanged. Carrier selection happens
+inside the CLI, and the selected carrier adapter owns any carrier-specific
+wrapper decoding, redirect resolution, credential extraction, and canonical URL
+construction. The agent must not perform those transformations itself.
+
 2. Handle the result by its error code:
 
    * `ok: true`: follow the single `## Success` contract below.
