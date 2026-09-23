@@ -17,7 +17,7 @@ SPEC = EVAL / "SPEC.md"
 README = EVAL / "README.md"
 
 EXPECTED_MODELS = [
-    {"model": "gpt-5.6-luna", "provider": "openai-codex"},
+    {"model": "gpt-6-luna", "provider": "openai-codex"},
     {"model": "qwen3.8-27b", "provider": "custom:neuraldeep"},
     {"model": "nemotron-3-super", "provider": "ollama-cloud"},
 ]
@@ -44,10 +44,10 @@ def main() -> int:
     expected_scenarios = ["url-success", "ural-url-success", "pdf-success"]
     if not isinstance(scenarios, dict) or list(scenarios) != expected_scenarios:
         fail(f"expected three scenarios {expected_scenarios!r}; got {scenarios!r}")
-    if manifest.get("repeats") != 1:
-        fail(f"expected one repeat; got {manifest.get('repeats')!r}")
-    if len(models) * len(scenarios) * manifest["repeats"] != 9:
-        fail("configured eval must contain exactly nine agent runs")
+    if manifest.get("repeats") != 2:
+        fail(f"expected two repeats; got {manifest.get('repeats')!r}")
+    if len(models) * len(scenarios) * manifest["repeats"] != 18:
+        fail("configured eval must contain exactly eighteen agent runs")
 
     prompt_shas = set()
     fixture_shas = set()
@@ -76,8 +76,8 @@ def main() -> int:
 
     docs = "\n".join(path.read_text(encoding="utf-8") for path in (SPEC, README))
     required_doc_values = (
-        "GPT-5.6 Luna",
-        "gpt-5.6-luna",
+        "GPT-6 Luna",
+        "gpt-6-luna",
         "openai-codex",
         "Neural Deep",
         "Qwen 3.8 27B",
@@ -96,13 +96,13 @@ def main() -> int:
             fail(f"temporary model remains in eval configuration: {value}")
     if not re.search(r"three\s+scenarios|3\s+scenarios", docs, re.IGNORECASE):
         fail("documentation must state that the eval has three scenarios")
-    if not re.search(r"one\s+repeat|1\s+repeat", docs, re.IGNORECASE):
-        fail("documentation must state that the eval has one repeat")
-    if not re.search(r"nine\s+configured\s+agent\s+runs|9\s+agent\s+runs", docs, re.IGNORECASE):
-        fail("documentation must state that the configured eval has nine agent runs")
+    if not re.search(r"two\s+repeats|2\s+repeats", docs, re.IGNORECASE):
+        fail("documentation must state that the eval has two repeats")
+    if not re.search(r"eighteen\s+configured\s+agent\s+runs|18\s+configured\s+agent\s+runs", docs, re.IGNORECASE):
+        fail("documentation must state that the configured eval has eighteen agent runs")
 
     print("PASS: exact three provider/model pairs in required order")
-    print("PASS: three scenarios, one repeat, nine configured agent runs")
+    print("PASS: three scenarios, two repeats, eighteen configured agent runs")
     print("PASS: SPEC.md and README.md match the runtime matrix")
     return 0
 

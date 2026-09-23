@@ -35,24 +35,33 @@ def load_replay():
     return module
 
 
-def test_selected_matrix_is_six_runs_and_scenario_hashes_are_independent():
+def test_selected_matrix_matches_configured_repeats_and_scenario_hashes_are_independent():
     run_eval = load_run_eval()
     manifest = run_eval.load_manifest()
+    selected_scenarios = ["ural-url-success", "pdf-success"]
     assert list(manifest["scenarios"]) == ["url-success", "ural-url-success", "pdf-success"]
     case = run_eval.build_case(
         manifest,
         EVAL,
         runtime_version="test-runtime",
-        selected_scenarios=["ural-url-success", "pdf-success"],
+        selected_scenarios=selected_scenarios,
     )
     from evals.harness.core import build_matrix
 
     specs = build_matrix(case)
-    assert len(specs) == 6
-    assert {spec.scenario for spec in specs} == {"ural-url-success", "pdf-success"}
+    expected_matrix = {
+        (scenario, model["model"], repeat)
+        for scenario in selected_scenarios
+        for model in manifest["models"]
+        for repeat in range(1, manifest["repeats"] + 1)
+    }
+    actual_matrix = {(spec.scenario, spec.model, spec.repeat) for spec in specs}
+    assert actual_matrix == expected_matrix
+    assert len(specs) == len(expected_matrix) == 12
+    assert {spec.scenario for spec in specs} == set(selected_scenarios)
     assert len({spec.prompt_version for spec in specs}) == 2
     assert len({spec.fixture_version for spec in specs}) == 2
-    assert all(spec.repeat == 1 for spec in specs)
+    assert {spec.repeat for spec in specs} == {1, 2}
 
 
 def test_ural_replay_is_offline_and_returns_raw_reservation():
