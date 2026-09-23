@@ -36,11 +36,14 @@ def normalize_url_source(raw_url: str) -> str:
     except (UnicodeDecodeError, ValueError):
         raise CliFailure("booking URL wrapper is invalid", code="route_unknown") from None
 
-    destinations = [value for key, value in parameters if key == "u"]
-    if len(destinations) != 1 or not destinations[0]:
+    if (
+        len(parameters) != 1
+        or parameters[0][0] != "u"
+        or not parameters[0][1]
+    ):
         raise CliFailure("booking URL wrapper is invalid", code="route_unknown")
 
-    target = destinations[0].strip()
+    target = parameters[0][1].strip()
     parsed_target = urlparse(target)
     if (
         parsed_target.scheme.lower() != "https"
