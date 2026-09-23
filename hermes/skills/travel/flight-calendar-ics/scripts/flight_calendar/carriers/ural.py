@@ -12,13 +12,14 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlencode, urljoin, urlparse
+from urllib.parse import parse_qs, parse_qsl, urlencode, urljoin, urlparse
 
 from flight_calendar import carrier_http
 from flight_calendar.errors import CliFailure
 
 
 URAL_SERVICE_BASE = "https://service.uralairlines.ru/"
+URAL_MAIL_HOST = "tn-hgl.mckx.ru"
 URAL_CONFIG_FILENAME = "ural-deployment.json"
 URAL_CONFIG_CACHE_DIR = Path.home() / ".hermes" / "cache" / "flight-calendar-ics"
 TIME_BUCKET_MS = 60_000
@@ -58,6 +59,78 @@ def http_json(
         timeout=timeout,
         label="Ural Airlines API",
     )
+
+
+def normalize_ural_mail_source(url: str) -> str:
+    """Extract one validated Ural booking URL from the allowlisted mail source."""
+    wrapper = urlparse(url.strip())
+    if (wrapper.hostname or "").lower() != URAL_MAIL_HOST:
+        return url.strip()
+
+    path_parts = wrapper.path.split("/")
+    if (
+        wrapper.scheme.lower() != "https"
+        or wrapper.netloc.lower() != URAL_MAIL_HOST
+        or len(path_parts) != 4
+        or path_parts[1] != "c"
+        or not path_parts[2]
+        or path_parts[3] != ""
+        or re.search(r"%(?![0-9a-fA-F]{2})", wrapper.query)
+    ):
+        raise CliFailure(
+            "Ural Airlines mail source is invalid",
+            code="redirect_resolution_failed",
+        )
+
+    try:
+        parameters = parse_qsl(
+            wrapper.query,
+            keep_blank_values=True,
+            strict_parsing=True,
+            encoding="utf-8",
+            errors="strict",
+        )
+    except (UnicodeDecodeError, ValueError):
+        raise CliFailure(
+            "Ural Airlines mail source is invalid",
+            code="redirect_resolution_failed",
+        ) from None
+
+    if len(parameters) != 1 or parameters[0][0] != "u":
+        raise CliFailure(
+            "Ural Airlines mail source is invalid",
+            code="redirect_resolution_failed",
+        )
+
+    target_url = parameters[0][1]
+    target = urlparse(target_url)
+    if (
+        not target_url
+        or target.scheme.lower() != "https"
+        or (target.hostname or "").lower() != "service.uralairlines.ru"
+        or target.netloc.lower() != "service.uralairlines.ru"
+        or target.path not in {"", "/"}
+        or target.fragment
+        or re.search(r"%(?![0-9a-fA-F]{2})", target.query)
+    ):
+        raise CliFailure(
+            "Ural Airlines mail source has an unsupported destination",
+            code="redirect_resolution_failed",
+        )
+    try:
+        parse_qsl(
+            target.query,
+            keep_blank_values=True,
+            strict_parsing=True,
+            encoding="utf-8",
+            errors="strict",
+        )
+    except (UnicodeDecodeError, ValueError):
+        raise CliFailure(
+            "Ural Airlines mail source has an unsupported destination",
+            code="redirect_resolution_failed",
+        ) from None
+    return target_url
 
 
 def parse_ural_source(url: str) -> tuple[str, str, str]:
@@ -335,7 +408,8 @@ def _accept_reservation(response: Any) -> dict[str, Any]:
 
 
 def build_itinerary(booking_url: str) -> dict[str, Any]:
-    locator, last_name, normalized_url = parse_ural_source(booking_url)
+    normalized_url = normalize_ural_mail_source(booking_url)
+    locator, last_name, normalized_url = parse_ural_source(normalized_url)
     reservation = fetch_ural_reservation(locator, last_name, booking_url=normalized_url)
     return convert_to_itinerary(reservation["data"], booking_url=normalized_url)
 
