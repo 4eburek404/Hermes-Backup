@@ -175,10 +175,12 @@ agent result exists.
 
 ### EH-EXEC-05 — Timeout
 
-**TIMEOUT** means an eval-owned wall-clock deadline expired before a terminal execution state.
+An eval-owned wall-clock deadline expiring before execution finishes is a timeout condition. It is
+recorded as **RUNTIME_FAILURE** with a diagnostic reason identifying the timeout; TIMEOUT is not a
+separate execution-status category.
 
-The eval deadline is independent from any agent/model budget. On timeout, available stdout/stderr
-and partial runtime evidence must be retained, and the harness must attempt bounded cleanup of the
+The eval deadline is independent from any agent/model budget. On timeout, available stdout/stderr and
+partial runtime evidence must be retained, and the harness must attempt bounded cleanup of the
 process tree.
 
 ### EH-EXEC-06 — One classification path
@@ -584,8 +586,9 @@ Covers: EH-EVAL-03.
 
 ### ES-14 — Timeout retains partial evidence
 
-Given a controlled subprocess exceeds the eval-owned deadline, status is TIMEOUT, available
-stdout/stderr are retained, cleanup is bounded, and the batch can continue with independent runs.
+Given a controlled subprocess exceeds the eval-owned deadline, `execution_status` is RUNTIME_FAILURE
+with an explicit timeout diagnostic, available stdout/stderr and partial evidence are retained,
+cleanup is bounded, and the batch continues with independent runs.
 
 Covers: EH-EXEC-05, EH-EXEC-07.
 

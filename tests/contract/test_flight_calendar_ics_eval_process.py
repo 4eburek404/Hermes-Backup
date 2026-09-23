@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
+import sys
+import textwrap
 from pathlib import Path
 from unittest.mock import patch
 
@@ -38,6 +41,70 @@ def make_consumer():
     module = load_consumer_module()
     manifest = json.loads((EVAL / "manifest.json").read_text(encoding="utf-8"))
     return module.FlightCalendarIcsConsumer(EVAL, ROOT, manifest), module
+
+
+def test_eval_owned_timeout_keeps_partial_evidence_and_continues_matrix(tmp_path):
+    consumer, module = make_consumer()
+    run_eval = load_run_eval_module()
+    case = run_eval.build_case(
+        consumer.manifest,
+        EVAL,
+        runtime_version="test-runtime",
+        selected_scenarios=["url-success"],
+    )
+    case["models"] = [
+        {"model": "timeout-model", "provider": "test-provider"},
+        {"model": "next-model", "provider": "test-provider"},
+    ]
+    consumer.manifest["execution"]["run_budget"] = 999
+    consumer.manifest["execution"]["eval_timeout_seconds"] = 0.1
+
+    script = tmp_path / "fake_hermes_timeout.py"
+    script.write_text(
+        textwrap.dedent(
+            """
+            import json
+            import os
+            import sys
+            import time
+            from pathlib import Path
+
+            model = sys.argv[sys.argv.index("--model") + 1]
+            if model == "timeout-model":
+                print(json.dumps({"type": "tool_use", "name": "terminal", "input": {"command": "partial output"}}), flush=True)
+                print(json.dumps({"type": "result", "text": "result before process hang"}), flush=True)
+                print("partial stderr before timeout", file=sys.stderr, flush=True)
+                time.sleep(0.65)
+                Path(os.environ["EVAL_TIMEOUT_MARKER"]).write_text("process outlived deadline")
+            else:
+                print(json.dumps({"type": "result", "text": "next run completed"}), flush=True)
+            """
+        ),
+        encoding="utf-8",
+    )
+    consumer.hermes_command = [sys.executable, str(script)]
+    skill_root = tmp_path / "skills"
+    skill_root.mkdir()
+    marker = tmp_path / "slow-process-finished.txt"
+
+    with (
+        patch.object(module.FlightCalendarIcsConsumer, "_build_skill_root", return_value=(skill_root, {})),
+        patch.object(module.FlightCalendarIcsConsumer, "_seed_timezone_cache"),
+        patch.object(module.FlightCalendarIcsConsumer, "_make_home"),
+        patch.dict(os.environ, {"EVAL_TIMEOUT_MARKER": str(marker)}),
+    ):
+        batch = Harness(consumer).run(case, tmp_path / "batch")
+
+    first, second = batch["runs"]
+    assert first["metrics"]["duration_seconds"] < 0.4
+    assert first["execution_status"] == "RUNTIME_FAILURE"
+    assert "timeout" in first.get("runtime_failure_reason", "").lower()
+    assert "partial output" in Path(first["raw_stream_path"]).read_text(encoding="utf-8")
+    assert "partial stderr before timeout" in Path(first["raw_stderr_path"]).read_text(encoding="utf-8")
+    assert Path(first["raw_final_answer_path"]).read_text(encoding="utf-8") == "result before process hang"
+    assert not marker.exists()
+    assert second["execution_status"] == "COMPLETED"
+    assert second["run_id"] in batch["executed_run_ids"]
 
 
 def test_oracles_describe_observable_renderer_contract_only():
@@ -107,9 +174,12 @@ def test_terminal_result_survives_tool_result_in_saved_evidence(tmp_path):
         patch.object(module.FlightCalendarIcsConsumer, "_seed_timezone_cache"),
         patch.object(module.FlightCalendarIcsConsumer, "_make_home"),
         patch.object(
-            module.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+            module,
+            "run_with_timeout",
+            return_value=(
+                subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+                False,
+            ),
         ),
     ):
         batch = Harness(consumer).run(case, tmp_path / "batch")
@@ -151,9 +221,12 @@ def test_terminal_result_token_fields_are_preserved_in_saved_metrics(tmp_path):
         patch.object(module.FlightCalendarIcsConsumer, "_seed_timezone_cache"),
         patch.object(module.FlightCalendarIcsConsumer, "_make_home"),
         patch.object(
-            module.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+            module,
+            "run_with_timeout",
+            return_value=(
+                subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+                False,
+            ),
         ),
     ):
         batch = Harness(consumer).run(case, tmp_path / "batch")
@@ -210,9 +283,12 @@ def test_missing_token_metric_remains_distinct_from_measured_zero(
         patch.object(module.FlightCalendarIcsConsumer, "_seed_timezone_cache"),
         patch.object(module.FlightCalendarIcsConsumer, "_make_home"),
         patch.object(
-            module.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+            module,
+            "run_with_timeout",
+            return_value=(
+                subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+                False,
+            ),
         ),
     ):
         batch = Harness(consumer).run(case, tmp_path / "batch")
@@ -261,9 +337,12 @@ def test_reevaluation_is_deterministic_and_does_not_launch_runtime(tmp_path):
         patch.object(module.FlightCalendarIcsConsumer, "_seed_timezone_cache"),
         patch.object(module.FlightCalendarIcsConsumer, "_make_home"),
         patch.object(
-            module.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+            module,
+            "run_with_timeout",
+            return_value=(
+                subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+                False,
+            ),
         ),
     ):
         initial_batch = Harness(consumer).run(case, tmp_path / "batch")
@@ -272,8 +351,8 @@ def test_reevaluation_is_deterministic_and_does_not_launch_runtime(tmp_path):
     reevaluation_results = []
     with (
         patch.object(
-            module.subprocess,
-            "run",
+            module,
+            "run_with_timeout",
             side_effect=AssertionError("runtime/provider process launched during re-evaluation"),
         ),
         patch.object(
@@ -360,9 +439,12 @@ def test_reevaluation_preserves_source_evidence_and_writes_derived_result_separa
         patch.object(module.FlightCalendarIcsConsumer, "_seed_timezone_cache"),
         patch.object(module.FlightCalendarIcsConsumer, "_make_home"),
         patch.object(
-            module.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+            module,
+            "run_with_timeout",
+            return_value=(
+                subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+                False,
+            ),
         ),
     ):
         initial_batch = Harness(consumer).run(case, source_batch_dir)
@@ -488,9 +570,12 @@ def test_persisted_evaluator_provenance_tracks_effective_inputs(tmp_path):
         patch.object(module.FlightCalendarIcsConsumer, "_seed_timezone_cache"),
         patch.object(module.FlightCalendarIcsConsumer, "_make_home"),
         patch.object(
-            module.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+            module,
+            "run_with_timeout",
+            return_value=(
+                subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+                False,
+            ),
         ),
     ):
         initial_batch = Harness(consumer).run(case, source_batch_dir)
@@ -520,8 +605,8 @@ def test_persisted_evaluator_provenance_tracks_effective_inputs(tmp_path):
     )
     reevaluated = []
     with patch.object(
-        module.subprocess,
-        "run",
+        module,
+        "run_with_timeout",
         side_effect=AssertionError("agent/runtime execution during re-evaluation"),
     ):
         run_a1, evaluation_a1 = reevaluate("reevaluation-a1")
@@ -635,9 +720,12 @@ def test_tool_result_without_terminal_result_is_not_terminal_evidence(tmp_path):
         patch.object(module.FlightCalendarIcsConsumer, "_seed_timezone_cache"),
         patch.object(module.FlightCalendarIcsConsumer, "_make_home"),
         patch.object(
-            module.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+            module,
+            "run_with_timeout",
+            return_value=(
+                subprocess.CompletedProcess([], 0, stdout=stream, stderr=""),
+                False,
+            ),
         ),
     ):
         batch = Harness(consumer).run(case, tmp_path / "batch")
@@ -692,9 +780,12 @@ def test_nonzero_exit_status_matches_saved_evidence_reevaluation(
         patch.object(module.FlightCalendarIcsConsumer, "_seed_timezone_cache"),
         patch.object(module.FlightCalendarIcsConsumer, "_make_home"),
         patch.object(
-            module.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess([], 1, stdout=stream, stderr=""),
+            module,
+            "run_with_timeout",
+            return_value=(
+                subprocess.CompletedProcess([], 1, stdout=stream, stderr=""),
+                False,
+            ),
         ),
     ):
         batch = Harness(consumer).run(case, tmp_path / "batch")

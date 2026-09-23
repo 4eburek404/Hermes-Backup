@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from evals.harness.core import DIMENSIONS, RunSpec, _score_from_details, evaluate_dimension_details
+from evals.harness.process import run_with_timeout
 from evals.harness.report import write_report
 from evals.harness.skill_source import materialize_skill_source
 
@@ -570,14 +571,14 @@ class FlightCalendarIcsConsumer:
             if execution.get("source"):
                 command.extend(["--source", str(execution["source"])])
 
+            eval_timeout_seconds = float(execution["eval_timeout_seconds"])
             started = datetime.now(timezone.utc)
             started_mono = time.monotonic()
-            proc = subprocess.run(
+            proc, timed_out = run_with_timeout(
                 command,
                 cwd=prepared["workspace"],
                 env=env,
-                text=True,
-                capture_output=True,
+                timeout_seconds=eval_timeout_seconds,
             )
             ended = datetime.now(timezone.utc)
             elapsed = time.monotonic() - started_mono
@@ -669,6 +670,14 @@ class FlightCalendarIcsConsumer:
                     {"Source": "PDF", "AnyDoc": len(anydoc_commands)}
                 )
             report_note = "; ".join(report_notes) if report_notes else None
+            execution_status = (
+                "RUNTIME_FAILURE"
+                if timed_out
+                else classify_execution_status(proc.returncode, summary)
+            )
+            runtime_failure_reason = (
+                f"eval-owned timeout after {eval_timeout_seconds:g}s" if timed_out else None
+            )
 
             metrics = {
                 "tool_calls": len(summary["tool_uses"]),
@@ -694,7 +703,9 @@ class FlightCalendarIcsConsumer:
                 "ended_at": ended.isoformat(),
                 "elapsed_seconds": elapsed,
                 "exit_code": proc.returncode,
-                "execution_status": classify_execution_status(proc.returncode, summary),
+                "execution_status": execution_status,
+                "eval_timeout_seconds": eval_timeout_seconds,
+                "runtime_failure_reason": runtime_failure_reason,
                 "event_summary": summary,
                 "artifact_source_path": str(artifact_source) if artifact_source else None,
                 "artifact_evidence_path": str(artifact_path) if artifact_path else None,

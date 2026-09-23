@@ -5,11 +5,14 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from evals.harness.core import Harness
 
@@ -68,6 +71,35 @@ print("synthetic stderr", file=sys.stderr)
         )
         return [sys.executable, str(script)]
 
+    def fake_timeout_hermes(self, root: Path) -> list[str]:
+        script = root / "fake_hermes_timeout.py"
+        script.write_text(
+            textwrap.dedent(
+                """
+                import json
+                import os
+                import sys
+                import time
+                from pathlib import Path
+
+                if "--version" in sys.argv:
+                    print("fake-hermes 1.0")
+                    raise SystemExit(0)
+                model = sys.argv[sys.argv.index("--model") + 1]
+                if model == "timeout-model":
+                    print(json.dumps({"type": "tool_use", "name": "terminal", "input": {"command": "partial output"}}), flush=True)
+                    print(json.dumps({"type": "result", "text": "result before process hang"}), flush=True)
+                    print("partial stderr before timeout", file=sys.stderr, flush=True)
+                    time.sleep(0.65)
+                    Path(os.environ["EVAL_TIMEOUT_MARKER"]).write_text("process outlived deadline")
+                else:
+                    print(json.dumps({"type": "result", "text": "next run completed"}), flush=True)
+                """
+            ),
+            encoding="utf-8",
+        )
+        return [sys.executable, str(script)]
+
     def make_repo(self, root: Path) -> Path:
         repo = root / "repo"
         skill = repo / "hermes" / "skills" / "github" / "github-code-review" / "SKILL.md"
@@ -121,6 +153,7 @@ print("synthetic stderr", file=sys.stderr)
                 "toolsets": ["terminal", "file", "skills"],
                 "max_turns": 30,
                 "run_budget": 180,
+                "eval_timeout_seconds": 210,
                 "yolo": True,
                 "source": "eval",
             },
@@ -264,6 +297,49 @@ print("synthetic stderr", file=sys.stderr)
             self.assertRegex(metadata["skill_tree_sha256"], r"^[0-9a-f]{64}$")
             self.assertEqual("PASS", run_record["score"]["trajectory"])
             self.assertEqual("UNDEFINED", run_record["score"]["outcome"])
+
+    def test_eval_owned_timeout_preserves_partial_evidence_and_continues(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="github-review-timeout-contract-") as temp:
+            temp_root = Path(temp)
+            consumer, manifest, eval_root = self.make_consumer(
+                temp_root,
+                ["candidate"],
+            )
+            manifest["execution"]["run_budget"] = 999
+            manifest["execution"]["eval_timeout_seconds"] = 0.1
+            consumer.hermes_command = self.fake_timeout_hermes(temp_root)
+            marker = temp_root / "slow-process-finished.txt"
+            case = self.case(manifest, eval_root, ["candidate"])
+            case["models"] = [
+                {"model": "timeout-model", "provider": "fake-provider"},
+                {"model": "next-model", "provider": "fake-provider"},
+            ]
+
+            with patch.dict(os.environ, {"EVAL_TIMEOUT_MARKER": str(marker)}):
+                batch = Harness(consumer).run(case, temp_root / "batch")
+
+            first, second = batch["runs"]
+            self.assertLess(first["elapsed_seconds"], 0.4)
+            self.assertEqual("RUNTIME_FAILURE", first["execution_status"])
+            self.assertIn("timeout", first.get("runtime_failure_reason", "").lower())
+            self.assertIn(
+                "partial output",
+                Path(first["raw_stream_path"]).read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                "partial stderr before timeout",
+                Path(first["raw_stderr_path"]).read_text(encoding="utf-8"),
+            )
+            self.assertEqual(
+                "result before process hang",
+                Path(first["raw_final_answer_path"]).read_text(encoding="utf-8"),
+            )
+            metadata = json.loads(Path(first["metadata_path"]).read_text(encoding="utf-8"))
+            self.assertEqual("RUNTIME_FAILURE", metadata["execution_status"])
+            self.assertIn("timeout", metadata["runtime_failure_reason"].lower())
+            self.assertFalse(marker.exists())
+            self.assertEqual("COMPLETED", second["execution_status"])
+            self.assertIn(second["run_id"], batch["executed_run_ids"])
 
     def test_baseline_candidate_remain_separate_controlled_runs(self) -> None:
         with tempfile.TemporaryDirectory(prefix="github-review-compare-contract-") as temp:

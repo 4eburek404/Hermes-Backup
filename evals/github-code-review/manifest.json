@@ -27,6 +27,7 @@
     "toolsets": ["terminal", "file", "skills"],
     "max_turns": 30,
     "run_budget": 180,
+    "eval_timeout_seconds": 210,
     "yolo": true,
     "source": "eval"
   },

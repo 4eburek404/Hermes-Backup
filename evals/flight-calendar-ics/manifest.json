@@ -34,6 +34,7 @@
     ],
     "max_turns": 10,
     "run_budget": 90,
+    "eval_timeout_seconds": 120,
     "yolo": true,
     "source": "eval"
   },

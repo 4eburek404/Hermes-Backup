@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from evals.harness.core import RunSpec
+from evals.harness.process import run_with_timeout
 from evals.harness.skill_source import materialize_skill_source
 
 
@@ -294,17 +295,25 @@ class GithubCodeReviewConsumer:
             if execution.get("source"):
                 command.extend(["--source", str(execution["source"])])
 
+            eval_timeout_seconds = float(execution["eval_timeout_seconds"])
             started = datetime.now(timezone.utc)
             started_mono = time.monotonic()
-            proc = subprocess.run(
+            proc, timed_out = run_with_timeout(
                 command,
                 cwd=fixture,
                 env=env,
-                text=True,
-                capture_output=True,
+                timeout_seconds=eval_timeout_seconds,
             )
             ended = datetime.now(timezone.utc)
             elapsed = time.monotonic() - started_mono
+            execution_status = (
+                "RUNTIME_FAILURE"
+                if timed_out
+                else ("COMPLETED" if proc.returncode == 0 else "RUNTIME_FAILURE")
+            )
+            runtime_failure_reason = (
+                f"eval-owned timeout after {eval_timeout_seconds:g}s" if timed_out else None
+            )
 
             raw_stream = run_dir / "raw_stream.jsonl"
             raw_stderr = run_dir / "raw_stderr.txt"
@@ -384,6 +393,9 @@ class GithubCodeReviewConsumer:
                 "ended_at": ended.isoformat(),
                 "elapsed_seconds": elapsed,
                 "exit_code": proc.returncode,
+                "execution_status": execution_status,
+                "eval_timeout_seconds": eval_timeout_seconds,
+                "runtime_failure_reason": runtime_failure_reason,
                 "pre_snapshot": pre,
                 "post_snapshot": post,
                 "restored_snapshot": restored,
@@ -401,9 +413,7 @@ class GithubCodeReviewConsumer:
 
             return {
                 **metadata,
-                "execution_status": (
-                    "COMPLETED" if proc.returncode == 0 else "RUNTIME_FAILURE"
-                ),
+                "execution_status": execution_status,
                 "fixture_before": pre,
                 "fixture_after": post,
                 "mutation_evidence": pre != post,
