@@ -84,6 +84,33 @@ class UralSourceSpecification(unittest.TestCase):
             "ural",
         )
 
+    def test_mail_wrapper_routes_to_ural_and_adapter_owns_unwrap(self) -> None:
+        from flight_calendar.carriers import ural
+        from flight_calendar.route_detection import infer_build_route
+
+        target = BOOKING_URL + "&utm_source=synthetic"
+        wrapper = (
+            "https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/"
+            f"?u={quote(target, safe='')}"
+        )
+
+        self.assertEqual(infer_build_route(_args(wrapper))["route"], "ural")
+
+        reservation = json.loads(RESERVATION_TEXT)
+        with mock.patch.object(
+            ural,
+            "fetch_ural_reservation",
+            return_value=reservation,
+        ) as fetch:
+            itinerary = ural.build_itinerary(wrapper)
+
+        fetch.assert_called_once_with(
+            "ABC123",
+            "IVANOV",
+            booking_url=BOOKING_URL,
+        )
+        self.assertEqual(itinerary["booking_url"], BOOKING_URL)
+
     def test_adapter_owns_aliases_and_ignores_tracking_parameters(self) -> None:
         from flight_calendar.carriers import ural
 
