@@ -645,23 +645,23 @@ class UralCliPrivacySpecification(unittest.TestCase):
                 + quote(valid_target, safe=""),
                 "route_unknown",
             ),
-            ("https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/", "redirect_resolution_failed"),
+            ("https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/", "route_unknown"),
             (
                 "https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/?u="
                 + quote(valid_target, safe="")
                 + "&u="
                 + quote(valid_target, safe=""),
-                "redirect_resolution_failed",
+                "route_unknown",
             ),
             (
                 "https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/?u="
                 + quote("https://service.uralairlines.ru/?pnr=ABC123", safe="")
                 + "&lastName=IVANOV",
-                "redirect_resolution_failed",
+                "route_unknown",
             ),
             (
                 "https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/?u=%ZZ",
-                "redirect_resolution_failed",
+                "route_unknown",
             ),
             (
                 "https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/?u="
@@ -676,7 +676,7 @@ class UralCliPrivacySpecification(unittest.TestCase):
             (
                 "https://tn-hgl.mckx.ru/c/SYNTHETIC_A/SYNTHETIC_B/SYNTHETIC_C/?u="
                 + quote(valid_target.replace("/?pnr=", "/unsupported?pnr="), safe=""),
-                "redirect_resolution_failed",
+                "route_unknown",
             ),
             (
                 "https://tracker.example/click?u=" + quote(valid_target, safe=""),
