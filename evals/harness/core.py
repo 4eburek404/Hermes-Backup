@@ -182,7 +182,7 @@ def _comparison(runs: list[dict[str, Any]]) -> dict[str, Any]:
     }
     if len(versions) < 2:
         return {
-            "controlled": True,
+            "controlled": False,
             "changed_material_conditions": [],
             "retained_evidence_by_version": retained,
         }

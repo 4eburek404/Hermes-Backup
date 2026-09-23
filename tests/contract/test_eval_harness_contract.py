@@ -8,6 +8,7 @@ and reevaluate(); the contract does not prescribe production modules/functions.
 from __future__ import annotations
 
 import importlib
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -204,6 +205,29 @@ class EvalHarnessContract(unittest.TestCase):
         self.assertEqual(["skill_version"], comparison["changed_material_conditions"])
         self.assertIn("baseline", comparison["retained_evidence_by_version"])
         self.assertIn("candidate", comparison["retained_evidence_by_version"])
+
+    def test_es19_candidate_only_run_is_not_a_controlled_comparison(self) -> None:
+        case = base_case()
+        case["skill_versions"] = ["candidate"]
+
+        with tempfile.TemporaryDirectory(prefix="eval-harness-candidate-only-") as temp:
+            output_dir = Path(temp)
+            batch = load_subject().run_case(case, output_dir)
+            persisted_batch = json.loads(
+                (output_dir / "batch_manifest.json").read_text(encoding="utf-8")
+            )
+
+        self.assertEqual(1, len(batch["runs"]))
+        candidate_run = batch["runs"][0]
+        self.assertEqual("candidate", candidate_run["skill_version"])
+        self.assertEqual("COMPLETED", candidate_run["execution_status"])
+        self.assertEqual(
+            {"outcome": "PASS", "trajectory": "PASS", "privacy": "PASS"},
+            candidate_run["score"],
+        )
+        self.assertIs(False, batch["comparison"]["controlled"])
+        self.assertEqual(batch["comparison"], persisted_batch["comparison"])
+        self.assertEqual({"candidate"}, set(batch["comparison"]["retained_evidence_by_version"]))
 
     def test_h11_evaluator_failure_is_not_agent_pass_or_fail(self) -> None:
         case = base_case()
