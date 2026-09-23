@@ -20,7 +20,7 @@ The booking-URL runtime has three responsibilities:
   response decoding, HTTP/network failures, and redaction-safe transport
   errors. It does not decide which carrier a URL belongs to.
 
-There is no source-normalization stage in the target flow.
+There is no common source-normalization stage in the booking URL flow.
 
 ## Booking URL flow
 
