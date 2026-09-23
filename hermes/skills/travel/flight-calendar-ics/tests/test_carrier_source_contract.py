@@ -24,9 +24,12 @@ class CarrierSourceContractTests(unittest.TestCase):
             ),
             (
                 utair.parse_utair_source,
-                "https://www.utair.ru/order-manage?pnr=abc123&lastName=ivanov",
+                (
+                    "https://www.utair.ru/order-manage"
+                    "?pnr=abc123&lastName=ivanov&utm_source=mail"
+                ),
                 ("ABC123", "IVANOV"),
-                None,
+                "https://www.utair.ru/order-manage?rloc=ABC123&last_name=IVANOV",
             ),
             (
                 redwings.parse_redwings_source,
