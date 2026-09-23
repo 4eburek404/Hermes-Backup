@@ -19,6 +19,7 @@ from flight_calendar.errors import CliFailure
 
 UTAIR_WEB_BASE = "https://www.utair.ru/"
 UTAIR_API_BASE = "https://b.utair.ru/"
+UTAIR_MAIL_HOST = "click.mail.utair.io"
 
 
 def clean(value: Any) -> Any:
@@ -36,9 +37,55 @@ def browser_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
     )
 
 
+def _is_utair_booking_url(url: str) -> bool:
+    parsed = urlparse(url)
+    return (
+        parsed.scheme.lower() == "https"
+        and parsed.netloc.lower() == "www.utair.ru"
+        and parsed.path == "/order-manage"
+    )
+
+
+def resolve_utair_source(raw_url: str) -> str:
+    """Resolve Utair's opaque mail source; leave direct booking URLs unchanged."""
+    source = raw_url.strip()
+    parsed = urlparse(source)
+    if (parsed.hostname or "").lower() != UTAIR_MAIL_HOST:
+        return source
+    if (
+        parsed.scheme.lower() != "https"
+        or parsed.netloc.lower() != UTAIR_MAIL_HOST
+    ):
+        raise CliFailure(
+            "Utair mail source must use HTTPS",
+            code="redirect_resolution_failed",
+        )
+    try:
+        target = carrier_http.resolve_redirect_url(
+            source,
+            label="Utair booking redirect",
+        )
+    except carrier_http.TransportError as exc:
+        raise CliFailure(
+            "Utair booking redirect could not be resolved",
+            code="redirect_resolution_failed",
+        ) from exc
+    if not _is_utair_booking_url(target):
+        raise CliFailure(
+            "Utair booking redirect resolved to an unsupported destination",
+            code="redirect_resolution_failed",
+        )
+    return target
+
+
 def parse_utair_source(url: str) -> tuple[str, str, str]:
     """Parse and validate the Utair order-manage URL contract."""
     booking_url = url.strip()
+    if not _is_utair_booking_url(booking_url):
+        raise CliFailure(
+            "Utair booking URL is unsupported",
+            code="route_input_insufficient",
+        )
     parsed = urlparse(booking_url)
     qs = parse_qs(parsed.query, keep_blank_values=False)
     rloc = (qs.get("rloc") or qs.get("RLOC") or qs.get("pnr") or [None])[0]
@@ -70,7 +117,8 @@ def parse_utair_source(url: str) -> tuple[str, str, str]:
 
 
 def build_itinerary(booking_url: str) -> dict[str, Any]:
-    locator, last_name, canonical_url = parse_utair_source(booking_url)
+    direct_url = resolve_utair_source(booking_url)
+    locator, last_name, canonical_url = parse_utair_source(direct_url)
     token = fetch_utair_token()
     return convert_to_itinerary(
         fetch_utair_orders(locator, last_name, token=token),
