@@ -14,7 +14,7 @@ REDIRECT_URL_WRAPPER_HOST = "click.mail.utair.io"
 
 
 def normalize_url_source(raw_url: str) -> str:
-    """Return the embedded HTTPS URL for a known mail wrapper, otherwise input."""
+    """Reveal one HTTPS destination from a known wrapper, otherwise input."""
     source = raw_url.strip()
     wrapper = urlparse(source)
     host = (wrapper.hostname or "").lower()
