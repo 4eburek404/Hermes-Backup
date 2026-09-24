@@ -8,9 +8,12 @@ check: test lint check-doc-commands
 test:
 	uv run --extra dev pytest tests
 
-## Первая продуктовая спецификация (RED до реализации поиска).
+## Все текущие детерминированные executable product specifications.
 spec:
-	uv run --extra dev pytest tests/test_successful_search.py
+	uv run --extra dev pytest \
+		tests/test_successful_search.py \
+		tests/test_production_sdk_search.py \
+		tests/test_tool_error.py
 
 ## Живая интеграционная проверка Tutu MCP через SDK; только вручную.
 live:
