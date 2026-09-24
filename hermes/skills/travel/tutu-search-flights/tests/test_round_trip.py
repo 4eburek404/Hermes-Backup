@@ -23,6 +23,7 @@ def test_round_trip_preserves_both_legs_and_outbound_route():
 
     raw_offer = source["offers"][0]
     offer = result["offers"][0]
+    assert result["total_matched_exact"] is source["meta"]["total_matched_exact"] is False
     assert offer["is_round_trip"] is raw_offer["is_round_trip"] is True
     assert offer["origin"] == raw_offer["legs"][0]["from"]
     assert offer["destination"] == raw_offer["legs"][0]["to"]
