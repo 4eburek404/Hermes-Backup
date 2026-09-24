@@ -199,7 +199,9 @@ def _comparison(runs: list[dict[str, Any]]) -> dict[str, Any]:
     )
     groups: dict[tuple[Any, ...], set[str]] = {}
     for run in runs:
-        signature = tuple(run[key] for key in keys)
+        signature = tuple(run[key] for key in keys) + (
+            (run.get("evaluator_provenance") or {}).get("identity_sha256"),
+        )
         groups.setdefault(signature, set()).add(run["skill_version"])
     controlled = (
         bool(groups)

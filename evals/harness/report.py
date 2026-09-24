@@ -187,9 +187,16 @@ def render_report(batch: dict[str, Any], case: dict[str, Any]) -> str:
         "",
         "## STATUS",
         "",
+    ]
+    if batch.get("reevaluation"):
+        lines.extend([
+            "Result type: REEVALUATION of saved evidence (not the historical run result).",
+            "",
+        ])
+    lines.extend([
         f"Result: {_batch_result(runs)}",
         f"Runs: {successful}/{len(runs)} PASS",
-    ]
+    ])
     if period:
         lines.append(f"Period: {period}")
     if batch_duration is not None:

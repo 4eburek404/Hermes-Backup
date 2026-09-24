@@ -4,6 +4,8 @@
     {
       "dtstart": "20371003T061500Z",
       "dtend": "20371003T084500Z",
+      "summary_fragments": ["03.10 SVO - SVX 09:15 13:45"],
+      "required_properties": ["DTSTART", "DTEND", "UID", "SUMMARY", "DESCRIPTION"],
       "description_fragments": [
         "Самолет: Boeing 737-800"
       ]
@@ -14,6 +16,8 @@
     {
       "dtstart": "20371006T131000Z",
       "dtend": "20371006T154500Z",
+      "summary_fragments": ["06.10 SVX - SVO 18:10 18:45"],
+      "required_properties": ["DTSTART", "DTEND", "UID", "SUMMARY", "DESCRIPTION"],
       "description_fragments": [
         "Самолет: Airbus A320"
       ]

@@ -264,6 +264,10 @@ class FlightCalendarIcsConsumer:
                 {
                     "dtstart": property_value("DTSTART"),
                     "dtend": property_value("DTEND"),
+                    "summary": property_value("SUMMARY"),
+                    "uid": property_value("UID"),
+                    "location": property_value("LOCATION"),
+                    "status": property_value("STATUS"),
                     "description": description,
                 }
             )
@@ -272,6 +276,20 @@ class FlightCalendarIcsConsumer:
             "event_count": len(events),
             "events": events,
         }
+
+    @staticmethod
+    def _read_http_request_evidence(path: Path) -> list[dict[str, Any]]:
+        if not path.is_file():
+            return []
+        records: list[dict[str, Any]] = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(record, dict):
+                records.append(record)
+        return records
 
     def _oracle(self, scenario: str) -> dict[str, Any]:
         path = self.root / self.manifest["scenarios"][scenario]["oracle"]
@@ -288,6 +306,9 @@ class FlightCalendarIcsConsumer:
         implementation_source = [
             inspect.getsource(type(self).evaluate_dimension_diagnostic),
             inspect.getsource(type(self)._oracle),
+            inspect.getsource(type(self)._observe_ics),
+            inspect.getsource(type(self)._media_paths),
+            inspect.getsource(type(self)._read_http_request_evidence),
             inspect.getsource(type(self)._event_summary),
             inspect.getsource(type(self)._decode_tool_result),
             inspect.getsource(type(self).classify_saved_evidence),
@@ -300,11 +321,14 @@ class FlightCalendarIcsConsumer:
         )
         rules_sha256 = self._canonical_sha256(effective_rules)
         oracle_sha256 = self._canonical_sha256(effective_oracle)
+        replay_path = self.root / "replay" / "carrier_http.py"
+        request_replay_sha256 = self.sha256(replay_path) if replay_path.is_file() else None
         identity_sha256 = self._canonical_sha256(
             {
                 "evaluator": self.name,
                 "scenario": scenario,
                 "implementation_sha256": implementation_sha256,
+                "request_replay_sha256": request_replay_sha256,
                 "rules_sha256": rules_sha256,
                 "oracle_sha256": oracle_sha256,
             }
@@ -314,6 +338,7 @@ class FlightCalendarIcsConsumer:
             "scenario": scenario,
             "identity_sha256": identity_sha256,
             "implementation_sha256": implementation_sha256,
+            "request_replay_sha256": request_replay_sha256,
             "effective_rules": effective_rules,
             "rules_sha256": rules_sha256,
             "effective_oracle": effective_oracle,
@@ -366,6 +391,7 @@ class FlightCalendarIcsConsumer:
                         / ("fixtures/ural/reservation.json" if scenario == "ural-url-success" else "fixtures/aeroflot-pnr-view-v3.json")
                     ),
                     "FLIGHT_CALENDAR_CACHE_DIR": str(cache_dir),
+                    "FLIGHT_CALENDAR_EVAL_HTTP_LOG": str(temp_root / "carrier-requests.jsonl"),
                     "PYTHONDONTWRITEBYTECODE": "1",
                 }
             )
@@ -373,17 +399,20 @@ class FlightCalendarIcsConsumer:
             workspace = temp_root / "workspace"
             workspace.mkdir()
             if scenario in {"ural-url-success", "url-success"}:
+                source_url = self._booking_url(
+                    (self.root / self.manifest["scenarios"][scenario]["prompt"]).read_text(
+                        encoding="utf-8"
+                    )
+                )
+                if not source_url:
+                    raise RuntimeError(f"source URL missing from {scenario} prompt")
                 command = [
                     sys.executable,
                     str(script),
                     "--json",
                     "build",
                     "--url",
-                    (
-                        "https://service.uralairlines.ru/?pnr=ABC123&lastName=IVANOV"
-                        if scenario == "ural-url-success"
-                        else "https://www.aeroflot.ru/sb/pnr/app/ru-ru#/pnr?pnr_key=5da7002148b11050a6a14aaf19c109248a0dd95cb94d03a91a1fb124765b00d7&pnr_locator=ABC123"
-                    ),
+                    source_url,
                 ]
             else:
                 input_path = workspace / "reference-itinerary.json"
@@ -412,8 +441,13 @@ class FlightCalendarIcsConsumer:
                 "scenario": scenario,
                 "skill_source": skill_source,
                 "artifact_evidence_path": str(artifact_path),
+                "media_artifact_path": str(artifact_path.resolve()),
+                "media_working_directory": str(workspace.resolve()),
                 "artifact_observation": self._observe_ics(artifact_path),
                 "final_answer": media,
+                "http_request_evidence": self._read_http_request_evidence(
+                    temp_root / "carrier-requests.jsonl"
+                ),
                 "intermediate_itinerary": self._reference_itinerary(scenario)
                 if scenario == "pdf-success"
                 else None,
@@ -533,6 +567,7 @@ class FlightCalendarIcsConsumer:
                     "FLIGHT_CALENDAR_EVAL_HTTP_FIXTURE": str(prepared["fixture"]),
                     "FLIGHT_CALENDAR_EVAL_SCENARIO": spec.scenario,
                     "FLIGHT_CALENDAR_CACHE_DIR": str(cache_dir),
+                    "FLIGHT_CALENDAR_EVAL_HTTP_LOG": str(run_dir / "carrier-requests.jsonl"),
                     "FLIGHT_CALENDAR_EVAL_ANYDOC_FIXTURE": str(
                         self.root / "fixtures" / "pdf" / "anydoc.md"
                     ),
@@ -593,11 +628,17 @@ class FlightCalendarIcsConsumer:
             final_answer = summary["final_answer"]
             raw_final.write_text(final_answer, encoding="utf-8")
 
+            final_media_paths = self._media_paths(final_answer)
             artifact_source: Path | None = None
-            for candidate in self._media_paths(proc.stdout):
+            if len(final_media_paths) == 1 and any(
+                attempt.get("success") for attempt in summary["cli_attempts"]
+            ):
+                candidate = final_media_paths[0]
+                if not candidate.is_absolute():
+                    candidate = prepared["workspace"] / candidate
+                candidate = candidate.resolve()
                 if candidate.is_file():
                     artifact_source = candidate
-                    break
 
             artifact_path: Path | None = None
             artifact_observation: dict[str, Any] | None = None
@@ -708,6 +749,8 @@ class FlightCalendarIcsConsumer:
                 "runtime_failure_reason": runtime_failure_reason,
                 "event_summary": summary,
                 "artifact_source_path": str(artifact_source) if artifact_source else None,
+                "media_artifact_path": str(artifact_source) if artifact_source else None,
+                "media_working_directory": str(prepared["workspace"].resolve()),
                 "artifact_evidence_path": str(artifact_path) if artifact_path else None,
                 "artifact_observation": artifact_observation,
                 "metrics": metrics,
@@ -715,6 +758,9 @@ class FlightCalendarIcsConsumer:
                 "report_note": report_note,
                 "cache_dir": str(cache_dir),
                 "anydoc_calls": anydoc_commands,
+                "http_request_evidence": self._read_http_request_evidence(
+                    run_dir / "carrier-requests.jsonl"
+                ),
                 "intermediate_input_path": str(intermediate_evidence)
                 if intermediate_evidence
                 else None,
@@ -759,12 +805,39 @@ class FlightCalendarIcsConsumer:
                 return fail("artifact missing")
             if not isinstance(observation, dict):
                 return fail("artifact observation missing")
+            media_paths = self._media_paths(str(evidence.get("final_answer", "")))
+            if len(media_paths) != 1:
+                return fail("exactly one MEDIA artifact is required")
+            media_path = media_paths[0]
+            if not media_path.is_absolute():
+                media_path = Path(str(evidence.get("media_working_directory") or ".")) / media_path
+            recorded_media_path = evidence.get("media_artifact_path") or evidence.get("artifact_source_path")
+            if not recorded_media_path or media_path.resolve() != Path(str(recorded_media_path)).resolve():
+                return fail("MEDIA path does not match observed artifact")
+            if observation.get("sha256") != self.sha256(Path(str(artifact_path))):
+                return fail("artifact observation does not match evidence file")
             expected_count = oracle["expected_event_count"]
             actual_count = observation.get("event_count")
             if actual_count != expected_count:
                 return fail(f"expected {expected_count} VEVENT, got {actual_count}")
 
             actual_events = list(observation.get("events", []))
+            required_request_contracts = {
+                "url-success": {"aeroflot-pnr-view-v3"},
+                "ural-url-success": {
+                    "ural-frontend",
+                    "ural-deployment-config",
+                    "ural-clock",
+                    "ural-reservation",
+                },
+            }.get(str(evidence.get("scenario")), set())
+            if required_request_contracts:
+                requests = evidence.get("http_request_evidence")
+                if not isinstance(requests, list) or not requests:
+                    return fail("carrier request evidence missing")
+                contracts = {str(item.get("contract")) for item in requests if item.get("valid") is True}
+                if not required_request_contracts.issubset(contracts):
+                    return fail("carrier request did not match recorded request contract")
             for expected in oracle["events"]:
                 matching = [
                     event
@@ -777,6 +850,13 @@ class FlightCalendarIcsConsumer:
                         f"DTSTART/DTEND mismatch: expected {expected['dtstart']}–{expected['dtend']}"
                     )
                 description = str(matching[0].get("description", ""))
+                summary = str(matching[0].get("summary", ""))
+                for fragment in expected.get("summary_fragments", []):
+                    if fragment not in summary:
+                        return fail(f"missing expected SUMMARY fragment: {fragment}")
+                for property_name in expected.get("required_properties", []):
+                    if not matching[0].get(str(property_name).lower()):
+                        return fail(f"missing required VEVENT property: {property_name}")
                 for fragment in expected.get("description_fragments", []):
                     if fragment not in description:
                         return fail(f"missing expected description fragment: {fragment}")
@@ -927,12 +1007,39 @@ class FlightCalendarIcsConsumer:
             diagnostics = evaluate_dimension_details(self, evidence, rules)
             score = {name: detail["status"] for name, detail in diagnostics.items()}
             evaluator_provenance = self.evaluation_provenance(evidence, rules)
+            score_path = Path(str(source_run.get("score_path", "")))
+            historical_record: dict[str, Any] = {}
+            if score_path.is_file():
+                try:
+                    historical_record = json.loads(score_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    historical_record = {}
+            historical_score = historical_record.get("score") or source_run.get("score")
+            historical_provenance = historical_record.get("evaluator_provenance") or source_run.get("evaluator_provenance")
+            historical_reproducible = bool(
+                isinstance(historical_provenance, dict)
+                and historical_provenance.get("identity_sha256")
+            )
+            historical_result = {
+                "score": historical_score,
+                "evaluator_provenance": historical_provenance,
+                "reproducible": historical_reproducible,
+                "notice": None if historical_reproducible else (
+                    "Historical result cannot be independently reproduced: original evaluator/oracle identity was not saved."
+                ),
+            }
+            reevaluated_result = {
+                "score": score,
+                "evaluator_provenance": evaluator_provenance,
+            }
             run = {
                 **source_run,
                 **evidence,
                 "score": score,
                 "diagnostics": diagnostics,
                 "evaluator_provenance": evaluator_provenance,
+                "historical_result": historical_result,
+                "reevaluated_result": reevaluated_result,
                 "report_note": None,
             }
             run_dir = output_dir / "runs" / str(run["run_id"])
@@ -945,6 +1052,8 @@ class FlightCalendarIcsConsumer:
                         "score": score,
                         "diagnostics": diagnostics,
                         "evaluator_provenance": evaluator_provenance,
+                        "historical_result": historical_result,
+                        "reevaluated_result": reevaluated_result,
                     },
                     indent=2,
                     sort_keys=True,

@@ -1,2 +1,2 @@
 Создай .ics файл для этой поездки по ссылке бронирования:
-https://service.uralairlines.ru/?pnr=ABC123&lastName=IVANOV
+https://tn-hgl.mckx.ru/?u=https%3A%2F%2Fservice.uralairlines.ru%2F%3Fpnr%3DABC123%26lastName%3DIVANOV

@@ -7,8 +7,8 @@ configured agent runs**: three provider/model pairs for each scenario.
 Scenarios:
 
 - `url-success` — existing synthetic Aeroflot booking URL flow;
-- `ural-url-success` — synthetic Ural Airlines booking URL flow with recorded
-  deployment/bootstrap/clock/reservation replay;
+- `ural-url-success` — synthetic Ural Airlines mail-wrapper source flow with
+  recorded deployment/bootstrap/clock/reservation replay;
 - `pdf-success` — synthetic `ticket.pdf` converted through the recorded AnyDoc
   boundary, then mapped to private itinerary JSON and the production CLI.
 
@@ -62,16 +62,19 @@ The candidate is materialized from:
 
 The source checkout is never switched, merged, reset, or modified by the eval.
 Only the isolated materialized skill copy receives `replay/carrier_http.py`.
-Aeroflot keeps its existing fixture flow. Ural replay supplies only its external
-HTTP boundary: frontend root, versioned `env.json`, `settings/CurrentDateUtc`,
-and `Reservation`; production `ural.py` performs the normal deployment-cache,
-clock, authentication-header, validation, conversion, timezone, and CLI logic.
+Aeroflot keeps its existing fixture flow. Ural replay supplies only external
+HTTP responses: before replaying, it verifies production's actual endpoint,
+method, query, and required request headers. The production skill performs
+source routing/unwrapping, credential parsing, request construction,
+deployment-cache, clock, authentication-header, validation, conversion,
+timezone, and CLI logic. A sanitized request ledger is saved with each run.
 Each run gets a fresh `FLIGHT_CALENDAR_CACHE_DIR`.
 
 For PDF, `ticket.pdf` is copied into the isolated workspace. The eval-only `npx`
 shim accepts only the documented `npx -y @firecrawl/anydoc ticket.pdf -o ...`
-shape and writes checked-in `fixtures/pdf/anydoc.md`; it never uses the network.
-The agent must still extract facts, create private itinerary JSON, call
+shape and writes checked-in `fixtures/pdf/anydoc.md`; it never uses the network and does
+not read or extract the PDF. This scenario tests the recorded converter boundary and
+subsequent mapping/CLI behavior, not real PDF extraction fidelity. The agent must still extract facts, create private itinerary JSON, call
 `--json build --input ...` exactly once, and return the exact `MEDIA:` result.
 
 ## Evidence and report

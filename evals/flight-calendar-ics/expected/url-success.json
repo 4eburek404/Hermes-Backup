@@ -4,6 +4,8 @@
     {
       "dtstart": "20370923T083000Z",
       "dtend": "20370923T105000Z",
+      "summary_fragments": ["23.09 Екатеринбург - Москва 13:30 13:50"],
+      "required_properties": ["DTSTART", "DTEND", "UID", "SUMMARY", "DESCRIPTION"],
       "description_fragments": [
         "23.09 Екатеринбург -> Москва 13:30 13:50",
         "Самолет: Airbus A330-300"
@@ -12,6 +14,8 @@
     {
       "dtstart": "20370925T122500Z",
       "dtend": "20370925T145000Z",
+      "summary_fragments": ["25.09 Москва - Екатеринбург 15:25 19:50"],
+      "required_properties": ["DTSTART", "DTEND", "UID", "SUMMARY", "DESCRIPTION"],
       "description_fragments": [
         "25.09 Москва -> Екатеринбург 15:25 19:50",
         "Самолет: Boeing 737-800"

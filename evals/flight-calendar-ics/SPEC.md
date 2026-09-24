@@ -26,15 +26,20 @@ fixture and oracle remain unchanged.
 
 ## `ural-url-success`
 
-The prompt is an ordinary request containing the synthetic URL:
+The prompt is an ordinary request containing a synthetic Ural mail-wrapper URL
+whose `u` target is the supported service booking URL:
 
-`https://service.uralairlines.ru/?pnr=ABC123&lastName=IVANOV`
+`https://tn-hgl.mckx.ru/?u=https%3A%2F%2Fservice.uralairlines.ru%2F%3Fpnr%3DABC123%26lastName%3DIVANOV`
 
 `fixtures/ural/reservation.json` is a checked-in raw carrier response copied from
-the candidate executable spec. It is not a prebuilt itinerary. The scenario-aware
-replay supplies deterministic responses for the service root, `/12345/env/env.json`,
+the candidate executable spec. It is not a prebuilt itinerary. Production must
+route and unwrap the source, parse the required PNR and last name, then construct
+the requests. The scenario-aware replay validates the actual host/path, method,
+query, body, and required headers before returning deterministic external
+responses for the service root, `/12345/env/env.json`,
 `/api/settings/CurrentDateUtc`, and `/api/Reservation`; no live HTTP is allowed.
-The isolated run sets a fresh `FLIGHT_CALENDAR_CACHE_DIR`.
+Credential values are excluded from the safe request ledger. The isolated run
+sets a fresh `FLIGHT_CALENDAR_CACHE_DIR`.
 
 Expected semantic output is two VEVENTs:
 
@@ -44,16 +49,22 @@ Expected semantic output is two VEVENTs:
   `DTSTART:20260924T153000Z`, `DTEND:20260924T180000Z`.
 
 The oracle is checked against the candidate production timezone catalog: DME is
-`Europe/Moscow`, SVX is `Asia/Yekaterinburg`. Outcome checks artifact existence,
-two events, flight number, route, UTC times, and aircraft. Trajectory requires
-one direct URL CLI call and stop-after-CLI. Privacy forbids the URL, credentials,
+`Europe/Moscow`, SVX is `Asia/Yekaterinburg`. Outcome checks the request ledger,
+artifact existence, two VEVENTs, expected summary/description route and local
+times, UTC DTSTART/DTEND, presence of required VEVENT properties, and aircraft.
+The Ural flight number is not directly rendered in ICS and is not claimed as
+artifact-verified. Trajectory requires one CLI call using the source URL from
+the prompt and stop-after-CLI. Privacy forbids the URL, credentials,
 synthetic passenger/ticket markers, and raw fixture markers in the final answer.
 
 The observable ICS contract does not include a flight-number line in
-`DESCRIPTION`; flight numbers are covered by the Ural production executable
-specs, not duplicated as an impossible ICS assertion here.
+`DESCRIPTION` or `SUMMARY`; do not claim direct flight-number text validation
+from the Ural artifact.
 
 ## `pdf-success`
+
+The eval AnyDoc shim copies recorded Markdown and does not extract the PDF. This
+scenario therefore does not verify real PDF extraction fidelity.
 
 `fixtures/pdf/ticket.pdf` is fully synthetic and contains a human-readable
 itinerary, not JSON. `prepare()` copies it to the isolated workspace as exactly
