@@ -13,7 +13,11 @@ spec:
 	uv run --extra dev pytest \
 		tests/test_successful_search.py \
 		tests/test_production_sdk_search.py \
-		tests/test_tool_error.py
+		tests/test_tool_error.py \
+		tests/test_party_pricing.py \
+		tests/test_connections.py \
+		tests/test_round_trip.py \
+		tests/test_empty_result_evidence.py
 
 ## Живая интеграционная проверка Tutu MCP через SDK; только вручную.
 live:
