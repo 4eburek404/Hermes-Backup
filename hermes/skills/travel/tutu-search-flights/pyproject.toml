@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 # An unused dependency is a defect here, not a spare part.
 dependencies = [
     "pydantic>=2,<3",
+    "mcp==2.2.0",
 ]
 
 [project.optional-dependencies]
