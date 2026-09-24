@@ -9,6 +9,10 @@
 - S1 — сохранение успешного ответа: [`specs/02-successful-search.md`](specs/02-successful-search.md);
 - S2 — production CLI → MCP SDK → `search_avia`: [`specs/03-production-sdk-search.md`](specs/03-production-sdk-search.md);
 - S3 — tool-level error не является пустой выдачей: [`specs/04-tool-error.md`](specs/04-tool-error.md);
+- S4 — party_total и состав пассажиров: [`specs/05-party-pricing.md`](specs/05-party-pricing.md);
+- S5 — пересадочные segments: [`specs/06-connections.md`](specs/06-connections.md);
+- S6 — round-trip: [`specs/07-round-trip.md`](specs/07-round-trip.md);
+- S7 — объяснение пустой выдачи: [`specs/08-empty-result-evidence.md`](specs/08-empty-result-evidence.md);
 - opt-in live smoke test реального Tutu MCP: `tests/test_live_search.py`;
 - правила разработки: [`PROJECT_RULES.md`](PROJECT_RULES.md).
 
@@ -29,7 +33,7 @@ production-поведение текущего объёма не закрепл�
 
 ## Текущие команды
 
-- `make spec` — S1–S3 без сети;
+- `make spec` — S1–S7 без сети;
 - `make check` — тесты, lint и проверки документации;
 - `make live` — opt-in живой поиск через MCP SDK;
 - `make discover` — обновление research fixtures через `probe.py`;
