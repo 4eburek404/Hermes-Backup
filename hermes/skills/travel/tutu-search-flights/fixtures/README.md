@@ -1,6 +1,6 @@
 # Записанные ответы Tutu MCP
 
-Снято 14 сентября 2026 с `https://mcp.tutu.ru/mcp`, сервер версии 0.51.0.
+Снято 24 сентября 2026 с `https://mcp.tutu.ru/mcp`, сервер версии 0.57.0.
 Пересъёмка: `python3 probe.py meta && python3 probe.py avia`.
 
 Живая сеть разрешена только `probe.py`. Всё остальное — спеки, тесты, разработка —
@@ -40,9 +40,9 @@
 
 | Файл | Что доказывает |
 |---|---|
-| `meta/initialize.json` | блок `instructions` на 23 389 символов: сервер сам описывает флоу и отсылает к плейбукам |
-| `meta/tools-list.json` | 17 инструментов с `inputSchema` — фактическая спецификация входа |
-| `meta/avia-instructions.json` | плейбук по авиа от самих Туту, 16 КБ |
+| `meta/initialize.json` | ответ `initialize`: protocol `2025-06-18`, server `0.57.0`, блок `instructions` на 23 581 символ |
+| `meta/tools-list.json` | 17 инструментов с `inputSchema` — фактическая спецификация входа; `search_avia` содержит 18 параметров |
+| `meta/avia-instructions.json` | текущий авиа-плейбук (16 072 символа), включая обновлённое описание deeplink |
 | `meta/resource-help.json` | общая справка |
 | `meta/resource-status.json` | доступность апстримов: `ok` / `reachable` / `unhealthy` / `degraded` |
 | `meta/resource-geo.json` | справочник городов — вместо своего хардкода |

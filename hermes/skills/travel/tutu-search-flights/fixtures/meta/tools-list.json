@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-09-14T03:42:59+00:00",
+  "recorded_at": "2026-09-24T11:27:29+00:00",
   "source": "tutu",
   "method": "tools/list",
   "tool": "tools/list",
@@ -15,7 +15,7 @@
           {
             "name": "search_hotels",
             "title": "Search hotels in a city (Tutu.ru)",
-            "description": "Search Tutu hotel listings for a given city and date range. Resolve `city_name` (string) OR pass `geo_id` (Tutu internal). Returns hotels with `name`, `stars`, `rating`, `address`, `hotel_id` / `hotel_geo_id` (numeric id for get_offer_details), `tutu_offer_id` (listing UUID, not accepted by details), `review_summary` (when Tutu has reviews), `location`, `photos`, `best_offer` (`price` + `offerpack_hash` + `checkout_url` + `room_size_sqm` (room area in m² when Tutu wrote it in the room name, often as a minimum 'от N'; `null` when absent — say so, don't infer) + normalized rate features: `breakfast_included`, `meal_name`, `free_cancellation`, `pay_at_hotel`, `pay_online`, plus raw `highlights[]` for promo/context badges) — here `checkout_url` IS a real per-hotel page (`hotel.tutu.ru/offers/details?...`) with dates and room composition pre-filled, unlike the transport tools. For checkout PREFER `create_checkout_link` with the row's `checkout_ref` — the `explicit/hotel` deeplink opens the hotel page to pick a room, or mints the cart straight-to-cart when you pass a ROOM rate's `offerpack_hash` from `get_offer_details` (the listing `best_offer.offerpack_hash` does NOT mint a cart); `best_offer.checkout_url` stays the direct-page fallback when the tool's link isn't available. Filters: `stars`, `meals`, `hotel_types`, `min_rating`, `price_max`, `free_cancellation`, `breakfast_included`, `hotel_amenities` (e.g. `pool`, `parking`, `wifi`, `spa`), `room_amenities` (e.g. `sea_view`, `balcony`, `air_conditioner`). Paginated (`page`+`page_size`, see `meta.has_more`). Read-only, no booking. When the request is broad, many hotels are viable, and you don't know the user's preferences — do NOT call this tool yet: ask one short batch of clarifying questions FIRST (bed setup, breakfast, free-cancel, view/location; 2-4 questions max). But that gate is OFF whenever the user hands you the decision — a deterministic selection rule ('первый найденный', 'самый дешёвый', 'выбери сам', 'лишь бы переночевать', 'без уточняющих вопросов') or an explicit checkout intent ('оформляй', 'кинь ссылку'). Then the preferences you weren't told are the ones that don't matter: search now, apply their rule to the results and hand over the link in the SAME turn. The only thing still worth asking for is a REQUIRED field you cannot fill — the city and the dates, which this tool rejects the call without; never invent those. A preference is never that field. Judge that intent, don't pattern-match those examples as a closed list. Generic positive framing ('хорошее место', 'бюджет не критичен') is NOT a selection rule — still ask. When the per-room / per-rate confirmation field for the asked-for feature is missing or mismatched — `rooms[i].view` / `rooms[i].bed_type` for view/bed, or `rooms[i].rates[j].breakfast_included` / `rooms[i].rates[j].free_cancellation` for the rate-level facets, or `best_offer.{breakfast_included,free_cancellation}` when only listing data is available — label the status next to the recommendation; never substitute silently. Full rules in `get_hotels_instructions` (clarifying questions, geo_id pitfall, view/bed grounding). Grounding: rating, review count, amenities and pros/cons must come from `review_summary`, `review_summary.aspects` and from `get_offer_details(product_type='hotel', ...)`. The `best_offer` fields describe ONLY the cheapest visible rate of one room — to compare room categories (standard / comfort / suite, beds, view, size) and full per-rate options, call `get_offer_details`. Never invent guest quotes or substitute generic city-level praise when the hotel-level field is empty. `best_offer.price` is the TOTAL for the whole requested stay and guest composition (`price_basis=\"stay_total\"`, the night count already included) — render it as-is and NEVER multiply it by the number of nights; `stay.nights` is there only to label it 'за N ночей'. See `get_hotels_instructions`.",
+            "description": "Search Tutu hotel listings for a given city and date range. Resolve `city_name` (string) OR pass `geo_id` (Tutu internal). Returns hotels with `name`, `stars`, `rating`, `address`, `hotel_id` / `hotel_geo_id` (numeric id for get_offer_details), `tutu_offer_id` (listing UUID, not accepted by details), `review_summary` (when Tutu has reviews), `location`, `photos`, `best_offer` (`price` + `offerpack_hash` + `checkout_url` + `room_size_sqm` (room area in m² when Tutu wrote it in the room name, often as a minimum 'от N'; `null` when absent — say so, don't infer) + normalized rate features: `breakfast_included`, `meal_name`, `free_cancellation`, `pay_at_hotel`, `pay_online`, plus raw `highlights[]` for promo/context badges) — here `checkout_url` IS a real per-hotel page (`hotel.tutu.ru/offers/details?...`) with dates and room composition pre-filled, unlike the transport tools. For checkout PREFER `create_checkout_link` with the row's `checkout_ref` — the `explicit/hotel` deeplink opens the hotel page to pick a room, or mints the cart straight-to-cart when you pass a ROOM rate's `offerpack_hash` from `get_offer_details` (the listing `best_offer.offerpack_hash` does NOT mint a cart); `best_offer.checkout_url` stays the direct-page fallback when the tool's link isn't available. Filters: `stars`, `meals`, `hotel_types`, `min_rating`, `price_max`, `free_cancellation`, `breakfast_included`, `hotel_amenities` (e.g. `pool`, `parking`, `wifi`, `spa`), `room_amenities` (e.g. `sea_view`, `balcony`, `air_conditioner`). Hotels Tutu adds only as looser alternatives are dropped, so under filters an empty `hotels` list means Tutu has no match on these dates — say so and offer to relax a filter. Paginated (`page`+`page_size`, see `meta.has_more`). Read-only, no booking. When the request is broad, many hotels are viable, and you don't know the user's preferences — do NOT call this tool yet: ask one short batch of clarifying questions FIRST (bed setup, breakfast, free-cancel, view/location; 2-4 questions max). But that gate is OFF whenever the user hands you the decision — a deterministic selection rule ('первый найденный', 'самый дешёвый', 'выбери сам', 'лишь бы переночевать', 'без уточняющих вопросов') or an explicit checkout intent ('оформляй', 'кинь ссылку'). Then the preferences you weren't told are the ones that don't matter: search now, apply their rule to the results and hand over the link in the SAME turn. The only thing still worth asking for is a REQUIRED field you cannot fill — the city and the dates, which this tool rejects the call without; never invent those. A preference is never that field. Judge that intent, don't pattern-match those examples as a closed list. Generic positive framing ('хорошее место', 'бюджет не критичен') is NOT a selection rule — still ask. When the per-room / per-rate confirmation field for the asked-for feature is missing or mismatched — `rooms[i].view` / `rooms[i].bed_type` for view/bed, or `rooms[i].rates[j].breakfast_included` / `rooms[i].rates[j].free_cancellation` for the rate-level facets, or `best_offer.{breakfast_included,free_cancellation}` when only listing data is available — label the status next to the recommendation; never substitute silently. Full rules in `get_hotels_instructions` (clarifying questions, geo_id pitfall, view/bed grounding). Grounding: rating, review count, amenities and pros/cons must come from `review_summary`, `review_summary.aspects` and from `get_offer_details(product_type='hotel', ...)`. The `best_offer` fields describe ONLY the cheapest visible rate of one room — to compare room categories (standard / comfort / suite, beds, view, size) and full per-rate options, call `get_offer_details`. Never invent guest quotes or substitute generic city-level praise when the hotel-level field is empty. `best_offer.price` is the TOTAL for the whole requested stay and guest composition (`price_basis=\"stay_total\"`, the night count already included) — render it as-is and NEVER multiply it by the number of nights; `stay.nights` is there only to label it 'за N ночей'. See `get_hotels_instructions`.",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {
@@ -191,6 +191,25 @@
                   "anyOf": [
                     {
                       "items": {
+                        "enum": [
+                          "hotel",
+                          "apartments",
+                          "aparthotel",
+                          "minihotel",
+                          "hostel",
+                          "guesthouse",
+                          "bedandbreakfast",
+                          "room",
+                          "cottagesandhouses",
+                          "villasandbungalows",
+                          "boutiqueanddesign",
+                          "resort",
+                          "sanatorium",
+                          "glamping",
+                          "camping",
+                          "farm",
+                          "castle"
+                        ],
                         "type": "string"
                       },
                       "type": "array"
@@ -200,7 +219,7 @@
                     }
                   ],
                   "default": null,
-                  "description": "Filter: property types, e.g. ['hotel', 'apartments', 'hostel', 'aparthotel', 'guesthouse'].",
+                  "description": "Filter: property types, any of the listed (e.g. санаторий -> 'sanatorium', глэмпинг -> 'glamping').",
                   "title": "Hotel Types"
                 },
                 "min_rating": {
@@ -228,7 +247,7 @@
                     }
                   ],
                   "default": null,
-                  "description": "Filter: keep only offers whose cheapest rate advertises free cancellation. Sent via `popular_filters`; treat as best-effort upstream — verify with `best_offer.free_cancellation` per row.",
+                  "description": "Filter: keep only hotels offering free cancellation. Verify the cheapest rate with `best_offer.free_cancellation` per row.",
                   "title": "Free Cancellation"
                 },
                 "breakfast_included": {
@@ -241,13 +260,62 @@
                     }
                   ],
                   "default": null,
-                  "description": "Filter: keep only offers whose cheapest rate includes breakfast. Shortcut for `meals=['breakfast']` plus the `popular_filters` quick toggle.",
+                  "description": "Filter: keep only offers whose cheapest rate includes breakfast. Shortcut for `meals=['breakfast']`.",
                   "title": "Breakfast Included"
                 },
                 "hotel_amenities": {
                   "anyOf": [
                     {
                       "items": {
+                        "enum": [
+                          "pool",
+                          "swimming_pool",
+                          "pets",
+                          "pet_friendly",
+                          "parking",
+                          "beach",
+                          "kitchen",
+                          "wifi",
+                          "wi-fi",
+                          "spa",
+                          "transfer",
+                          "kids",
+                          "kid_friendly",
+                          "family_friendly",
+                          "aquapark",
+                          "buffet",
+                          "sauna",
+                          "jacuzzi",
+                          "shower",
+                          "banya",
+                          "elevator",
+                          "kids_pool",
+                          "hammam",
+                          "kids_club",
+                          "fridge",
+                          "billiards",
+                          "fitness",
+                          "gym",
+                          "minibar",
+                          "hairdryer",
+                          "smoking_allowed",
+                          "private_beach",
+                          "rooftop_pool",
+                          "beachfront",
+                          "accessible",
+                          "non_smoking",
+                          "adults_only",
+                          "honeymoon",
+                          "tv",
+                          "karaoke",
+                          "fishing",
+                          "winery",
+                          "skiing",
+                          "diving",
+                          "surfing",
+                          "volleyball",
+                          "live_music"
+                        ],
                         "type": "string"
                       },
                       "type": "array"
@@ -257,13 +325,32 @@
                     }
                   ],
                   "default": null,
-                  "description": "Filter: property-level amenities. Aliases: `pool`, `parking`, `wifi`, `spa`, `transfer`, `kid_friendly`, `pet_friendly`, `kitchen`, `fitness`, `sauna`, `jacuzzi`, `aquapark`, `kids_pool`, `beach`, `elevator`, `minibar`, `fridge`, `buffet`. Raw Tutu amenity ids (e.g. `'2005'`) are also accepted.",
+                  "description": "Filter: property-level amenities, listed aliases only (not numeric ids). All must be present: ['pool', 'parking'] = pool AND parking.",
                   "title": "Hotel Amenities"
                 },
                 "room_amenities": {
                   "anyOf": [
                     {
                       "items": {
+                        "enum": [
+                          "private_bath",
+                          "private_bathroom",
+                          "workspace",
+                          "desk",
+                          "room_kitchen",
+                          "kitchenette",
+                          "room_wifi",
+                          "air_conditioner",
+                          "ac",
+                          "balcony",
+                          "sea_view",
+                          "water_view",
+                          "mountain_view",
+                          "view",
+                          "beautiful_view",
+                          "scenic_view",
+                          "kremlin_view"
+                        ],
                         "type": "string"
                       },
                       "type": "array"
@@ -273,7 +360,7 @@
                     }
                   ],
                   "default": null,
-                  "description": "Filter: room-level amenities (best-effort at the listing upstream — the response carries one `best_offer`, so use `get_offer_details` for guaranteed per-room filtering). Aliases: `sea_view`, `mountain_view`, `view`, `balcony`, `air_conditioner`, `private_bath`, `room_wifi`, `room_kitchen`, `workspace`. Raw Tutu amenity ids (e.g. `'2014'`) are also accepted.",
+                  "description": "Filter: room-level amenities, listed aliases only (not numeric ids). All must be present. Best-effort at the listing upstream — the response carries one `best_offer`, so use `get_offer_details` for guaranteed per-room filtering.",
                   "title": "Room Amenities"
                 },
                 "view": {
@@ -1852,7 +1939,7 @@
           {
             "name": "create_checkout_link",
             "title": "Create a checkout link for a selected offer (Tutu.ru)",
-            "description": "The single 'proceed to checkout' handle for a previously found offer. Call it as soon as the user commits to one option, however they word it — «беру», «самый быстрый из списка», «оформи», «забронируй», «дай ссылку» — and put the returned link in the same reply. It needs NO seat choice and NO passenger data in its default mode (the link opens the seat/room selection page). Pass the fields from the offer's `checkout_ref` object (emitted by every `search_hotels` / `search_avia` / `search_rail` / `search_bus` / `search_etrain` / `search_multitransport` result); the tool dispatches by `product_type` (or the `transport` alias). Returns `{checkout_url, kind, ...}`.\n\nEvery branch is a PURE URL builder — no network calls, no server-side cart, idempotent. The link is what the USER opens; their browser creates the cart in their own session. (We do NOT mint carts server-side: such a cart is session-bound and 404s for the user.)\n\nThe returned `checkout_url` is an OPAQUE string. Hand it to the user byte-for-byte as this tool returned it: never rebuild it from parts, re-encode it, drop or reorder query parameters, or swap in ids you saw elsewhere in the payload. The response deliberately carries SEVERAL id spaces side by side — e.g. bus `checkout_ref` holds both `departure_id` (the route id the link needs) and `departure_geo_city_id` (the dictionary city id, the same value as `meta.from.geo_id`) — and this tool already picked the right one per product. An edited link usually still loads, so 'it opens' does NOT prove it leads to the offer the user chose: the usual outcome is another offer or a bare search page.\n\nPer product (inputs from `checkout_ref`):\n- avia: returns BOTH `checkout_url` (a Tutu mtp-deeplink that 302-redirects to the ticket's purchase page — but ONLY if the user's browser already has a tutu session; a cold browser / Telegram in-app webview lands on the avia search for this route+date instead, where they pick the flight. Also falls back to search if the offer expired) and `search_results_url`. Present it as 'go book', not 'your cart is ready'. Inputs: `search_results_url`, `offer_hash`, `departure_geo_city_id`, `arrival_geo_city_id`, `departure_at`, `service_class`, plus `passengers_full` / `passengers_child` / `passengers_infant` (the searched party — forward them so the cart requests the SAME passengers; omit and the cart opens with one adult, so a multi-passenger total won't match — have the user confirm the count in the cart). Round-trip: also forward `is_round_trip` + `return_departure_at` from `checkout_ref` — a direct round-trip deeplink then carries BOTH legs in one cart. Connecting round-trips return `search_redirect`: `explicit/avia` currently supports one flight per direction. SEPARATE TICKETS (`is_multi_pnr` on a one-way offer): forward `checkout_ref.checkout_parts` too — this tool cannot put such a trip in ONE link, so it returns `kind=\"deeplink_parts\"` with one purchase link per ticket in `checkout_parts[]` (`ticket`/`of`, `from`, `to`, `flights`, `checkout_url`) and leaves the top-level `checkout_url` on the SEARCH page. Give the user every link, in order, and say each is its own cart and its own payment. For a non-cheapest fare override `offer_hash` + `service_class` from the chosen `variants[i]` (keep forwarding `is_round_trip` + `return_departure_at`). For avia, while the user compares flights, show ONLY `search_results_url` and do NOT call `create_checkout_link` prematurely. Once they choose an exact flight and the tool returns `kind=\"deeplink\"`, show `checkout_url` as the primary purchase link together with `search_results_url` as the fallback for browsing. When it returns `kind=\"search_redirect\"`, show `search_results_url` as the search page and explain `fallback_note`; do not call it a purchase deeplink.\n- rail: an `explicit/train` deeplink. TWO modes. (1) Seat page (default): inputs `departure_geo_point_id`, `arrival_geo_point_id`, `train_number`, `departure_at` (ISO) — the link opens the train's order page where the user picks seats. (2) Straight-to-cart (`kind=\"checkout_deeplink\"`): additionally pass the seat choice — `car_number` + `seat_numbers` (from `get_rail_seatmap`: `cars[].car_number`, `seats[].number`; one seat per passenger) plus `offer_hash` + `segment_hash` from `checkout_ref` — and the link mints the cart with those exact seats pre-selected (works in a cold browser; the cart belongs to whoever OPENS the link). Optional: `fare_type` (the chosen `fares[].fare_type` from the seatmap, e.g. REFUNDABLE), `gender_type` (for gender-policy coupes: MALE/FEMALE — ask the user; omit for regular cars), and `search_id`/`result_id`/`card_id` metadata from `checkout_ref`. Use straight-to-cart ONLY after the user explicitly confirmed specific seats; the cart skips the seat wizard, so a silently wrong seat would go unnoticed. Falls back to the tutu.ru/poezda/order page (needs `departure_city_id`, `arrival_city_id`, `departure_station_code`, `arrival_station_code`) if the deeplink can't be built.\n- bus: an `explicit/bus` deeplink. TWO modes, same idea. (1) Seat page (default): `offer_hash`, `departure_geo_city_id`, `arrival_geo_city_id`, `departure_at` (ISO). (2) Straight-to-cart: additionally `seat_numbers` (from `get_offer_details`'s `seat_selection.available_seat_ids`; one per passenger) + `search_id` + `departure_id`/`arrival_id` (all REQUIRED here — pass them through from `checkout_ref`). Falls back to the bus.tutu.ru/seats page (`departure_id`, `arrival_id`, `city_from`, `city_to`) otherwise.\n- etrain: tutu.ru schedule page from `departure_etrain_id`, `arrival_etrain_id`, `departure_at`.\n- hotels: an `explicit/hotel` deeplink. TWO modes, same idea as rail/bus. (1) Page (default, `kind=\"deeplink\"`): `hotel_alias` + `check_in` + `check_out` + `adults` (+ `children_ages`, `search_id`) opens the hotel's page with dates/guests pre-filled for the user to pick a room. (2) Straight-to-cart (`kind=\"checkout_deeplink\"`): also pass `offer_pack_hash` — a ROOM rate's `offerpack_hash` from `get_offer_details` (after the user picked a room) — and the link mints the cart for that pack, landing on the hotel page if the pack expired (fallback_to_details). NB the listing `best_offer.offerpack_hash` does NOT mint a cart — only a room-rate hash does. Page-mode fields ride in `checkout_ref`. Falls back to the pre-filled `fallback_url` page (`kind=\"hotel_page\"`) if the ref has no `hotel_alias`.\n\n`kind` ∈ `deeplink` / `checkout_deeplink` (rail/bus with seats; hotels with a pack) / `deeplink_parts` (avia separate tickets — links in `checkout_parts[]`, top-level `checkout_url` is the search page) / `search_redirect` (avia) / `order_url` / `seats_url` (rail/bus fallback) / `hotel_page` (hotels fallback).",
+            "description": "The single 'proceed to checkout' handle for a previously found offer. Call it as soon as the user commits to one option, however they word it — «беру», «самый быстрый из списка», «оформи», «забронируй», «дай ссылку» — and put the returned link in the same reply. It needs NO seat choice and NO passenger data in its default mode — for AVIA that default link already IS the cart for the chosen flight, while for rail/bus/hotels it opens the seat/room selection page and only a user-confirmed seat/room turns it into a cart link. Pass the fields from the offer's `checkout_ref` object (emitted by every `search_hotels` / `search_avia` / `search_rail` / `search_bus` / `search_etrain` / `search_multitransport` result); the tool dispatches by `product_type` (or the `transport` alias). Returns `{checkout_url, kind, ...}`.\n\nEvery branch is a PURE URL builder — no network calls, no server-side cart, idempotent. The link is what the USER opens; their browser creates the cart in their own session. (We do NOT mint carts server-side: such a cart is session-bound and 404s for the user.)\n\nThe returned `checkout_url` is an OPAQUE string. Hand it to the user byte-for-byte as this tool returned it: never rebuild it from parts, re-encode it, drop or reorder query parameters, or swap in ids you saw elsewhere in the payload. The response deliberately carries SEVERAL id spaces side by side — e.g. bus `checkout_ref` holds both `departure_id` (the route id the link needs) and `departure_geo_city_id` (the dictionary city id, the same value as `meta.from.geo_id`) — and this tool already picked the right one per product. An edited link usually still loads, so 'it opens' does NOT prove it leads to the offer the user chose: the usual outcome is another offer or a bare search page.\n\nPer product (inputs from `checkout_ref`):\n- avia: returns BOTH `checkout_url` (a Tutu mtp-deeplink that 302-redirects to the ticket's purchase page and mints the cart there — works in a cold browser; the cart belongs to whoever OPENS the link. If the offer is no longer available it lands on the avia search for this route+date instead) and `search_results_url`. Present it as 'go book', not 'your cart is ready'. Inputs: `search_results_url`, `offer_hash`, `departure_geo_city_id`, `arrival_geo_city_id`, `departure_at`, `service_class`, plus `passengers_full` / `passengers_child` / `passengers_infant` (the searched party — forward them so the cart requests the SAME passengers; omit and the cart opens with one adult, so a multi-passenger total won't match — have the user confirm the count in the cart). Round-trip: also forward `is_round_trip` + `return_departure_at` from `checkout_ref` — a direct round-trip deeplink then carries BOTH legs in one cart. Connecting round-trips return `search_redirect`: `explicit/avia` currently supports one flight per direction. SEPARATE TICKETS (`is_multi_pnr` on a one-way offer): forward `checkout_ref.checkout_parts` too — this tool cannot put such a trip in ONE link, so it returns `kind=\"deeplink_parts\"` with one purchase link per ticket in `checkout_parts[]` (`ticket`/`of`, `from`, `to`, `flights`, `checkout_url`) and leaves the top-level `checkout_url` on the SEARCH page. Give the user every link, in order, and say each is its own cart and its own payment. For a non-cheapest fare override `offer_hash` + `service_class` from the chosen `variants[i]` (keep forwarding `is_round_trip` + `return_departure_at`). For avia, while the user compares flights, show ONLY `search_results_url` and do NOT call `create_checkout_link` prematurely. Once they choose an exact flight and the tool returns `kind=\"deeplink\"`, show `checkout_url` as the primary purchase link together with `search_results_url` as the fallback for browsing. When it returns `kind=\"search_redirect\"`, show `search_results_url` as the search page and explain `fallback_note`; do not call it a purchase deeplink.\n- rail: an `explicit/train` deeplink. TWO modes. (1) Seat page (default): inputs `departure_geo_point_id`, `arrival_geo_point_id`, `train_number`, `departure_at` (ISO) — the link opens the train's order page where the user picks seats. (2) Straight-to-cart (`kind=\"checkout_deeplink\"`): additionally pass the seat choice — `car_number` + `seat_numbers` (from `get_rail_seatmap`: `cars[].car_number`, `seats[].number`; one seat per passenger) plus `offer_hash` + `segment_hash` from `checkout_ref` — and the link mints the cart with those exact seats pre-selected (works in a cold browser; the cart belongs to whoever OPENS the link). Optional: `fare_type` (the chosen `fares[].fare_type` from the seatmap, e.g. REFUNDABLE), `gender_type` (for gender-policy coupes: MALE/FEMALE — ask the user; omit for regular cars), and `search_id`/`result_id`/`card_id` metadata from `checkout_ref`. Use straight-to-cart ONLY after the user explicitly confirmed specific seats; the cart skips the seat wizard, so a silently wrong seat would go unnoticed. Falls back to the tutu.ru/poezda/order page (needs `departure_city_id`, `arrival_city_id`, `departure_station_code`, `arrival_station_code`) if the deeplink can't be built.\n- bus: an `explicit/bus` deeplink. TWO modes, same idea. (1) Seat page (default): `offer_hash`, `departure_geo_city_id`, `arrival_geo_city_id`, `departure_at` (ISO). (2) Straight-to-cart: additionally `seat_numbers` (from `get_offer_details`'s `seat_selection.available_seat_ids`; one per passenger) + `search_id` + `departure_id`/`arrival_id` (all REQUIRED here — pass them through from `checkout_ref`). Falls back to the bus.tutu.ru/seats page (`departure_id`, `arrival_id`, `city_from`, `city_to`) otherwise.\n- etrain: tutu.ru schedule page from `departure_etrain_id`, `arrival_etrain_id`, `departure_at`.\n- hotels: an `explicit/hotel` deeplink. TWO modes, same idea as rail/bus. (1) Page (default, `kind=\"deeplink\"`): `hotel_alias` + `check_in` + `check_out` + `adults` (+ `children_ages`, `search_id`) opens the hotel's page with dates/guests pre-filled for the user to pick a room. (2) Straight-to-cart (`kind=\"checkout_deeplink\"`): also pass `offer_pack_hash` — a ROOM rate's `offerpack_hash` from `get_offer_details` (after the user picked a room) — and the link mints the cart for that pack, landing on the hotel page if the pack expired (fallback_to_details). NB the listing `best_offer.offerpack_hash` does NOT mint a cart — only a room-rate hash does. Page-mode fields ride in `checkout_ref`. Falls back to the pre-filled `fallback_url` page (`kind=\"hotel_page\"`) if the ref has no `hotel_alias`.\n\n`kind` ∈ `deeplink` / `checkout_deeplink` (rail/bus with seats; hotels with a pack) / `deeplink_parts` (avia separate tickets — links in `checkout_parts[]`, top-level `checkout_url` is the search page) / `search_redirect` (avia) / `order_url` / `seats_url` (rail/bus fallback) / `hotel_page` (hotels fallback).",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {

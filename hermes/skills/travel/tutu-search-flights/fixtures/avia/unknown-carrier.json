@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-09-14T03:43:46+00:00",
+  "recorded_at": "2026-09-24T11:28:25+00:00",
   "source": "tutu",
   "method": "tools/call",
   "tool": "search_avia",
@@ -22,7 +22,7 @@
         "content": [
           {
             "type": "text",
-            "text": "{\"offers\":[],\"meta\":{\"transport\":\"avia\",\"checkout_hint\":\"When the user picks an offer — in any wording («беру», «самый быстрый», «оформи», «забронируй») — the normal hand-over is `create_checkout_link` with that offer's `checkout_ref`; put the returned link in your reply. This payload deliberately carries no ready checkout link: the link comes from that tool, never from URL parts you assemble yourself.\",\"pricing\":{\"basis\":\"party_total\",\"passengers\":{\"full\":1},\"note\":\"Prices on this page already cover the WHOLE searched party — never multiply them by the passenger count.\"},\"from\":{\"name\":\"Москва\",\"geo_id\":\"2657260\",\"region\":\"Москва город федерального значения\",\"iata\":\"MOW\"},\"to\":{\"name\":\"Сочи\",\"geo_id\":\"2656918\",\"region\":\"городской округ Сочи, Краснодарский край\",\"iata\":\"AER\"},\"round_trip\":false,\"return_date\":null,\"sort\":\"price_asc\",\"page\":1,\"page_size\":3,\"total_returned\":0,\"total_matched\":0,\"total_matched_exact\":true,\"has_more\":false,\"post_filter_dropped_over_cap\":0,\"post_filter_dropped_not_direct\":0,\"post_filter_dropped_wrong_carrier\":22,\"post_filter_dropped_wrong_flight_number\":0,\"carriers_available\":[{\"name\":\"Победа\",\"offers_count\":2,\"price_from\":5863.0},{\"name\":\"Аэрофлот\",\"offers_count\":11,\"price_from\":6676.0},{\"name\":\"Utair\",\"offers_count\":1,\"price_from\":7119.0},{\"name\":\"Руслайн\",\"offers_count\":1,\"price_from\":8491.0},{\"name\":\"Уральские авиалинии\",\"offers_count\":1,\"price_from\":8519.0},{\"name\":\"S7 Airlines\",\"offers_count\":2,\"price_from\":8720.0},{\"name\":\"АЛРОСА\",\"offers_count\":1,\"price_from\":9732.0},{\"name\":\"Азимут\",\"offers_count\":1,\"price_from\":11931.0},{\"name\":\"Ред Вингс\",\"offers_count\":2,\"price_from\":25035.0}],\"upstream_note\":null}}"
+            "text": "{\"offers\":[],\"meta\":{\"transport\":\"avia\",\"checkout_hint\":\"When the user picks an offer — in any wording («беру», «самый быстрый», «оформи», «забронируй») — the normal hand-over is `create_checkout_link` with that offer's `checkout_ref`; put the returned link in your reply. This payload deliberately carries no ready checkout link: the link comes from that tool, never from URL parts you assemble yourself.\",\"pricing\":{\"basis\":\"party_total\",\"passengers\":{\"full\":1},\"note\":\"Prices on this page already cover the WHOLE searched party — never multiply them by the passenger count.\"},\"from\":{\"name\":\"Москва\",\"geo_id\":\"2657260\",\"region\":\"Москва город федерального значения\",\"iata\":\"MOW\"},\"to\":{\"name\":\"Сочи\",\"geo_id\":\"2656918\",\"region\":\"городской округ Сочи, Краснодарский край\",\"iata\":\"AER\"},\"round_trip\":false,\"return_date\":null,\"sort\":\"price_asc\",\"page\":1,\"page_size\":3,\"total_returned\":0,\"total_matched\":0,\"total_matched_exact\":true,\"has_more\":false,\"post_filter_dropped_over_cap\":0,\"post_filter_dropped_not_direct\":0,\"post_filter_dropped_wrong_carrier\":21,\"post_filter_dropped_wrong_flight_number\":0,\"carriers_available\":[{\"name\":\"Победа\",\"offers_count\":1,\"price_from\":4446.87},{\"name\":\"S7 Airlines\",\"offers_count\":2,\"price_from\":5365.96},{\"name\":\"Аэрофлот\",\"offers_count\":11,\"price_from\":5513.83},{\"name\":\"Utair\",\"offers_count\":1,\"price_from\":5732.16},{\"name\":\"Руслайн\",\"offers_count\":1,\"price_from\":6465.31},{\"name\":\"Уральские авиалинии\",\"offers_count\":1,\"price_from\":7301.64},{\"name\":\"АЛРОСА\",\"offers_count\":1,\"price_from\":8746.22},{\"name\":\"Азимут\",\"offers_count\":1,\"price_from\":11930.54},{\"name\":\"Ред Вингс\",\"offers_count\":2,\"price_from\":25034.08}],\"upstream_note\":null}}"
           }
         ],
         "isError": false
@@ -63,53 +63,53 @@
         "has_more": false,
         "post_filter_dropped_over_cap": 0,
         "post_filter_dropped_not_direct": 0,
-        "post_filter_dropped_wrong_carrier": 22,
+        "post_filter_dropped_wrong_carrier": 21,
         "post_filter_dropped_wrong_flight_number": 0,
         "carriers_available": [
           {
             "name": "Победа",
-            "offers_count": 2,
-            "price_from": 5863.0
-          },
-          {
-            "name": "Аэрофлот",
-            "offers_count": 11,
-            "price_from": 6676.0
-          },
-          {
-            "name": "Utair",
             "offers_count": 1,
-            "price_from": 7119.0
-          },
-          {
-            "name": "Руслайн",
-            "offers_count": 1,
-            "price_from": 8491.0
-          },
-          {
-            "name": "Уральские авиалинии",
-            "offers_count": 1,
-            "price_from": 8519.0
+            "price_from": 4446.87
           },
           {
             "name": "S7 Airlines",
             "offers_count": 2,
-            "price_from": 8720.0
+            "price_from": 5365.96
+          },
+          {
+            "name": "Аэрофлот",
+            "offers_count": 11,
+            "price_from": 5513.83
+          },
+          {
+            "name": "Utair",
+            "offers_count": 1,
+            "price_from": 5732.16
+          },
+          {
+            "name": "Руслайн",
+            "offers_count": 1,
+            "price_from": 6465.31
+          },
+          {
+            "name": "Уральские авиалинии",
+            "offers_count": 1,
+            "price_from": 7301.64
           },
           {
             "name": "АЛРОСА",
             "offers_count": 1,
-            "price_from": 9732.0
+            "price_from": 8746.22
           },
           {
             "name": "Азимут",
             "offers_count": 1,
-            "price_from": 11931.0
+            "price_from": 11930.54
           },
           {
             "name": "Ред Вингс",
             "offers_count": 2,
-            "price_from": 25035.0
+            "price_from": 25034.08
           }
         ],
         "upstream_note": null
