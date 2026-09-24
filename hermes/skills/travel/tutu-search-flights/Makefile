@@ -1,6 +1,6 @@
 # Единая точка запуска повторяющихся действий проекта.
 
-.PHONY: check test spec lint check-doc-commands discover clean
+.PHONY: check test spec live lint check-doc-commands discover clean
 
 check: test lint check-doc-commands
 
@@ -11,6 +11,10 @@ test:
 ## Первая продуктовая спецификация (RED до реализации поиска).
 spec:
 	uv run --extra dev pytest tests/test_successful_search.py
+
+## Живая интеграционная проверка Tutu MCP через SDK; только вручную.
+live:
+	TUTU_LIVE=1 uv run --extra dev pytest -m live tests/test_live_search.py
 
 ## Стиль файлов Python.
 lint:
