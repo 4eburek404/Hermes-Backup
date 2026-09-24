@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Команда, названная в документации, обязана существовать.
-
-`make что-то`, которое есть в AGENTS.md и нет в Makefile, — самый частый
-и самый незаметный дефект документации. Поэтому его ловит скрипт, а не
-намерение, и скрипт входит в `make check`.
-"""
+"""Проверяет, что команды make из документации существуют в Makefile."""
 
 from __future__ import annotations
 
@@ -23,7 +18,12 @@ from pathlib import Path
 
 
 def документы() -> list[Path]:
-    найдено = [КОРЕНЬ / "AGENTS.md", КОРЕНЬ / "SKILL.md", КОРЕНЬ / "README.md"]
+    найдено = [
+        КОРЕНЬ / "AGENTS.md",
+        КОРЕНЬ / "PROJECT_RULES.md",
+        КОРЕНЬ / "SKILL.md",
+        КОРЕНЬ / "README.md",
+    ]
     найдено += sorted((КОРЕНЬ / "docs").glob("*.md"))
     найдено += sorted((КОРЕНЬ / "specs").glob("*.md"))
     return [п for п in найдено if п.exists()]

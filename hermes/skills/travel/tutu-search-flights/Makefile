@@ -1,35 +1,23 @@
-# Единственный список команд проекта. Агент не изобретает команды и не держит
-# их в голове. Повторяющаяся последовательность становится целью в тот же день.
+# Единая точка запуска повторяющихся действий проекта.
 
-.PHONY: check arch test lint types docs-check discover clean
+.PHONY: check test lint check-doc-commands discover clean
 
-## check — ворота. Задача не закрыта, пока команда не прошла и её вывод не показан.
-check: arch test lint types docs-check
-	@echo ""
-	@echo "✓ ворота пройдены"
+check: test lint check-doc-commands
 
-## arch — архитектурные тесты: направление зависимостей, чистота ядра, границы
-arch:
-	uv run pytest tests/architecture
-
-## test — юнит-тесты и самопроверка обвязки
+## Проверки целостности записанного research и fixtures.
 test:
-	uv run pytest tests --ignore=tests/architecture
+	uv run pytest tests/test_harness.py
 
-## lint — стиль и мёртвый код
+## Стиль файлов Python.
 lint:
 	uvx ruff check .
 	uvx ruff format --check .
 
-## types — строгая типизация исходников
-types:
-	uv run mypy
+## Проверяет, что команды make ..., указанные в документации, существуют в Makefile.
+check-doc-commands:
+	python3 scripts/check_doc_commands.py
 
-## docs-check — команда, названная в документации, существует
-docs-check:
-	python3 scripts/check_docs.py
-
-## discover — переснять спецификацию Tutu MCP в fixtures/. Единственная живая сеть.
+## Обновляет исследование Tutu MCP через probe.py (живая сеть).
 discover:
 	python3 probe.py meta
 	python3 probe.py avia

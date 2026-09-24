@@ -1,7 +1,7 @@
 [project]
 name = "tutu-search-flights"
 version = "0.1.0"
-description = "Flight search over Tutu MCP: a CLI the Hermes agent calls, not an MCP server itself"
+description = "Research and recorded Tutu MCP responses for flight-search specifications"
 requires-python = ">=3.11"
 # Runtime dependencies are added in the same change that starts using them.
 # An unused dependency is a defect here, not a spare part.
@@ -9,21 +9,15 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = [
-  "mypy>=1.11,<2",
   "pytest>=8.0,<10",
   "ruff>=0.6,<0.16",
 ]
 
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools.packages.find]
-where = ["src"]
-include = ["tutu_search_flights*"]
+[tool.uv]
+package = false
 
 [tool.pytest.ini_options]
-pythonpath = ["src", "."]
+pythonpath = ["."]
 addopts = "-q --strict-markers"
 markers = [
   "live: calls the live Tutu MCP server; opt-in, never part of the gate",
@@ -31,7 +25,7 @@ markers = [
 
 [tool.ruff]
 line-length = 100
-src = ["src", "tests", "scripts"]
+src = ["tests", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "DTZ", "RUF"]
@@ -39,8 +33,3 @@ select = ["E", "F", "I", "UP", "B", "DTZ", "RUF"]
 # RUF001/002/003 ищут кириллицу, похожую на латиницу, и на русском тексте дают
 # только шум: «о» в русском слове — это буква «о», а не спутанная `o`.
 ignore = ["RUF001", "RUF002", "RUF003"]
-
-[tool.mypy]
-python_version = "3.11"
-strict = true
-files = ["src"]
