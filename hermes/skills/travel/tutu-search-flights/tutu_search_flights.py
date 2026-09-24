@@ -160,13 +160,10 @@ async def search_live(
     url: str = TUTU_MCP_URL,
 ) -> dict[str, Any]:
     """Выполнить живой search_avia через официальный MCP Python SDK."""
-    from mcp import ClientSession
-    from mcp.client.streamable_http import streamable_http_client
+    from mcp import Client
 
-    async with streamable_http_client(url) as (read_stream, write_stream):
-        async with ClientSession(read_stream, write_stream) as session:
-            await session.initialize()
-            result = await session.call_tool("search_avia", arguments=arguments)
+    async with Client(url) as client:
+        result = await client.call_tool("search_avia", arguments)
 
     text = next(
         (
@@ -176,6 +173,8 @@ async def search_live(
         ),
         None,
     )
+    if result.is_error:
+        raise RuntimeError(text or "Tutu MCP search_avia failed")
     if text is None:
         raise ValueError("Tutu MCP search_avia returned no text result")
     return _project_text(text)
