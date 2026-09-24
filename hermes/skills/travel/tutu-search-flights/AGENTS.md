@@ -3,30 +3,34 @@
 ## Сейчас есть
 
 - исследование живого Tutu MCP: [`docs/mcp-notes.md`](docs/mcp-notes.md);
-- записанные ответы MCP и manifest: [`fixtures/`](fixtures/);
-- probe для исследования и обновления записей: [`probe.py`](probe.py);
-- первоначальная product specification: [`specs/01-product.md`](specs/01-product.md);
-- первая executable spec и её реализация: [`specs/02-successful-search.md`](specs/02-successful-search.md),
-  `tests/test_successful_search.py`, `tutu_search_flights.py`;
-- agent specification живого поиска: [`specs/agent/01-live-search.md`](specs/agent/01-live-search.md);
-- проверки целостности research и fixtures: `tests/test_harness.py`;
+- записанные raw MCP responses и manifest: [`fixtures/`](fixtures/);
+- research probe для обновления записей: [`probe.py`](probe.py);
+- product specification: [`specs/01-product.md`](specs/01-product.md);
+- S1 — сохранение успешного ответа: [`specs/02-successful-search.md`](specs/02-successful-search.md);
+- S2 — production CLI → MCP SDK → `search_avia`: [`specs/03-production-sdk-search.md`](specs/03-production-sdk-search.md);
+- S3 — tool-level error не является пустой выдачей: [`specs/04-tool-error.md`](specs/04-tool-error.md);
+- opt-in live smoke test реального Tutu MCP: `tests/test_live_search.py`;
 - правила разработки: [`PROJECT_RULES.md`](PROJECT_RULES.md).
 
-Живой production-путь выполняется через MCP Python SDK 2.2.0; `probe.py` остаётся только research-инструментом.
+Production-путь живого поиска реализован через MCP Python SDK 2.2.0.
+`probe.py` не является production transport.
 
-## Следующий этап
+## Текущий этап
 
-1. Проверить `make live` в окружении с доступом к `https://mcp.tutu.ru/mcp`.
-2. Прогнать agent specification через общий evaluate harness.
-3. Затем расширять поведение следующими executable specs.
+Закрыть продуктовый SDD-цикл текущего объёма:
+
+1. `make spec` — все детерминированные executable specs должны быть GREEN.
+2. `make check` — общий локальный gate должен быть GREEN.
+3. `make live` — отдельно подтвердить реальную SDK-интеграцию с Tutu.
+4. Только после этого формулировать следующую продуктовую спецификацию.
+
+Agent evaluate не заменяет эти проверки и не является следующим шагом, пока
+production-поведение текущего объёма не закреплено спецификациями и тестами.
 
 ## Текущие команды
 
-- `make check` — все текущие проверки;
-- `make test` — тесты целостности research/fixtures и продуктовые specs;
-- `make spec` — детерминированный сценарий успешного поиска;
+- `make spec` — S1–S3 без сети;
+- `make check` — тесты, lint и проверки документации;
 - `make live` — opt-in живой поиск через MCP SDK;
-- `make lint` — Ruff;
-- `make check-doc-commands` — сверка команд документации с Makefile;
-- `make discover` — обновление исследования через probe; обращается к живому Tutu MCP;
+- `make discover` — обновление research fixtures через `probe.py`;
 - `make clean` — удаление локальных кэшей.
