@@ -1,12 +1,16 @@
 # Единая точка запуска повторяющихся действий проекта.
 
-.PHONY: check test lint check-doc-commands discover clean
+.PHONY: check test spec lint check-doc-commands discover clean
 
 check: test lint check-doc-commands
 
-## Проверки целостности записанного research и fixtures.
+## Все тесты, включая исполняемые продуктовые спецификации.
 test:
-	uv run pytest tests/test_harness.py
+	uv run --extra dev pytest tests
+
+## Первая продуктовая спецификация (RED до реализации поиска).
+spec:
+	uv run --extra dev pytest tests/test_successful_search.py
 
 ## Стиль файлов Python.
 lint:
