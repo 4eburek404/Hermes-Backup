@@ -26,9 +26,7 @@ def test_party_total_price_is_not_multiplied_again():
     assert result["passengers"] == {"full": 2, "child": 1}
 
     raw_offer = source["offers"][0]
-    raw_fares = {
-        variant["conditions"]["fare_family"]: variant for variant in raw_offer["variants"]
-    }
+    raw_fares = {variant["conditions"]["fare_family"]: variant for variant in raw_offer["variants"]}
     offer = result["offers"][0]
     fares = {fare["name"]: fare for fare in offer["fares"]}
     assert set(fares) == set(raw_fares)

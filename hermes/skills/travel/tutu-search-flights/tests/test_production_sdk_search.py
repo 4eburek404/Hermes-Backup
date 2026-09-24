@@ -5,6 +5,7 @@ import sys
 import types
 from copy import deepcopy
 from pathlib import Path
+from typing import ClassVar
 
 import tutu_search_flights
 
@@ -29,8 +30,8 @@ class _ToolResult:
 
 
 class _FakeClient:
-    instances = []
-    result = None
+    instances: ClassVar[list] = []
+    result: ClassVar = None
 
     def __init__(self, url):
         self.url = url

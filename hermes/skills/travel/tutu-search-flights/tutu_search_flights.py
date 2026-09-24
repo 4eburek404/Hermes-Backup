@@ -240,11 +240,7 @@ async def search_live(
         result = await client.call_tool("search_avia", arguments)
 
     text = next(
-        (
-            block.text
-            for block in result.content
-            if isinstance(getattr(block, "text", None), str)
-        ),
+        (block.text for block in result.content if isinstance(getattr(block, "text", None), str)),
         None,
     )
     if result.is_error:
