@@ -1,11 +1,9 @@
-"""S1: сохранение фактов успешного поиска, specs/02-successful-search.md.
-
-Ожидания прочитаны из raw baseline от 24.09.2026 и заданы независимо от
-результата продукта. Словари ниже — язык наблюдений теста, не схема CLI.
-"""
+"""S1: проверки свойств сохранённого ответа, specs/02-successful-search.md."""
 
 import json
 from copy import deepcopy
+from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 
 from tests.product_driver import search
@@ -19,95 +17,84 @@ REQUEST = {
 }
 
 
-def fare(name, amount, baggage, cabin, refundable, changeable, exchange=None):
-    """Краткая запись ожидаемых фактов; не разбирает данные источника."""
-    return {
-        "name": name,
-        "amount": amount,
-        "currency": "RUB",
-        "baggage": baggage,
-        "cabin_baggage": cabin,
-        "refundable": refundable,
-        "changeable": changeable,
-        "exchange": exchange,
-    }
-
-
-def test_successful_search_preserves_schedule_prices_and_fares():
-    # Дано: сырой JSON-RPC ответ, а не готовый response.payload или itinerary.
+def test_successful_search_preserves_source_results_prices_and_conditions():
     recording = json.loads(BASELINE.read_text(encoding="utf-8"))
     assert recording["arguments"] == REQUEST
+    scenario_at = datetime.fromisoformat(recording["recorded_at"])
+    assert scenario_at.utcoffset() is not None
     envelope = recording["response"]["envelope"]
+    source = json.loads(envelope["result"]["content"][0]["text"])
     calls = []
 
     def recorded_tool(name, arguments):
-        # Любой незаписанный вызов — ошибка, живой сети здесь нет.
         assert name == "search_avia"
         assert arguments == REQUEST
         calls.append((name, deepcopy(arguments)))
         return deepcopy(envelope)
 
-    # Когда: продукт выполняет обычный поиск с подменённой внешней зависимостью.
+    # The recorded call is replayed as-is; the machine's current date is irrelevant.
     result = search(deepcopy(REQUEST), call_tool=recorded_tool)
 
-    # Тогда: он действительно запросил источник и вернул факты этой страницы.
-    assert calls, "Результат должен быть получен через источник поиска"
-    assert result["pricing_basis"] == "party_total"
-    assert result["passengers"] == {"full": 1}
-    assert result["has_more"] is True
+    assert calls == [("search_avia", REQUEST)]
+    assert result["pricing_basis"] == source["meta"]["pricing"]["basis"] == "party_total"
+    assert result["passengers"] == source["meta"]["pricing"]["passengers"] == {"full": 1}
+    assert result["has_more"] is source["meta"]["has_more"] is True
+
+    source_offers = source["offers"]
     offers = result["offers"]
-    assert len(offers) == 3
+    assert len(offers) == len(source_offers) == 3
     by_flight = {offer["flight_number"]: offer for offer in offers}
-    assert set(by_flight) == {"DP-6949", "S7-2055", "S7-2049"}
+    source_flights = {offer["legs"][0]["segments"][0]["voyage_no"] for offer in source_offers}
+    assert set(by_flight) == source_flights
 
-    schedules = {
-        "DP-6949": ("Победа", "Москва — Шереметьево (SVO), терм. D", "19:25", "23:05", 220),
-        "S7-2055": ("S7 Airlines", "Москва — Домодедово (DME)", "11:05", "14:50", 225),
-        "S7-2049": ("S7 Airlines", "Москва — Домодедово (DME)", "08:55", "12:40", 225),
-    }
-    for flight, (carrier, origin, departure, arrival, duration) in schedules.items():
-        offer = by_flight[flight]
-        assert offer["carrier"] == carrier
-        assert offer["origin"] == origin
-        assert offer["destination"] == "Сочи, AER"
-        assert offer["departure_at"] == f"2026-10-15T{departure}:00+03:00"
-        assert offer["arrival_at"] == f"2026-10-15T{arrival}:00+03:00"
-        assert offer["duration_min"] == duration
-        assert offer["segments_count"] == 1
+    # These are independent control examples from this historical recording, not
+    # product requirements to return this flight or carrier in other searches.
+    control = by_flight["DP-6949"]
+    assert control["carrier"] == "Победа"
+    assert control["origin"] == "Москва — Шереметьево (SVO), терм. D"
+    assert control["destination"] == "Сочи, AER"
+    assert control["departure_at"] == "2026-10-15T19:25:00+03:00"
+    assert control["arrival_at"] == "2026-10-15T23:05:00+03:00"
+    assert control["duration_min"] == 220
+    assert control["segments_count"] == 1
 
-    # None — источник не сообщил вес; это не ноль и не догадка о норме.
-    pobeda_cabin = {"kg": None, "pieces": 1, "dimensions": "36 × 30 × 27"}
-    s7_cabin = {"kg": 10, "pieces": 1, "dimensions": "55 × 40 × 23"}
-    s7_business_cabin = {"kg": 15, "pieces": 1, "dimensions": "55 × 40 × 23"}
-    exchange = {"available": True, "deadline_hours": 48}
-    expected_fares = {
-        "DP-6949": [
-            fare("Базовый", "4446.87", {"kg": 0, "pieces": 0}, pobeda_cabin, False, False),
-            fare(
-                "Выгодный", "7253.91", {"kg": 10, "pieces": 1}, pobeda_cabin, False, True, exchange
-            ),
-            fare(
-                "Максимум", "10590.19", {"kg": 20, "pieces": 1}, pobeda_cabin, True, True, exchange
-            ),
-        ],
-        "S7-2055": [
-            fare("Эконом Базовый", "5365.96", {"kg": 0, "pieces": 0}, s7_cabin, False, True),
-            fare("Эконом Стандарт", "8107.60", {"kg": 23, "pieces": 1}, s7_cabin, True, True),
-            fare("Эконом Плюс", "16331.92", {"kg": 32, "pieces": 1}, s7_cabin, True, True),
-            fare(
-                "Бизнес Базовый",
-                "45604.97",
-                {"kg": 32, "pieces": 1},
-                s7_business_cabin,
-                False,
-                True,
-            ),
-            fare("Бизнес Плюс", "79288.91", {"kg": 32, "pieces": 2}, s7_business_cabin, True, True),
-        ],
+    for raw_offer in source_offers:
+        raw_segment = raw_offer["legs"][0]["segments"][0]
+        offer = by_flight[raw_segment["voyage_no"]]
+        assert offer["carrier"] == raw_segment["carrier"]
+        assert offer["origin"] == raw_segment["from"]
+        assert offer["destination"] == raw_segment["to"]
+        assert offer["departure_at"] == raw_offer["departure_at"]
+        assert offer["arrival_at"] == raw_offer["arrival_at"]
+        assert datetime.fromisoformat(offer["departure_at"]).utcoffset() is not None
+        assert datetime.fromisoformat(offer["arrival_at"]).utcoffset() is not None
+        assert offer["duration_min"] == raw_offer["duration_min"]
+        assert offer["segments_count"] == raw_offer["segments_count"]
+
+        raw_variants = raw_offer["variants"]
+        actual_fares = offer["fares"]
+        assert len(actual_fares) == len(raw_variants)
+        by_fare = {fare["name"]: fare for fare in actual_fares}
+        assert set(by_fare) == {v["conditions"]["fare_family"] for v in raw_variants}
+        for raw_variant in raw_variants:
+            conditions = raw_variant["conditions"]
+            fare = by_fare[conditions["fare_family"]]
+            # The source amount stays attached to its source fare; no passenger
+            # multiplier is applied to a party_total price.
+            assert Decimal(fare["amount"]) == Decimal(str(raw_variant["price"]["amount"]))
+            assert fare["currency"] == raw_variant["price"]["currency"]
+            assert fare["baggage"] == conditions.get("baggage")
+            assert fare["cabin_baggage"] == conditions.get("cabin_baggage")
+            assert fare["refundable"] == conditions.get("refundable")
+            assert fare["changeable"] == conditions.get("changeable")
+            assert fare["exchange"] == conditions.get("exchange")
+
+    # A missing cabin-baggage weight remains explicitly unknown in this example.
+    base_fare = next(f for f in control["fares"] if f["name"] == "Базовый")
+    assert base_fare["cabin_baggage"] == {
+        "kg": None,
+        "pieces": 1,
+        "dimensions": "36 × 30 × 27",
     }
-    expected_fares["S7-2049"] = deepcopy(expected_fares["S7-2055"])
-    for flight, expected in expected_fares.items():
-        actual = by_flight[flight]["fares"]
-        assert len(actual) == len(expected), f"Потеряны или добавлены тарифы {flight}"
-        # Порядок показа не задаётся; связка цена/тариф/условия обязательна.
-        assert sorted(actual, key=lambda f: f["name"]) == sorted(expected, key=lambda f: f["name"])
+    changeable_fare = next(f for f in control["fares"] if f["name"] == "Выгодный")
+    assert changeable_fare["exchange"] == {"available": True, "deadline_hours": 48}
