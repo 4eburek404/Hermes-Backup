@@ -5,7 +5,6 @@ import os
 from datetime import UTC, datetime, timedelta
 
 import pytest
-
 import tutu_search_flights
 
 pytestmark = [
