@@ -5,7 +5,9 @@ description = "Research and recorded Tutu MCP responses for flight-search specif
 requires-python = ">=3.11"
 # Runtime dependencies are added in the same change that starts using them.
 # An unused dependency is a defect here, not a spare part.
-dependencies = []
+dependencies = [
+    "pydantic>=2,<3",
+]
 
 [project.optional-dependencies]
 dev = [
