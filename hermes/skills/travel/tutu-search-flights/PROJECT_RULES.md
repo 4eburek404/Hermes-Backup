@@ -22,7 +22,7 @@
 
 ## Research
 
-Живой Tutu MCP используется для исследования и обновления fixtures через `probe.py`. Обычные specs/tests работают на записанных данных. Raw fixtures вручную не редактируются.
+Для исследования и обновления fixtures используется `probe.py`. Production live-search идёт через MCP SDK client. Обычные specs/tests работают на записанных данных. Raw fixtures вручную не редактируются.
 
 ## Architecture
 

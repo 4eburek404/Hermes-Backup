@@ -1,10 +1,17 @@
-"""Минимальный разбор успешного ответа search_avia для S1."""
+"""Разбор ответа Tutu search_avia и живой поиск через MCP SDK."""
 
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
 from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+
+TUTU_MCP_URL = "https://mcp.tutu.ru/mcp"
 
 
 class SourceModel(BaseModel):
@@ -81,14 +88,8 @@ class SearchResponse(SourceModel):
     meta: Meta
 
 
-def search(
-    arguments: dict[str, Any],
-    *,
-    call_tool: Callable[[str, dict[str, Any]], dict[str, Any]],
-) -> dict[str, Any]:
-    """Вызвать переданный search_avia и спроецировать его ответ в наблюдения S1."""
-    envelope = call_tool("search_avia", arguments)
-    payload = SearchResponse.model_validate_json(envelope["result"]["content"][0]["text"])
+def _project_text(text: str) -> dict[str, Any]:
+    payload = SearchResponse.model_validate_json(text)
 
     offers = []
     for offer in payload.offers:
@@ -141,3 +142,61 @@ def search(
         "has_more": payload.meta.has_more,
         "offers": offers,
     }
+
+
+def search(
+    arguments: dict[str, Any],
+    *,
+    call_tool: Callable[[str, dict[str, Any]], dict[str, Any]],
+) -> dict[str, Any]:
+    """Вызвать переданный search_avia и спроецировать его ответ в наблюдения S1."""
+    envelope = call_tool("search_avia", arguments)
+    return _project_text(envelope["result"]["content"][0]["text"])
+
+
+async def search_live(
+    arguments: dict[str, Any],
+    *,
+    url: str = TUTU_MCP_URL,
+) -> dict[str, Any]:
+    """Выполнить живой search_avia через официальный MCP Python SDK."""
+    from mcp import ClientSession
+    from mcp.client.streamable_http import streamable_http_client
+
+    async with streamable_http_client(url) as (read_stream, write_stream):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            result = await session.call_tool("search_avia", arguments=arguments)
+
+    text = next(
+        (
+            block.text
+            for block in result.content
+            if isinstance(getattr(block, "text", None), str)
+        ),
+        None,
+    )
+    if text is None:
+        raise ValueError("Tutu MCP search_avia returned no text result")
+    return _project_text(text)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Живой поиск авиабилетов через Tutu MCP")
+    parser.add_argument("arguments", help="JSON-объект аргументов search_avia")
+    parsed = parser.parse_args(argv)
+
+    try:
+        arguments = json.loads(parsed.arguments)
+    except json.JSONDecodeError as exc:
+        parser.error(f"arguments must be valid JSON: {exc.msg}")
+    if not isinstance(arguments, dict):
+        parser.error("arguments must be a JSON object")
+
+    result = asyncio.run(search_live(arguments))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
