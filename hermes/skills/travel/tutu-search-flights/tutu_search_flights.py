@@ -61,7 +61,15 @@ class Segment(SourceModel):
 
 
 class Leg(SourceModel):
+    label: str
+    from_: str = Field(alias="from")
+    to: str
+    departure_at: AwareDatetime
+    arrival_at: AwareDatetime
+    duration_min: int
     segments: list[Segment]
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
 
 class Offer(SourceModel):
@@ -71,6 +79,12 @@ class Offer(SourceModel):
     arrival_at: AwareDatetime
     legs: list[Leg]
     variants: list[Variant]
+    is_round_trip: bool | None = None
+    return_departure_at: AwareDatetime | None = None
+    return_arrival_at: AwareDatetime | None = None
+    has_self_transfer: bool | None = None
+    is_multi_pnr: bool | None = None
+    multi_pnr_note: str | None = None
 
 
 class Pricing(SourceModel):
@@ -81,6 +95,13 @@ class Pricing(SourceModel):
 class Meta(SourceModel):
     pricing: Pricing
     has_more: bool
+    total_matched_exact: bool
+    upstream_note: str | None = None
+    post_filter_dropped_over_cap: int = 0
+    post_filter_dropped_not_direct: int = 0
+    post_filter_dropped_wrong_carrier: int = 0
+    post_filter_dropped_wrong_flight_number: int = 0
+    post_filter_dropped_wrong_airport: int = 0
 
 
 class SearchResponse(SourceModel):
@@ -94,7 +115,7 @@ def _project_text(text: str) -> dict[str, Any]:
     offers = []
     for offer in payload.offers:
         segments = [segment for leg in offer.legs for segment in leg.segments]
-        segment = segments[0]
+        first_segment = segments[0]
         fares = []
         for variant in offer.variants:
             conditions = variant.conditions
@@ -122,24 +143,77 @@ def _project_text(text: str) -> dict[str, Any]:
                     ),
                 }
             )
+
+        legs = []
+        for leg in offer.legs:
+            legs.append(
+                {
+                    "label": leg.label,
+                    "from": leg.from_,
+                    "to": leg.to,
+                    "departure_at": leg.departure_at.isoformat(),
+                    "arrival_at": leg.arrival_at.isoformat(),
+                    "duration_min": leg.duration_min,
+                    "segments": [
+                        {
+                            "flight_number": segment.voyage_no,
+                            "carrier": segment.carrier,
+                            "origin": segment.from_,
+                            "destination": segment.to,
+                            "departure_at": segment.departure_at.isoformat(),
+                            "arrival_at": segment.arrival_at.isoformat(),
+                            "duration_min": segment.duration_min,
+                        }
+                        for segment in leg.segments
+                    ],
+                }
+            )
+
+        single_segment = offer.segments_count == 1
         offers.append(
             {
-                "flight_number": segment.voyage_no,
-                "carrier": segment.carrier,
-                "origin": segment.from_,
-                "destination": segments[-1].to,
+                "flight_number": first_segment.voyage_no if single_segment else None,
+                "carrier": first_segment.carrier if single_segment else None,
+                "origin": offer.legs[0].from_,
+                "destination": offer.legs[0].to,
                 "departure_at": offer.departure_at.isoformat(),
                 "arrival_at": offer.arrival_at.isoformat(),
+                "return_departure_at": (
+                    offer.return_departure_at.isoformat() if offer.return_departure_at else None
+                ),
+                "return_arrival_at": (
+                    offer.return_arrival_at.isoformat() if offer.return_arrival_at else None
+                ),
                 "duration_min": offer.duration_min,
                 "segments_count": offer.segments_count,
+                "is_round_trip": offer.is_round_trip,
+                "has_self_transfer": offer.has_self_transfer,
+                "is_multi_pnr": offer.is_multi_pnr,
+                "multi_pnr_note": offer.multi_pnr_note,
+                "legs": legs,
                 "fares": fares,
             }
         )
+
+    dropped = {
+        name: value
+        for name, value in {
+            "over_cap": payload.meta.post_filter_dropped_over_cap,
+            "not_direct": payload.meta.post_filter_dropped_not_direct,
+            "wrong_carrier": payload.meta.post_filter_dropped_wrong_carrier,
+            "wrong_flight_number": payload.meta.post_filter_dropped_wrong_flight_number,
+            "wrong_airport": payload.meta.post_filter_dropped_wrong_airport,
+        }.items()
+        if value
+    }
 
     return {
         "pricing_basis": payload.meta.pricing.basis,
         "passengers": payload.meta.pricing.passengers,
         "has_more": payload.meta.has_more,
+        "total_matched_exact": payload.meta.total_matched_exact,
+        "upstream_note": payload.meta.upstream_note,
+        "post_filter_dropped": dropped,
         "offers": offers,
     }
 
