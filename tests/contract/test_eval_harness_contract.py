@@ -210,6 +210,18 @@ class EvalHarnessContract(unittest.TestCase):
         self.assertIn("baseline", comparison["retained_evidence_by_version"])
         self.assertIn("candidate", comparison["retained_evidence_by_version"])
 
+    def test_baseline_candidate_comparison_requires_matching_evaluator_identity(self) -> None:
+        case = base_case()
+        case["skill_versions"] = ["baseline", "candidate"]
+        with patch(
+            "evals.harness.core._capture_evaluator_provenance",
+            side_effect=lambda _consumer, evidence, _rules: {
+                "identity_sha256": str(evidence["skill_version"])
+            },
+        ):
+            batch = run_case(case)
+        self.assertFalse(batch["comparison"]["controlled"])
+
     def test_es19_candidate_only_run_is_not_a_controlled_comparison(self) -> None:
         case = base_case()
         case["skill_versions"] = ["candidate"]

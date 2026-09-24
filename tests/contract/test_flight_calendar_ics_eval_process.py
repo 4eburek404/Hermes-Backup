@@ -571,6 +571,26 @@ def test_persisted_evaluator_provenance_tracks_effective_inputs(tmp_path):
     }
     oracle_path.write_text(json.dumps(oracle_a, indent=2) + "\n", encoding="utf-8")
     consumer = module.FlightCalendarIcsConsumer(eval_root, ROOT, manifest)
+    provenance_before_parser_change = consumer.evaluation_provenance(
+        {"scenario": "url-success"}, {}
+    )
+
+    def changed_observer(_path):
+        return {"event_count": 0, "events": []}
+
+    with patch.object(
+        module.FlightCalendarIcsConsumer,
+        "_observe_ics",
+        new=classmethod(lambda cls, path: changed_observer(path)),
+    ):
+        provenance_after_parser_change = consumer.evaluation_provenance(
+            {"scenario": "url-success"}, {}
+        )
+    assert (
+        provenance_before_parser_change["identity_sha256"]
+        != provenance_after_parser_change["identity_sha256"]
+    ), "evaluator identity must include artifact observation behavior"
+
     case = run_eval.build_case(
         manifest,
         EVAL,

@@ -76,15 +76,31 @@ def test_ural_replay_is_offline_and_returns_raw_reservation():
             }
         )
         assert "/12345/js/app.synthetic.js" in replay.request_text(
-            "https://service.uralairlines.ru/"
+            "https://service.uralairlines.ru/", headers={"Accept": "text/html"}
         )
-        env = replay.request_json("https://service.uralairlines.ru/12345/env/env.json")
+        env = replay.request_json(
+            "https://service.uralairlines.ru/12345/env/env.json",
+            headers={"Accept": "application/json"},
+        )
         assert env == {
             "API_URL": "https://ural-api.test/api/",
             "API_KEY": "synthetic-api-key-001",
         }
-        assert replay.request_text("https://ural-api.test/api/settings/CurrentDateUtc") == "1700000000"
-        raw = replay.request_json("https://ural-api.test/api/Reservation")
+        assert replay.request_text(
+            "https://ural-api.test/api/settings/CurrentDateUtc",
+            headers={"Accept": "application/json"},
+        ) == "1700000000"
+        raw = replay.request_json(
+            "https://ural-api.test/api/Reservation?pnrNumber=ABC123&lastName=IVANOV",
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Origin": "https://service.uralairlines.ru",
+                "Referer": "https://service.uralairlines.ru/",
+                "User-Agent": "Mozilla/5.0",
+                "X-Api-Key": "synthetic-api-key-001",
+            },
+        )
         expected = json.loads(fixture.read_text(encoding="utf-8"))
         assert raw == expected
         assert "flights" not in raw
