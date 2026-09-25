@@ -1,18 +1,25 @@
 ---
 name: flight-status
-description: Use when checking the current operational status of a flight or airport board, including delays, cancellations, revised times, terminals, gates, check-in desks, arrivals, departures, or conflicts between live status sources; not for fare search.
-version: 1.2.0
+description: Use when checking the current operational status of a flight or airport board, including delays, cancellations, current times, terminals, and other status fields exposed by Trip.com; not for fare search.
+version: 1.3.0
 author: Hermes Agent
 license: MIT
 metadata:
   hermes:
     category: travel
-    tags: [travel, flights, status, airport, delays, gates]
+    tags: [travel, flights, status, airport, delays]
     related_skills: [flight-search]
-    requires_toolsets: [web, terminal]
+    requires_toolsets: [terminal]
 ---
 
 # Flight Status
+
+Use Trip.com as the flight-status source for this skill.
+
+For the current development scope, do not switch to an airline site, airport site,
+or another flight tracker when Trip.com is unavailable or incomplete. Report the
+Trip.com limitation instead. This keeps provider behavior explicit while the
+Trip.com integration is being developed.
 
 Use `"${HERMES_SKILLS_PYTHON:-python3}"` as the Python interpreter for bundled
 commands. When `HERMES_SKILLS_PYTHON` is set, use that exact executable;
@@ -20,105 +27,118 @@ otherwise use `python3`.
 
 ## Goal
 
-Answer operational flight-status questions from current, source-labelled evidence. Keep this workflow separate from fare search: schedules, delays, gates, terminals, check-in desks, and actual movement are not ticket inventory.
+Answer operational flight-status questions from the Trip.com airport board using
+the bundled `scripts/trip_board.py` CLI. Keep this separate from fare search.
 
-## Steps
+Trip.com identifies VariFlight as the data provider. Treat the result as
+third-party flight-status data, not as an official airline or airport statement.
 
-1. **Fix the flight identity.** Record the flight number, operating date, and known origin/destination. Flight numbers repeat daily; do not use an undated row as current status. If only an airport is known, determine whether the user needs departures or arrivals and the relevant date/time window.
-2. **Check the operational source first.** Prefer the official departure/arrival airport board for terminal, gate, check-in desk, and local airport status. For an exact flight/date at Sheremetyevo, run the bundled `scripts/sheremetyevo.py` CLI before using a browser or third-party tracker. Prefer the operating airline's official status page for cancellation, schedule changes, and carrier instructions. Do not treat a marketing timetable as a live board.
-3. **Fallback without hiding the source type.** If official pages are unavailable or block automation, continue with live board/aggregator sources such as Yandex Rasp airport boards, Trip.com flight status, or FlightAware. Label each as official airline, official airport, airport-board aggregator, or flight tracker.
-4. **Match the source to the field.** Use the departure airport board for gate and check-in desks; the relevant airport board for terminal and local status; the airline for passenger instructions; a tracker only for movement/history when operational sources do not expose it. Never infer a gate, desk, terminal, or cancellation from route history.
-5. **Reconcile conflicts explicitly.** Preserve each source's local time and status wording, record when it was observed, and state the disagreement. Do not silently merge different scheduled, estimated, and actual times. For gate/desks, the airport board has priority; for carrier instructions, the airline has priority. A third-party tracker does not override an official operational display without explaining the conflict.
-6. **Report status first.** Give one compact status line, then scheduled versus updated times, airport/terminal/gate/desks when present, source names with observation time, and a short uncertainty note only when evidence is incomplete or conflicting.
+## Workflow
 
-## Sheremetyevo Official API
+1. **Fix the operation.**
+   - Record the flight number and operating date.
+   - Resolve relative dates such as "today" to an absolute `YYYY-MM-DD` date
+     before calling the CLI.
+   - Flight numbers repeat by date; never use an undated row as the requested
+     operation.
 
-For an exact flight and operating date at SVO, resolve `<skill-root>` as the
-directory containing this `SKILL.md` and run:
+2. **Choose the Trip.com airport board.**
+   - If the origin airport is known, use its `departures` board.
+   - If only the destination airport is known, use its `arrivals` board.
+   - Do not invent an airport or route.
+   - If the user gives only a flight number/date and no airport is available
+     from the request or established context, the current CLI cannot discover
+     the route from the flight number alone. State that limitation rather than
+     switching providers or guessing.
 
-```bash
-"${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/sheremetyevo.py" SU1404 --date 2026-07-16
-"${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/sheremetyevo.py" "SU 1404" --date 2026-07-16 --json
-```
+3. **For one exact flight, use exact-flight lookup.**
+   Resolve `<skill-root>` as the directory containing this `SKILL.md` and run:
 
-The dependency-free CLI queries Sheremetyevo's official public JSON timetable,
-then selects the row whose normalized carrier/flight number and `dat` calendar
-date exactly match the request. It does not substitute a neighboring operation.
-The result preserves the board's literal status, distinguishes scheduled from
-revised departure or arrival, and converts route timestamps with the airport
-timezones returned by SVO. It also reports terminal, gate, check-in window/desks,
-source URL, and the `X-Date-Update` freshness header when available.
+   ```bash
+   "${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/trip_board.py" SVX --direction departures --flight SU1437 --date 2026-09-25 --json
+   ```
 
-Named failures such as `svo_flight_not_found`, `svo_ambiguous_flight`,
-`svo_parser_changed`, or `svo_network_error` are evidence limitations, not proof
-that the real-world flight does not exist. Use the official airline next, then a
-clearly labelled third-party fallback only if needed.
+   Use the requested airport, direction, flight number, and date. Exact-flight
+   lookup searches the matching source rows directly; it is not limited to the
+   first 24 rows used by the normal board view.
 
-## Trip.com Airport Board
+4. **For an airport board, use board lookup.**
 
-For a current Trip.com airport-board fallback, resolve `<skill-root>` as the
-directory containing this `SKILL.md` and run the bundled read-only script:
+   ```bash
+   "${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/trip_board.py" SVO --direction arrivals --json
+   "${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/trip_board.py" SVO --direction departures --json
+   ```
 
-```bash
-"${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/trip_board.py" SVO --direction arrivals
-"${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/trip_board.py" SVO --direction departures
-```
+   The normal board mode returns Trip.com's current date/time slice and up to
+   the first 24 eligible rows.
 
-The same Python environment must provide `curl_cffi`; otherwise the script
-returns `missing_dependency: curl_cffi`. It does not require BeautifulSoup or a
-headless browser.
+5. **Preserve Trip.com's time semantics.**
+   - `scheduled.departure` and `scheduled.arrival` are the source's planned
+     schedule.
+   - `current.departure` and `current.arrival` are the source's currently
+     displayed values.
+   - Keep the status text separately.
+   - Do **not** rename `current` to `actual`, `estimated`, `revised`, or
+     "rescheduled" unless the source explicitly provides that meaning.
+   - A changed `current` value may be reported as "Trip.com currently shows
+     ..." without inventing stronger semantics.
 
-Add `--json` for structured output. The script returns Trip.com's current
-date/time slice and first 24 rows with time, flight number, origin/destination,
-airline, terminal, and status. It performs public GET requests only and labels
-the result as `Trip.com` with data supplied by `VariFlight`; this is a
-third-party airport-board aggregator, not official airport confirmation.
+6. **Report the result without reinterpretation.**
+   Give the source status first, then scheduled and current times, route/terminal
+   fields that are present, and the observation time. Omit unavailable fields.
 
-If the script reports `trip_antibot_challenge`, `trip_parser_changed`, or another
-named error, report that access/parser limitation. Do not turn it into an empty
-board or claim that there are no flights. Arbitrary dates, time windows,
-pagination, and polling are outside this first version.
+## Example
 
-## Input
-
-- Best case: flight number plus operating date.
-- Optional: departure/arrival airport, local time window, and the exact field needed.
-- Airport-board requests need airport identity plus departures/arrivals and date or time window.
-
-## Output
-
-Use a compact source-labelled card:
+For a result containing:
 
 ```text
-STATUS — FLIGHT — DATE
-Route: ORIGIN → DESTINATION
-Scheduled: ...
-Updated/actual: ...
-Terminal / gate / check-in: ...
-Sources checked: ...
-Observed: ...
-Conflict or limitation: ...
+status: Delayed until 22:50
+scheduled: departure 18:50, arrival 19:30
+current: departure 22:50, arrival 23:06
 ```
 
-Omit unavailable fields rather than filling them from general knowledge. Keep local timezone wording from the source unless the user asks for conversion.
+report:
+
+```text
+SU1437 — 2026-09-25 — Delayed until 22:50
+Scheduled: departure 18:50; arrival 19:30
+Current on Trip.com: departure 22:50; arrival 23:06
+Source: Trip.com; data provider: VariFlight
+```
+
+Do not turn `23:06` into "actual arrival", "estimated arrival", or "arrival
+rescheduled to 23:06" unless Trip.com explicitly identifies it that way.
+
+## Errors and limitations
+
+The CLI uses named errors such as:
+
+- `trip_antibot_challenge`
+- `trip_parser_changed`
+- `trip_network_error`
+- `trip_http_error`
+- `trip_operating_date_mismatch`
+- `flight_not_found`
+- `missing_dependency`
+
+These mean the requested result could not be established from the current
+Trip.com integration. They are not evidence that the real-world flight does not
+exist or that it is on time.
+
+Do not hide these failures by silently using another provider.
 
 ## Check
 
-- Flight number, operating date, and route are mutually consistent.
-- Every delay, cancellation, terminal, gate, or desk claim is traceable to a named current source.
-- Scheduled, estimated, and actual times remain distinct.
-- Source observation time is stated when freshness matters.
-- Official-page automation failure is described as a current access/rendering limitation, not as proof that the page or flight is unavailable.
-- Third-party evidence is labelled and not presented as official airline or airport confirmation.
+Before answering:
+
+- flight number and operating date match the requested operation;
+- the selected airport/direction is supported by known route context;
+- scheduled and current times remain separate;
+- Trip.com status wording is not strengthened by inference;
+- unavailable fields are omitted rather than guessed;
+- Trip.com / VariFlight is identified as the source.
 
 ## Stop
 
-- Stop before fare search, rebooking, check-in, purchase, or compensation advice unless the user separately requests that task.
-- If the date or flight identity is ambiguous enough to select a different operation, ask for the missing value rather than guessing.
-- If no current source exposes a requested field, say that it is not shown in the checked sources; do not infer it.
-
-## References
-
-- `scripts/trip_board.py` — read-only Trip.com airport arrivals/departures board.
-- `scripts/sheremetyevo.py` — official SVO exact flight/date lookup.
-- Other provider URLs and board identifiers are discovered live so stale hardcoded route and station lists do not become a second source of truth.
+Stop before fare search, rebooking, check-in, purchase, compensation, or other
+travel actions unless the user separately asks for them.
