@@ -192,7 +192,7 @@ def _system_local_midnight_ms(local_now: datetime) -> float:
 
 def _row_for_direction(
     row: dict[str, Any], direction: str, i18n: dict[str, Any]
-) -> dict[str, str | None]:
+) -> dict[str, Any]:
     arrivals = direction == "arrivals"
     return {
         "time": _clean(
@@ -366,6 +366,16 @@ def parse_trip_board(
 
     i18n = data.get("i18n") if isinstance(data.get("i18n"), dict) else {}
     rows = [_row_for_direction(row, direction, i18n) for row in selected_rows]
+    if exact_flight is not None:
+        for result_row, source_row in zip(rows, selected_rows):
+            result_row["scheduled"] = {
+                "departure": _clean(source_row.get("plannedDepartTime")),
+                "arrival": _clean(source_row.get("plannedArrivalTime")),
+            }
+            result_row["current"] = {
+                "departure": _clean(source_row.get("finalDepartTime")),
+                "arrival": _clean(source_row.get("finalArrivalTime")),
+            }
 
     date_options = data.get("dateOptions")
     date_label = (
