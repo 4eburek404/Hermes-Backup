@@ -1,7 +1,7 @@
 ---
 name: flight-status
 description: Use when checking the current operational status of a flight or airport board, including delays, cancellations, current times, terminals, and other status fields exposed by Trip.com; not for fare search.
-version: 1.3.0
+version: 0.1
 author: Hermes Agent
 license: MIT
 metadata:
