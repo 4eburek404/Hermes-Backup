@@ -152,19 +152,15 @@ class TripExactFlightSpecification(unittest.TestCase):
         self.assertEqual(payload["direction"], "departures")
         self.assertEqual(payload["date"], operating_date)
 
-        self.assertEqual(
-            payload["rows"],
-            [
-                {
-                    "time": TARGET_TIME,
-                    "flight_number": TARGET_FLIGHT,
-                    "route_point": "Moscow",
-                    "airline": "Aeroflot",
-                    "terminal": "A",
-                    "status": "Scheduled",
-                }
-            ],
-        )
+        rows = payload["rows"]
+        self.assertEqual(len(rows), 1)
+        operation = rows[0]
+        self.assertEqual(operation["time"], TARGET_TIME)
+        self.assertEqual(operation["flight_number"], TARGET_FLIGHT)
+        self.assertEqual(operation["route_point"], "Moscow")
+        self.assertEqual(operation["airline"], "Aeroflot")
+        self.assertEqual(operation["terminal"], "A")
+        self.assertEqual(operation["status"], "Scheduled")
 
 
 if __name__ == "__main__":
