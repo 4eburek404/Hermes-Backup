@@ -80,51 +80,41 @@ def fixture_http_response(observed: list[dict[str, object]]):
 class AeroflotCarrierSpecification(unittest.TestCase):
     """Behavior required from supported Aeroflot booking URLs."""
 
-    def test_supported_url_shapes_fetch_and_normalize_itinerary(self) -> None:
-        """SPA and query forms complete the real carrier flow."""
-        from flight_calendar import carrier_http, parser
+    def test_supported_booking_url_families_use_fixture_and_normalize_itinerary(self) -> None:
+        """App and locale-PNR URL families share the fixture-backed carrier flow."""
+        from flight_calendar import carrier_http, itinerary_contract, parser
 
-        alias_pairs = (
+        app_path = "https://www.aeroflot.ru/sb/pnr/app/ru-ru"
+        aliases = (
             ("pnrKey", "pnrLocator"),
             ("pnrKey", "pnr_locator"),
             ("pnr_key", "pnrLocator"),
             ("pnr_key", "pnr_locator"),
         )
-        base = "https://www.aeroflot.ru/sb/pnr/app/ru-ru"
+        cases: list[tuple[str, str]] = []
         for fragment in ("", "#/pnr?"):
-            for key_name, locator_name in alias_pairs:
+            for key_name, locator_name in aliases:
                 separator = "" if fragment else "?"
-                url = (
-                    base
-                    + fragment
-                    + separator
-                    + f"{key_name}={SYNTHETIC_KEY}&{locator_name}=ABC123"
+                cases.append(
+                    (
+                        f"app-{fragment or 'query'}-{key_name}-{locator_name}",
+                        app_path
+                        + fragment
+                        + separator
+                        + f"{key_name}={SYNTHETIC_KEY}&{locator_name}={EXPECTED_LOCATOR}",
+                    )
                 )
-                observed: list[dict[str, object]] = []
-                with self.subTest(fragment=fragment, key=key_name, locator=locator_name):
-                    with mock.patch.object(
-                        carrier_http,
-                        "request_raw",
-                        side_effect=fixture_http_response(observed),
-                    ):
-                        itinerary = parser._build_itinerary_from_url(url, [])
+        for locale in ("ru-ru", "ru-en"):
+            cases.append(
+                (
+                    f"locale-{locale}",
+                    f"https://www.aeroflot.ru/{locale}/pnr/"
+                    f"?pnrKey={SYNTHETIC_KEY}&pnrLocator={EXPECTED_LOCATOR}",
+                )
+            )
 
-                    self.assertEqual(itinerary["pnr"], EXPECTED_LOCATOR)
-                    self.assertEqual(itinerary["booking_url"], url)
-                    self.assertEqual(len(itinerary["flights"]), 2)
-                    self.assertEqual(len(observed), 1)
-
-    def test_both_supported_booking_paths_use_fixture_and_normalize_itinerary(self) -> None:
-        """Both public Aeroflot URL paths reach the same fixture-backed flow."""
-        from flight_calendar import carrier_http, itinerary_contract, parser
-
-        urls = (
-            AEROFLOT_SPA_URL,
-            "https://www.aeroflot.ru/ru-ru/pnr/"
-            f"?pnrKey={SYNTHETIC_KEY}&pnrLocator={EXPECTED_LOCATOR}",
-        )
-        for url in urls:
-            with self.subTest(path=url.split("?", 1)[0]):
+        for case_name, url in cases:
+            with self.subTest(case=case_name):
                 observed: list[dict[str, object]] = []
                 with mock.patch.object(
                     carrier_http,

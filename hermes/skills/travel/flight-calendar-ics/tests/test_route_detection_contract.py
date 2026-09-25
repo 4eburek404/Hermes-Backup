@@ -27,15 +27,35 @@ class RouteDetectionContractTests(unittest.TestCase):
 
         self.assertEqual(ctx.exception.code, "route_unknown")
 
-    def test_aeroflot_requires_https_exact_host_and_app_path(self) -> None:
-        key = "0" * 64
+    def test_aeroflot_trusted_url_boundaries_route_to_aeroflot(self) -> None:
+        from flight_calendar.route_detection import infer_build_route
+
+        credentials = "?pnrKey=" + "0" * 64 + "&pnrLocator=ABC123"
         cases = (
-            "http://www.aeroflot.ru/sb/pnr/app/ru-ru"
-            f"?pnr_key={key}&pnr_locator=ABC123",
-            "https://foo.aeroflot.ru/sb/pnr/app/ru-ru"
-            f"?pnr_key={key}&pnr_locator=ABC123",
-            "https://www.aeroflot.ru/random"
-            f"?pnr_key={key}&pnr_locator=ABC123",
+            "https://www.aeroflot.ru/sb/pnr/app/ru-ru" + credentials,
+            "https://www.aeroflot.ru/ru-ru/pnr/" + credentials,
+            "https://www.aeroflot.ru/ru-en/pnr/" + credentials,
+        )
+        for url in cases:
+            with self.subTest(url=url.split("?", 1)[0]):
+                route = infer_build_route(
+                    argparse.Namespace(url=None, url_file=None),
+                    url_override=url,
+                )
+                self.assertEqual(route["route"], "aeroflot")
+
+    def test_aeroflot_untrusted_url_boundaries_remain_unknown(self) -> None:
+        credentials = "?pnrKey=" + "0" * 64 + "&pnrLocator=ABC123"
+        cases = (
+            "http://www.aeroflot.ru/ru-en/pnr/" + credentials,
+            "https://foo.aeroflot.ru/ru-en/pnr/" + credentials,
+            "https://www.aeroflot.ru/random" + credentials,
+            "https://www.aeroflot.ru/foo/pnr/" + credentials,
+            "https://www.aeroflot.ru/ru-en/random" + credentials,
+            "https://www.aeroflot.ru/ru-en/pnr/extra" + credentials,
+            "https://www.aeroflot.ru/RU-en/pnr/" + credentials,
+            "https://www.aeroflot.ru/rue-en/pnr/" + credentials,
+            "https://www.aeroflot.ru/ru-e/pnr/" + credentials,
         )
         for url in cases:
             with self.subTest(url=url.split("?", 1)[0]):
@@ -81,33 +101,6 @@ class RouteDetectionContractTests(unittest.TestCase):
         for url in cases:
             with self.subTest(url=url.split("?", 1)[0]):
                 self._assert_route_unknown(url)
-
-    def test_aeroflot_fingerprint_routes_without_credentials(self) -> None:
-        from flight_calendar.route_detection import infer_build_route
-
-        base = "https://www.aeroflot.ru/sb/pnr/app/ru-ru"
-        for url in (base, base + "?tracking=campaign", base + "#/pnr"):
-            with self.subTest(url=url):
-                route = infer_build_route(
-                    argparse.Namespace(url=None, url_file=None),
-                    url_override=url,
-                )
-                self.assertEqual(route["route"], "aeroflot")
-
-    def test_aeroflot_wrong_path_remains_unknown_with_pnr_credentials(self) -> None:
-        from flight_calendar.errors import CliFailure
-        from flight_calendar.route_detection import infer_build_route
-
-        with self.assertRaises(CliFailure) as ctx:
-            infer_build_route(
-                argparse.Namespace(url=None, url_file=None),
-                url_override=(
-                    "https://www.aeroflot.ru/random"
-                    "?pnr_key=" + "0" * 64 + "&pnr_locator=ABC123"
-                ),
-            )
-
-        self.assertEqual(ctx.exception.code, "route_unknown")
 
     def test_trusted_fingerprints_route_without_source_data(self) -> None:
         from flight_calendar.route_detection import infer_build_route

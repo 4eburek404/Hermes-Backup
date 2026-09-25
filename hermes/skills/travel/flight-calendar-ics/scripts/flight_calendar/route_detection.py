@@ -74,10 +74,10 @@ def trusted_route(url: str) -> str | None:
         return "utair"
     if host == "tn-hgl.mckx.ru":
         return _embedded_ural_route(url)
-    if host == "www.aeroflot.ru" and path in {
-        "/sb/pnr/app/ru-ru",
-        "/ru-ru/pnr/",
-    }:
+    if host == "www.aeroflot.ru" and (
+        path == "/sb/pnr/app/ru-ru"
+        or re.fullmatch(r"/[a-z]{2}-[a-z]{2}/pnr/", path)
+    ):
         return "aeroflot"
     if (
         host == "service.uralairlines.ru"
