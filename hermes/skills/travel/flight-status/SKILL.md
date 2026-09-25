@@ -1,7 +1,7 @@
 ---
 name: flight-status
 description: Use when checking the current operational status of a flight or airport board, including delays, cancellations, current times, terminals, and other status fields exposed by Trip.com; not for fare search.
-version: 0.1
+version: 0.2
 author: Hermes Agent
 license: MIT
 metadata:
@@ -27,8 +27,8 @@ otherwise use `python3`.
 
 ## Goal
 
-Answer operational flight-status questions from the Trip.com airport board using
-the bundled `scripts/trip_board.py` CLI. Keep this separate from fare search.
+Answer operational flight-status questions from Trip.com using the bundled
+`scripts/trip_board.py` CLI. Keep this separate from fare search.
 
 Trip.com identifies VariFlight as the data provider. Treat the result as
 third-party flight-status data, not as an official airline or airport statement.
@@ -36,33 +36,27 @@ third-party flight-status data, not as an official airline or airport statement.
 ## Workflow
 
 1. **Fix the operation.**
-   - Record the flight number and operating date.
+   - Record the flight number and operating date for a specific-flight request.
    - Resolve relative dates such as "today" to an absolute `YYYY-MM-DD` date
      before calling the CLI.
-   - Flight numbers repeat by date; never use an undated row as the requested
+   - Flight numbers repeat by date; never use an undated result as the requested
      operation.
 
-2. **Choose the Trip.com airport board.**
-   - If the origin airport is known, use its `departures` board.
-   - If only the destination airport is known, use its `arrivals` board.
-   - Do not invent an airport or route.
-   - If the user gives only a flight number/date and no airport is available
-     from the request or established context, the current CLI cannot discover
-     the route from the flight number alone. State that limitation rather than
-     switching providers or guessing.
-
-3. **For one exact flight, use exact-flight lookup.**
+2. **For a specific flight, use specific-flight lookup.**
    Resolve `<skill-root>` as the directory containing this `SKILL.md` and run:
 
    ```bash
-   "${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/trip_board.py" SVX --direction departures --flight SU1437 --date 2026-09-25 --json
+   "${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/trip_board.py" --flight SU1401 --date 2026-09-25 --json
    ```
 
-   Use the requested airport, direction, flight number, and date. Exact-flight
-   lookup searches the matching source rows directly; it is not limited to the
-   first 24 rows used by the normal board view.
+   Do not require the user to provide the route, airport, or direction. The CLI
+   uses Trip.com's specific-flight page and returns the route with the operation.
 
-4. **For an airport board, use board lookup.**
+   For several explicitly requested flight numbers, run the same specific-flight
+   lookup separately for each flight and report the results together.
+
+3. **For an airport board, use board lookup.**
+   Airport-board mode requires an airport and direction:
 
    ```bash
    "${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/trip_board.py" SVO --direction arrivals --json
@@ -72,24 +66,35 @@ third-party flight-status data, not as an official airline or airport statement.
    The normal board mode returns Trip.com's current date/time slice and up to
    the first 24 eligible rows.
 
-5. **Preserve Trip.com's time semantics.**
+4. **Preserve the time semantics returned by the CLI.**
    - `scheduled.departure` and `scheduled.arrival` are the source's planned
      schedule.
-   - `current.departure` and `current.arrival` are the source's currently
-     displayed values.
+   - If the CLI returns `actual`, report those values as actual times. Current
+     evidence supports this for completed `Arrived` operations from the
+     specific-flight source.
+   - If the CLI returns `current`, keep that neutral label. Do **not** rename it
+     to `actual`, `estimated`, `revised`, or "rescheduled" unless the source
+     establishes that meaning.
    - Keep the status text separately.
-   - Do **not** rename `current` to `actual`, `estimated`, `revised`, or
-     "rescheduled" unless the source explicitly provides that meaning.
-   - A changed `current` value may be reported as "Trip.com currently shows
-     ..." without inventing stronger semantics.
 
-6. **Report the result without reinterpretation.**
-   Give the source status first, then scheduled and current times, route/terminal
-   fields that are present, and the observation time. Omit unavailable fields.
+5. **Report the result without reinterpretation.**
+   Give the source status first, then the scheduled and `actual` or `current`
+   times returned by the CLI, followed by route/terminal fields that are present
+   and the observation time. Omit unavailable fields.
 
-## Example
+## Examples
 
-For a result containing:
+Specific completed flight:
+
+```text
+SU1401 — 2026-09-25 — Arrived
+Scheduled: departure 13:10; arrival 13:50
+Actual: departure 13:58; arrival 14:06
+Route: SVX → SVO
+Source: Trip.com; data provider: VariFlight
+```
+
+For a result containing neutral current times:
 
 ```text
 status: Delayed until 22:50
@@ -106,8 +111,8 @@ Current on Trip.com: departure 22:50; arrival 23:06
 Source: Trip.com; data provider: VariFlight
 ```
 
-Do not turn `23:06` into "actual arrival", "estimated arrival", or "arrival
-rescheduled to 23:06" unless Trip.com explicitly identifies it that way.
+Do not turn `current` values into actual or estimated times unless the source
+establishes that meaning.
 
 ## Errors and limitations
 
@@ -119,6 +124,7 @@ The CLI uses named errors such as:
 - `trip_http_error`
 - `trip_operating_date_mismatch`
 - `flight_not_found`
+- `airport_and_direction_required`
 - `missing_dependency`
 
 These mean the requested result could not be established from the current
@@ -131,9 +137,12 @@ Do not hide these failures by silently using another provider.
 
 Before answering:
 
-- flight number and operating date match the requested operation;
-- the selected airport/direction is supported by known route context;
-- scheduled and current times remain separate;
+- flight number and operating date match the requested specific operation;
+- a specific-flight request used the specific-flight CLI mode rather than
+  requiring the user to supply airport/direction;
+- airport and direction are supplied when using board mode;
+- `scheduled`, `actual`, and `current` retain the semantics returned by the
+  CLI;
 - Trip.com status wording is not strengthened by inference;
 - unavailable fields are omitted rather than guessed;
 - Trip.com / VariFlight is identified as the source.
