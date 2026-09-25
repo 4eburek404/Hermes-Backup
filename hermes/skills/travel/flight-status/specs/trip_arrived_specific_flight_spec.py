@@ -40,6 +40,7 @@ FIXTURE = (
     / "trip_com_su1401_2026-09-25_arrived.html"
 )
 OPERATING_DATE = "2026-09-25"
+EXPECTED_SOURCE_URL = "https://www.trip.com/flights/status-SU1401/"
 
 
 def load_cli():
@@ -52,34 +53,47 @@ def load_cli():
 
 class TripArrivedSpecificFlightSpecification(unittest.TestCase):
     def test_cli_returns_normalized_arrived_operation_as_json(self) -> None:
-        """The saved Trip.com response identifies and times this operation."""
+        """A specific-flight lookup needs only its number and operating date."""
         trip_board = load_cli()
         response = SimpleNamespace(
             status_code=200,
             headers={"content-type": "text/html; charset=utf-8"},
             text=FIXTURE.read_text(encoding="utf-8"),
         )
+        not_found = SimpleNamespace(
+            status_code=404,
+            headers={"content-type": "text/html; charset=utf-8"},
+            text="Unexpected Trip.com source URL",
+        )
+        requested_urls: list[str | None] = []
+
+        def get_specific_flight_page(*args, **kwargs):
+            url = args[0] if args else kwargs.get("url")
+            requested_urls.append(url)
+            return response if url == EXPECTED_SOURCE_URL else not_found
+
         stdout = io.StringIO()
         stderr = io.StringIO()
 
         with (
-            mock.patch.object(requests, "get", return_value=response),
+            mock.patch.object(requests, "get", side_effect=get_specific_flight_page),
             contextlib.redirect_stdout(stdout),
             contextlib.redirect_stderr(stderr),
         ):
-            code = trip_board.main(
-                [
-                    "SVX",
-                    "--direction",
-                    "departures",
-                    "--flight",
-                    "SU1401",
-                    "--date",
-                    OPERATING_DATE,
-                    "--json",
-                ]
-            )
+            try:
+                code = trip_board.main(
+                    ["--flight", "SU1401", "--date", OPERATING_DATE, "--json"]
+                )
+            except SystemExit as exc:
+                code = int(exc.code or 0)
 
+        self.assertEqual(
+            requested_urls,
+            [EXPECTED_SOURCE_URL],
+            "Specific-flight lookup must request only its expected source URL; "
+            f"observed URLs={requested_urls!r}, CLI exit={code}, "
+            f"stdout={stdout.getvalue()!r}, stderr={stderr.getvalue()!r}",
+        )
         self.assertEqual(code, 0, stdout.getvalue() + stderr.getvalue())
         self.assertEqual(stderr.getvalue(), "")
         payload = json.loads(stdout.getvalue())
