@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import base64
 from datetime import date, datetime, timedelta, timezone
+from html.parser import HTMLParser
 import json
 import math
 import re
@@ -150,6 +151,115 @@ def _clean(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+class _SpecificFlightHTML(HTMLParser):
+    """Collect marked card text and deeplink attributes from the page HTML."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.fields: dict[str, list[str]] = {}
+        self.attributes: list[str] = []
+        self.stack: list[tuple[str, str | None, list[str] | None]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = dict(attrs)
+        self.attributes.extend(value or "" for value in values.values())
+        key = values.get("test-item")
+        self.stack.append((tag, key, [] if key else None))
+
+    def handle_data(self, data: str) -> None:
+        for _, _, chunks in self.stack:
+            if chunks is not None:
+                chunks.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        match = next(
+            (index for index in range(len(self.stack) - 1, -1, -1)
+             if self.stack[index][0] == tag),
+            None,
+        )
+        if match is None:
+            return
+        closed = self.stack[match:]
+        del self.stack[match:]
+        for _, key, chunks in reversed(closed):
+            if key is not None and chunks is not None:
+                self.fields.setdefault(key, []).append("".join(chunks).strip())
+
+
+def parse_specific_flight(
+    html: str, *, flight_number: str, operating_date: str
+) -> dict[str, Any]:
+    if "challenge validation" in html.lower():
+        raise TripBoardError("trip_antibot_challenge")
+
+    page = _SpecificFlightHTML()
+    page.feed(html)
+    metadata = " ".join(page.attributes)
+    found_flight = re.search(r"\bfno=([A-Z0-9]+)\b", metadata, re.IGNORECASE)
+    found_date = re.search(r"\bfd=(\d{4}-\d{2}-\d{2})\b", metadata)
+    if found_flight is None or found_date is None:
+        raise TripBoardError("trip_parser_changed")
+    if found_flight.group(1).upper() != flight_number:
+        raise TripBoardError("flight_not_found", flight_number)
+    if found_date.group(1) != operating_date:
+        raise TripBoardError("trip_operating_date_mismatch")
+
+    def field(name: str) -> str:
+        values = page.fields.get(name)
+        if not values or not values[0]:
+            raise TripBoardError("trip_parser_changed")
+        return values[0]
+
+    departure_city = field("status_info_dep_city")
+    arrival_city = field("status_info_arr_city")
+    departure_airport = re.search(r"\(([A-Z]{3})\)", departure_city)
+    arrival_airport = re.search(r"\(([A-Z]{3})\)", arrival_city)
+    if departure_airport is None or arrival_airport is None:
+        raise TripBoardError("trip_parser_changed")
+
+    departure_schedule = re.search(
+        r"Scheduled:\s*(\d{2}:\d{2})", field("status_info_dep_scheduletime")
+    )
+    arrival_schedule = re.search(
+        r"Scheduled:\s*(\d{2}:\d{2})", field("status_info_arr_scheduletime")
+    )
+    if departure_schedule is None or arrival_schedule is None:
+        raise TripBoardError("trip_parser_changed")
+
+    status = field("status_info_status")
+    operation: dict[str, Any] = {
+        "flight_number": flight_number,
+        "departure_airport": departure_airport.group(1),
+        "arrival_airport": arrival_airport.group(1),
+        "status": status,
+        "scheduled": {
+            "departure": departure_schedule.group(1),
+            "arrival": arrival_schedule.group(1),
+        },
+    }
+    displayed_times = {
+        "departure": field("status_info_dep_time"),
+        "arrival": field("status_info_arr_time"),
+    }
+    if status == "Arrived":
+        operation["actual"] = displayed_times
+    else:
+        operation["current"] = displayed_times
+
+    return {
+        "ok": True,
+        "date": operating_date,
+        "source": {
+            "name": "Trip.com",
+            "data_provider": "VariFlight",
+            "kind": "specific_flight",
+            "url": f"https://www.trip.com/flights/status-{flight_number}/",
+        },
+        "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        "rows": [operation],
+    }
 
 
 def _is_valid_timestamp(value: Any) -> bool:
@@ -459,14 +569,36 @@ def fetch_trip_page(airport: str, *, timeout: int = 30) -> str:
     return response.text
 
 
+def fetch_specific_flight_page(flight_number: str, *, timeout: int = 30) -> str:
+    url = f"https://www.trip.com/flights/status-{flight_number}/"
+    try:
+        from curl_cffi import requests
+    except ModuleNotFoundError as exc:
+        raise TripBoardError("missing_dependency", "curl_cffi") from exc
+
+    try:
+        response = requests.get(url, impersonate="chrome", timeout=timeout)
+    except Exception as exc:
+        raise TripBoardError("trip_network_error", type(exc).__name__) from exc
+
+    if response.status_code == 404:
+        raise TripBoardError("flight_not_found", flight_number)
+    if response.status_code != 200:
+        raise TripBoardError("trip_http_error", str(response.status_code))
+    return response.text
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Read the current Trip.com airport arrivals/departures board."
     )
-    parser.add_argument("airport", help="Three-letter airport IATA code, e.g. SVO")
+    parser.add_argument(
+        "airport",
+        nargs="?",
+        help="Three-letter airport IATA code for airport-board lookup, e.g. SVO",
+    )
     parser.add_argument(
         "--direction",
-        required=True,
         choices=("arrivals", "departures"),
         help="Board direction to return",
     )
@@ -484,17 +616,52 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        airport = normalize_iata(args.airport)
-        if (args.flight is None) != (args.date is None):
-            raise TripBoardError("exact_flight_and_date_required_together")
-        html = fetch_trip_page(airport, timeout=args.timeout)
-        result = parse_trip_board(
-            html,
-            airport=airport,
-            direction=args.direction,
-            exact_flight=args.flight,
-            operating_date=args.date,
-        )
+        if args.flight is not None and args.date is not None:
+            if not args.flight.strip():
+                raise TripBoardError("invalid_flight_number")
+            flight_number = args.flight.strip().upper()
+            if re.fullmatch(r"[A-Z0-9]+", flight_number) is None:
+                raise TripBoardError("invalid_flight_number")
+
+            if args.airport is None and args.direction is None:
+                try:
+                    requested_date = date.fromisoformat(args.date)
+                except ValueError as exc:
+                    raise TripBoardError("invalid_operating_date") from exc
+                if requested_date.isoformat() != args.date:
+                    raise TripBoardError("invalid_operating_date")
+                html = fetch_specific_flight_page(
+                    flight_number, timeout=args.timeout
+                )
+                result = parse_specific_flight(
+                    html,
+                    flight_number=flight_number,
+                    operating_date=args.date,
+                )
+            else:
+                if args.airport is None or args.direction is None:
+                    raise TripBoardError("airport_and_direction_required")
+                airport = normalize_iata(args.airport)
+                html = fetch_trip_page(airport, timeout=args.timeout)
+                result = parse_trip_board(
+                    html,
+                    airport=airport,
+                    direction=args.direction,
+                    exact_flight=flight_number,
+                    operating_date=args.date,
+                )
+        else:
+            if args.flight is not None or args.date is not None:
+                raise TripBoardError("exact_flight_and_date_required_together")
+            if args.airport is None or args.direction is None:
+                raise TripBoardError("airport_and_direction_required")
+            airport = normalize_iata(args.airport)
+            html = fetch_trip_page(airport, timeout=args.timeout)
+            result = parse_trip_board(
+                html,
+                airport=airport,
+                direction=args.direction,
+            )
     except TripBoardError as exc:
         if args.json:
             print(
