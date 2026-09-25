@@ -271,6 +271,8 @@ def parse_trip_board(
     *,
     airport: str,
     direction: str,
+    exact_flight: str | None = None,
+    operating_date: str | None = None,
     observed_at: str | None = None,
     timezone_offset_minutes: int | None = None,
     now: datetime | None = None,
@@ -291,6 +293,20 @@ def parse_trip_board(
         raise TripBoardError("trip_parser_changed") from exc
     if current_date.isoformat() != raw_current_date:
         raise TripBoardError("trip_parser_changed")
+
+    if (exact_flight is None) != (operating_date is None):
+        raise TripBoardError("exact_flight_and_date_required_together")
+    if operating_date is not None:
+        try:
+            requested_date = date.fromisoformat(operating_date)
+        except ValueError as exc:
+            raise TripBoardError("invalid_operating_date") from exc
+        if requested_date.isoformat() != operating_date:
+            raise TripBoardError("invalid_operating_date")
+        if requested_date != current_date:
+            raise TripBoardError("trip_operating_date_mismatch")
+    if exact_flight is not None and not exact_flight.strip():
+        raise TripBoardError("invalid_flight_number")
 
     raw_page_airport = data.get("airportCode")
     if not isinstance(raw_page_airport, str):
@@ -332,14 +348,21 @@ def parse_trip_board(
     cutoff = _clean(data.get("defaultSelectedTime"))
     filter_values = _trip_filter_values(data, cutoff, timezone_offset_minutes, now)
     selected_rows = []
-    cutoff_ms, adjustment_ms = filter_values
-    for raw_row in raw_rows:
-        planned_timestamp = float(raw_row[timestamp_key])
-        if planned_timestamp + adjustment_ms < cutoff_ms:
-            continue
-        selected_rows.append(raw_row)
-        if len(selected_rows) == PAGE_SIZE:
-            break
+    if exact_flight is not None:
+        selected_rows = [
+            row for row in raw_rows if _clean(row.get("flightNo")) == exact_flight
+        ]
+        if not selected_rows:
+            raise TripBoardError("flight_not_found", exact_flight)
+    else:
+        cutoff_ms, adjustment_ms = filter_values
+        for raw_row in raw_rows:
+            planned_timestamp = float(raw_row[timestamp_key])
+            if planned_timestamp + adjustment_ms < cutoff_ms:
+                continue
+            selected_rows.append(raw_row)
+            if len(selected_rows) == PAGE_SIZE:
+                break
 
     i18n = data.get("i18n") if isinstance(data.get("i18n"), dict) else {}
     rows = [_row_for_direction(row, direction, i18n) for row in selected_rows]
@@ -437,6 +460,10 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("arrivals", "departures"),
         help="Board direction to return",
     )
+    parser.add_argument("--flight", help="Return one exact flight number")
+    parser.add_argument(
+        "--date", help="Operating date for --flight, in YYYY-MM-DD format"
+    )
     parser.add_argument("--json", action="store_true", help="Emit JSON")
     parser.add_argument(
         "--timeout", type=int, default=30, help="HTTP timeout in seconds"
@@ -448,8 +475,16 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         airport = normalize_iata(args.airport)
+        if (args.flight is None) != (args.date is None):
+            raise TripBoardError("exact_flight_and_date_required_together")
         html = fetch_trip_page(airport, timeout=args.timeout)
-        result = parse_trip_board(html, airport=airport, direction=args.direction)
+        result = parse_trip_board(
+            html,
+            airport=airport,
+            direction=args.direction,
+            exact_flight=args.flight,
+            operating_date=args.date,
+        )
     except TripBoardError as exc:
         if args.json:
             print(

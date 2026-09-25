@@ -570,6 +570,32 @@ def test_current_slice_is_limited_to_first_24_rows() -> None:
     assert result["rows"][-1]["flight_number"] == "TEST23"
 
 
+@pytest.mark.parametrize(
+    ("exact_flight", "operating_date", "expected_code"),
+    [
+        ("MISSING100", "2026-07-15", "flight_not_found"),
+        ("SU6311", "2026-07-14", "trip_operating_date_mismatch"),
+    ],
+)
+def test_exact_flight_lookup_does_not_substitute_or_ignore_date(
+    exact_flight: str, operating_date: str, expected_code: str
+) -> None:
+    trip_board = load_module()
+
+    with pytest.raises(trip_board.TripBoardError) as exc_info:
+        trip_board.parse_trip_board(
+            status_html(),
+            airport="SVO",
+            direction="departures",
+            exact_flight=exact_flight,
+            operating_date=operating_date,
+            timezone_offset_minutes=-120,
+            now=LOCAL_NOW,
+        )
+
+    assert exc_info.value.code == expected_code
+
+
 def test_json_cli_error_envelope(capsys: pytest.CaptureFixture[str]) -> None:
     trip_board = load_module()
 
