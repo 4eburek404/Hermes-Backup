@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import re
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 from flight_calendar import carrier_http
 from flight_calendar.errors import CliFailure
@@ -59,14 +59,17 @@ def parse_pnr_source(booking_url: str) -> tuple[str, str, str]:
         )
     locator = normalize_locator(locator)
     key = normalize_pnr_key(key)
-    return locator, key, booking_url
+    return locator, key, (
+        f"{AEROFLOT_APP_URL}#/pnr?"
+        + urlencode({"pnr_key": key, "pnr_locator": locator})
+    )
 
 
 def build_itinerary(booking_url: str) -> dict[str, Any]:
-    locator, key, normalized_url = parse_pnr_source(booking_url)
+    locator, key, canonical_url = parse_pnr_source(booking_url)
     return convert_to_itinerary(
         fetch_aeroflot_pnr(locator, key),
-        booking_url=normalized_url,
+        booking_url=canonical_url,
     )
 
 

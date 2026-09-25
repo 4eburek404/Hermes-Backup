@@ -91,17 +91,25 @@ class AeroflotCarrierSpecification(unittest.TestCase):
             ("pnr_key", "pnrLocator"),
             ("pnr_key", "pnr_locator"),
         )
+        tracking = "&_ga=synthetic-ga&_k=synthetic-k&utm_source=spec&campaign=tracking"
         cases: list[tuple[str, str]] = []
         for fragment in ("", "#/pnr?"):
             for key_name, locator_name in aliases:
                 separator = "" if fragment else "?"
+                is_canonical_app_url = (
+                    fragment == "#/pnr?"
+                    and key_name == "pnr_key"
+                    and locator_name == "pnr_locator"
+                )
+                extra = "" if is_canonical_app_url else tracking
                 cases.append(
                     (
                         f"app-{fragment or 'query'}-{key_name}-{locator_name}",
                         app_path
                         + fragment
                         + separator
-                        + f"{key_name}={SYNTHETIC_KEY}&{locator_name}={EXPECTED_LOCATOR}",
+                        + f"{key_name}={SYNTHETIC_KEY}&{locator_name}={EXPECTED_LOCATOR}"
+                        + extra,
                     )
                 )
         for locale in ("ru-ru", "ru-en"):
@@ -109,7 +117,7 @@ class AeroflotCarrierSpecification(unittest.TestCase):
                 (
                     f"locale-{locale}",
                     f"https://www.aeroflot.ru/{locale}/pnr/"
-                    f"?pnrKey={SYNTHETIC_KEY}&pnrLocator={EXPECTED_LOCATOR}",
+                    f"?pnrKey={SYNTHETIC_KEY}&pnrLocator={EXPECTED_LOCATOR}{tracking}",
                 )
             )
 
@@ -127,7 +135,7 @@ class AeroflotCarrierSpecification(unittest.TestCase):
                 self.assertEqual(observed[0]["url"], AEROFLOT_PNR_API)
                 itinerary_contract.validate_itinerary_semantics(itinerary)
                 self.assertEqual(itinerary["pnr"], EXPECTED_LOCATOR)
-                self.assertEqual(itinerary["booking_url"], url)
+                self.assertEqual(itinerary["booking_url"], AEROFLOT_SPA_URL)
                 self.assertEqual(len(itinerary["flights"]), 2)
 
     def test_aeroflot_api_request_uses_the_supported_protocol_and_fixture(self) -> None:
