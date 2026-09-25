@@ -10,10 +10,17 @@ metadata:
 
 # Поиск авиабилетов Tutu
 
-Для живого поиска запускай `tutu_search_flights.py` из каталога этого skill, передавая
-один JSON-объект с аргументами `search_avia`:
+Перед первым запуском выбери уже установленный Python с зависимостями этого
+проекта и задай переменную `PYTHON`. Настройка окружения описана в
+[README.md](README.md): на этом Mac используется
+`/Users/home/.venvs/hermes-backup/bin/python`; в другом Hermes-окружении укажи
+`PYTHON` на его готовый интерпретатор. Зависимости устанавливаются в выбранное
+окружение по README, а не при каждом поиске.
 
-`uv run python tutu_search_flights.py '<JSON>'`
+Для живого поиска из каталога этого skill передай один JSON-объект с аргументами
+`search_avia`:
+
+`"$PYTHON" tutu_search_flights.py '<JSON>'`
 
 Скрипт подключается к `https://mcp.tutu.ru/mcp` через MCP Python SDK и вызывает
 `search_avia`. Не используй native Hermes Tutu MCP tool, `probe.py`, HTTP/curl или

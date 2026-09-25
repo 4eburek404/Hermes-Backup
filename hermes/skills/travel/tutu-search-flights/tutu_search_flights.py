@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import sys
 from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
@@ -250,6 +251,13 @@ async def search_live(
     return _project_text(text)
 
 
+def _exception_message(error: Exception) -> str:
+    if isinstance(error, ExceptionGroup):
+        message = "; ".join(_exception_message(child) for child in error.exceptions)
+        return message or str(error) or type(error).__name__
+    return str(error) or type(error).__name__
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Живой поиск авиабилетов через Tutu MCP")
     parser.add_argument("arguments", help="JSON-объект аргументов search_avia")
@@ -262,7 +270,11 @@ def main(argv: list[str] | None = None) -> int:
     if not isinstance(arguments, dict):
         parser.error("arguments must be a JSON object")
 
-    result = asyncio.run(search_live(arguments))
+    try:
+        result = asyncio.run(search_live(arguments))
+    except Exception as exc:
+        print(_exception_message(exc), file=sys.stderr)
+        return 1
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 

@@ -26,15 +26,20 @@ supported by Tutu, and the `tutu-search-flights` skill is active.
 - For this simple scenario it does not make alternative searches without a
   reason in the request or the preceding result.
 
-## Evaluation evidence
+## Evaluation evidence and status
 
-Evaluate **outcome** and **trajectory** separately. For outcome, compare every
-concrete claim in the final answer with the live SDK result and preserve missing
-fields as unknown. For trajectory, verify the SDK-backed live-search command,
-its actual arguments and result, and that no native Tutu MCP tool, probe, curl,
-or alternative search path was used.
+**Status: PENDING.** The shared external evaluation harness path or identifier
+is not available in this workspace, so no run or verdict is claimed.
 
-Live dates, offers, carriers, fares, and prices are observations, never fixed
-expectations. Run this specification through the shared agent-evaluation
-harness. Keep it out of `make spec` and `make check`; deterministic product
-behavior remains fixture-based.
+When the harness is available, evaluate **outcome** and **trajectory** separately.
+For outcome, compare every concrete claim in the final answer with the live SDK
+result and preserve missing fields as unknown. For trajectory, verify the SDK-backed
+live-search command, its actual arguments and result, and that no native Tutu MCP
+tool, probe, curl, or alternative search path was used.
+
+The evidence artifact must identify the commit and model, include the exact user
+request, SDK arguments and result, trajectory, and final answer, and report separate
+outcome and trajectory verdicts. Live dates, offers, carriers, fares, and prices
+are observations, never fixed expectations. Keep this evaluation out of
+`make spec` and `make check`; deterministic product behavior remains
+fixture-based.

@@ -14,10 +14,15 @@
 - сохраняется структура legs и все сегменты в исходном порядке;
 - для каждого сегмента сохраняются перевозчик, номер рейса, аэропорты,
   timezone-aware времена и длительность;
+- для маршрута с `segments_count > 1` верхнеуровневые `carrier` и
+  `flight_number` остаются `null`, когда источник не задаёт их как
+  единственные значения маршрута;
 - маршрут предложения не превращается в один выдуманный прямой рейс;
-- признаки `has_self_transfer`, `is_multi_pnr` и пояснение источника сохраняются,
-  когда они присутствуют.
+- признаки `has_self_transfer`, `is_multi_pnr` и пояснение источника
+  сохраняются, когда они присутствуют.
 
 ## Исполнение
 
-Проверка выполняется на записанном raw MCP response без сети.
+Проверка выполняется на записанном raw MCP response без сети:
+[tests/test_connections.py](../tests/test_connections.py) — node ID:
+`tests/test_connections.py::test_connection_offer_preserves_segments_and_transfer_evidence`.

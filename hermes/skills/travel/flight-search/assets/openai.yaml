@@ -1,4 +1,0 @@
-interface:
-  display_name: "Flight Search"
-  short_description: "Search live flights with the Hermes CLI."
-  default_prompt: "Use $flight-search to run the Hermes flights CLI and return its validated text stdout verbatim; never book tickets."

@@ -20,5 +20,8 @@
 
 ## Исполнение
 
-Проверка выполняется на записанных raw MCP responses без сети. Эта спецификация
-не утверждает, что любая пустая выдача означает «рейсов нет».
+Проверки выполняются на записанных raw MCP responses без сети:
+[tests/test_empty_result_evidence.py](../tests/test_empty_result_evidence.py),
+node IDs `test_upstream_note_survives_empty_result` и
+`test_filter_drops_survive_empty_result`. Эта спецификация не утверждает,
+что любая пустая выдача означает «рейсов нет».

@@ -21,19 +21,31 @@ def test_round_trip_preserves_both_legs_and_outbound_route():
 
     result = search(deepcopy(recording["arguments"]), call_tool=recorded_tool)
 
-    raw_offer = source["offers"][0]
-    offer = result["offers"][0]
     assert result["total_matched_exact"] is source["meta"]["total_matched_exact"] is False
-    assert offer["is_round_trip"] is raw_offer["is_round_trip"] is True
-    assert offer["origin"] == raw_offer["legs"][0]["from"]
-    assert offer["destination"] == raw_offer["legs"][0]["to"]
-    assert offer["return_departure_at"] == raw_offer["return_departure_at"]
-    assert offer["return_arrival_at"] == raw_offer["return_arrival_at"]
-    assert [leg["label"] for leg in offer["legs"]] == ["outbound", "return"]
+    assert len(result["offers"]) == len(source["offers"])
 
-    for actual_leg, raw_leg in zip(offer["legs"], raw_offer["legs"], strict=True):
-        assert actual_leg["from"] == raw_leg["from"]
-        assert actual_leg["to"] == raw_leg["to"]
-        assert actual_leg["departure_at"] == raw_leg["departure_at"]
-        assert actual_leg["arrival_at"] == raw_leg["arrival_at"]
-        assert len(actual_leg["segments"]) == len(raw_leg["segments"])
+    for offer, raw_offer in zip(result["offers"], source["offers"], strict=True):
+        assert offer["is_round_trip"] is raw_offer["is_round_trip"] is True
+        assert offer["origin"] == raw_offer["legs"][0]["from"]
+        assert offer["destination"] == raw_offer["legs"][0]["to"]
+        assert offer["return_departure_at"] == raw_offer["return_departure_at"]
+        assert offer["return_arrival_at"] == raw_offer["return_arrival_at"]
+        assert len(offer["legs"]) == len(raw_offer["legs"])
+        assert [leg["label"] for leg in offer["legs"]] == ["outbound", "return"]
+
+        for actual_leg, raw_leg in zip(offer["legs"], raw_offer["legs"], strict=True):
+            assert actual_leg["from"] == raw_leg["from"]
+            assert actual_leg["to"] == raw_leg["to"]
+            assert actual_leg["departure_at"] == raw_leg["departure_at"]
+            assert actual_leg["arrival_at"] == raw_leg["arrival_at"]
+            assert actual_leg["duration_min"] == raw_leg["duration_min"]
+            assert len(actual_leg["segments"]) == len(raw_leg["segments"])
+
+            for actual, raw in zip(actual_leg["segments"], raw_leg["segments"], strict=True):
+                assert actual["flight_number"] == raw["voyage_no"]
+                assert actual["carrier"] == raw["carrier"]
+                assert actual["origin"] == raw["from"]
+                assert actual["destination"] == raw["to"]
+                assert actual["departure_at"] == raw["departure_at"]
+                assert actual["arrival_at"] == raw["arrival_at"]
+                assert actual["duration_min"] == raw["duration_min"]

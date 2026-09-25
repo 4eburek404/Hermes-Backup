@@ -43,6 +43,10 @@
 Тест использует независимые контрольные утверждения и проверяет отношения между
 raw ответом и результатом; он не строит целый expected result из fixture.
 
+Исполняемый узел S1:
+[tests/test_successful_search.py](../tests/test_successful_search.py), node ID
+`tests/test_successful_search.py::test_successful_search_preserves_source_results_prices_and_conditions`.
+
 S1 не задаёт CLI, названия production-функций/классов или внутреннюю структуру.
 Валидация ответа типизированными моделями — принятое инженерное решение, а не
 дополнительное наблюдаемое требование этой спецификации.
