@@ -38,6 +38,8 @@
 
 ## External status
 
-**Remote CI and branch protection: PENDING.** The workflow is prepared locally; no GitHub run or required branch-protection status is confirmed.
+**Remote CI: GREEN.** [GitHub Actions run 36174651955](https://github.com/4eburek404/Hermes-Backup/actions/runs/36174651955) passed for commit `8f6dce235d69f5ef1dc14debb58a8ba01ac5a145` on `new-tutu` (2026-09-25), installing the locked dependencies and running `make check` on Ubuntu with Python 3.13.
+
+**Branch protection: NOT VERIFIED.** A successful workflow run does not establish that the check is required for merging.
 
 **Agent evaluation: PENDING.** The external harness path/identifier is not available in this workspace. Do not claim an evaluation run or verdict. The required artifact must identify commit and model, exact user request, SDK arguments and result, trajectory, final answer, and separate outcome and trajectory verdicts. Agent evaluation remains separate from product specs, local gates, and live smoke.

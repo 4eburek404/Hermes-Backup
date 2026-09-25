@@ -34,4 +34,4 @@ uv pip compile pyproject.toml --extra dev --universal --generate-hashes --no-ann
 
 GitHub Actions запускает workflow для pull request и push с изменениями в этом skill или в его workflow; его также можно запустить вручную. Workflow устанавливает зависимости с проверкой хэшей на Ubuntu с Python 3.13 и выполняет `make check`. CI не запускает `make live` и `make discover`, секреты Tutu не используются.
 
-Workflow подготовлен локально. Эта проверка не подтверждает успешный запуск GitHub Actions или обязательность workflow в branch protection.
+[GitHub Actions успешно прошёл](https://github.com/4eburek404/Hermes-Backup/actions/runs/36174651955) для коммита `8f6dce2` в `new-tutu` (2026-09-25). Обязательность workflow в branch protection не проверена. Подробности — в [матрице требований и доказательств](docs/verification.md).
