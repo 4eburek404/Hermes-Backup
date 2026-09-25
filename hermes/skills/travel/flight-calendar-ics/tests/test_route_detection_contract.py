@@ -94,7 +94,7 @@ class RouteDetectionContractTests(unittest.TestCase):
                 )
                 self.assertEqual(route["route"], "aeroflot")
 
-    def test_aeroflot_wrong_path_remains_unknown_without_credentials(self) -> None:
+    def test_aeroflot_wrong_path_remains_unknown_with_pnr_credentials(self) -> None:
         from flight_calendar.errors import CliFailure
         from flight_calendar.route_detection import infer_build_route
 
@@ -103,6 +103,7 @@ class RouteDetectionContractTests(unittest.TestCase):
                 argparse.Namespace(url=None, url_file=None),
                 url_override=(
                     "https://www.aeroflot.ru/random"
+                    "?pnr_key=" + "0" * 64 + "&pnr_locator=ABC123"
                 ),
             )
 

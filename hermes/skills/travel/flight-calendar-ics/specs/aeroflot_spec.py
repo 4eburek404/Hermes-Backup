@@ -114,6 +114,32 @@ class AeroflotCarrierSpecification(unittest.TestCase):
                     self.assertEqual(len(itinerary["flights"]), 2)
                     self.assertEqual(len(observed), 1)
 
+    def test_both_supported_booking_paths_use_fixture_and_normalize_itinerary(self) -> None:
+        """Both public Aeroflot URL paths reach the same fixture-backed flow."""
+        from flight_calendar import carrier_http, itinerary_contract, parser
+
+        urls = (
+            AEROFLOT_SPA_URL,
+            "https://www.aeroflot.ru/ru-ru/pnr/"
+            f"?pnrKey={SYNTHETIC_KEY}&pnrLocator={EXPECTED_LOCATOR}",
+        )
+        for url in urls:
+            with self.subTest(path=url.split("?", 1)[0]):
+                observed: list[dict[str, object]] = []
+                with mock.patch.object(
+                    carrier_http,
+                    "request_raw",
+                    side_effect=fixture_http_response(observed),
+                ):
+                    itinerary = parser._build_itinerary_from_url(url, [])
+
+                self.assertEqual(len(observed), 1)
+                self.assertEqual(observed[0]["url"], AEROFLOT_PNR_API)
+                itinerary_contract.validate_itinerary_semantics(itinerary)
+                self.assertEqual(itinerary["pnr"], EXPECTED_LOCATOR)
+                self.assertEqual(itinerary["booking_url"], url)
+                self.assertEqual(len(itinerary["flights"]), 2)
+
     def test_aeroflot_api_request_uses_the_supported_protocol_and_fixture(self) -> None:
         """The carrier flow sends the documented Aeroflot API request."""
         from flight_calendar import carrier_http, parser
