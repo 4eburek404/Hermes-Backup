@@ -63,8 +63,8 @@ third-party flight-status data, not as an official airline or airport statement.
    "${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/trip_board.py" SVO --direction departures --json
    ```
 
-   The normal board mode returns Trip.com's current date/time slice and up to
-   the first 24 eligible rows.
+   The normal board mode returns all eligible rows in Trip.com's current
+   date/time slice.
 
 4. **Preserve the time semantics returned by the CLI.**
    - `scheduled.departure` and `scheduled.arrival` are the source's planned

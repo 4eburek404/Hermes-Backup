@@ -540,7 +540,7 @@ def test_invalid_timestamp_fails_closed() -> None:
     assert exc_info.value.code == "trip_parser_changed"
 
 
-def test_current_slice_is_limited_to_first_24_rows() -> None:
+def test_current_slice_returns_all_eligible_rows() -> None:
     trip_board = load_module()
     payload = status_payload()
     threshold_before_adjustment = datetime(2026, 7, 14, 13, 0, tzinfo=timezone.utc)
@@ -565,9 +565,9 @@ def test_current_slice_is_limited_to_first_24_rows() -> None:
         now=LOCAL_NOW,
     )
 
-    assert len(result["rows"]) == 24
+    assert len(result["rows"]) == 25
     assert result["rows"][0]["flight_number"] == "TEST00"
-    assert result["rows"][-1]["flight_number"] == "TEST23"
+    assert result["rows"][-1]["flight_number"] == "TEST24"
 
 
 @pytest.mark.parametrize(

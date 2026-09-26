@@ -10,7 +10,7 @@ day.
 This is route lookup, not the normal current airport-board slice:
 
 - rows before Trip.com's defaultSelectedTime remain eligible;
-- the normal PAGE_SIZE presentation limit does not truncate route lookup;
+- all matching rows for the day are returned;
 - only the exact requested arrival airport is included;
 - matching flights are ordered by scheduled departure time.
 
@@ -108,21 +108,19 @@ def route_fixture() -> tuple[str, str, dict]:
     data = payload["data"]
     real_rows = list(data["originData"]["flightStatusByAirport"])
 
-    # Put more than PAGE_SIZE non-matching eligible departures before the
-    # matching rows. Route lookup must filter the full raw day rather than first
-    # taking the normal 24-row board presentation.
+    # Include exact-airport and different-city non-matches so route filtering is
+    # proved independently of the source row order.
     filler_rows = []
-    base_time = datetime.fromisoformat(
-        f"{operating_date}T16:20:00+05:00"
-    )
-    for index in range(25):
-        departure = base_time + timedelta(minutes=index * 10)
-        destination = "DME" if index == 0 else "LED"
-        city_code = "MOW" if destination == "DME" else "LED"
-        city_name = "Moscow" if destination == "DME" else "Saint Petersburg"
+    for flight_no, destination, city_code, city_name, clock in (
+        ("FX1000", "DME", "MOW", "Moscow", "16:20"),
+        ("FX1001", "LED", "LED", "Saint Petersburg", "16:30"),
+    ):
+        departure = datetime.fromisoformat(
+            f"{operating_date}T{clock}:00+05:00"
+        )
         filler_rows.append(
             {
-                "flightNo": f"FX{1000 + index}",
+                "flightNo": flight_no,
                 "airlineCode": "FX",
                 "airlineName": "Fixture Air",
                 "departTerminal": "A",
@@ -161,8 +159,8 @@ def route_fixture() -> tuple[str, str, dict]:
     }
 
     # Deliberately keep raw source order unsuitable for the required route
-    # presentation: 25 non-matches first, then the early completed target, then
-    # the two real saved SVX -> SVO rows (18:50 and 20:50).
+    # presentation: non-matches first, then the early completed target, then the
+    # two real saved SVX -> SVO rows (18:50 and 20:50).
     rows = filler_rows + [early_target] + real_rows
     data["originData"]["flightStatusByAirport"] = rows
 
@@ -191,16 +189,13 @@ class TripAirportRouteSpecification(unittest.TestCase):
         self.assertEqual(operating_date, "2026-09-25")
         self.assertEqual(data["airportCode"], ORIGIN)
         self.assertEqual(data["defaultSelectedTime"], "16:15")
-        self.assertGreater(len(rows), 24)
-
-        target_indexes = [
-            index
-            for index, row in enumerate(rows)
+        target_rows = [
+            row
+            for row in rows
             if row.get("departAirportCode") == ORIGIN
             and row.get("arrivalAirportCode") == DESTINATION
         ]
-        self.assertEqual(len(target_indexes), 3)
-        self.assertTrue(any(index >= 24 for index in target_indexes))
+        self.assertEqual(len(target_rows), 3)
 
         early = next(row for row in rows if row.get("flightNo") == EARLY_TARGET)
         self.assertLess(

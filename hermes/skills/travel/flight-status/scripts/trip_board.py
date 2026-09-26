@@ -16,7 +16,6 @@ from typing import Any
 
 
 TRIP_STATUS_URL = "https://www.trip.com/flights/status/{airport}/"
-PAGE_SIZE = 24
 MAX_JAVASCRIPT_TIMESTAMP_MS = 8_640_000_000_000_000
 
 _STATE_I18N_KEYS = {
@@ -603,8 +602,6 @@ def parse_trip_board(
             if planned_timestamp + adjustment_ms < cutoff_ms:
                 continue
             selected_rows.append(raw_row)
-            if len(selected_rows) == PAGE_SIZE:
-                break
 
     i18n = data.get("i18n") if isinstance(data.get("i18n"), dict) else {}
     rows = [_row_for_direction(row, direction, i18n) for row in selected_rows]
