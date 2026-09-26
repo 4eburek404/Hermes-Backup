@@ -150,58 +150,44 @@ class TripPreviousFlightSpecification(unittest.TestCase):
     def test_child_page_status_wins_when_parent_preinfo_is_stale(self) -> None:
         """Child operational data is authoritative over stale parent preInfo."""
         cli = load_cli()
+
+        # The conflict was observed on SU1095 -> SU1094 on 2026-09-25:
+        # parent preInfo said Scheduled with scheduled arrival 13:55, while
+        # SU1094's own page said Arrived with actual arrival 13:31.
+        #
+        # Keep the public CLI path real by composing those captured preInfo
+        # values onto the existing real SU1524 parent fixture. SU1524 departs
+        # just after midnight, so its Previous Flight date resolves to
+        # 2026-09-25. This is controlled fixture composition, not a claim that
+        # SU1524 and SU1094 were actually linked.
+        main_html = MAIN_FIXTURE.read_text(encoding="utf-8")
+        main_html = (
+            main_html
+            .replace(
+                "Track the Previous Flight Status: En Route",
+                "Track the Previous Flight Status: Scheduled",
+                1,
+            )
+            .replace(">SU1857<", ">SU1094<", 1)
+            .replace(">Moscow (MOW)<", ">Chelyabinsk (CEK)<", 1)
+            .replace(">Baku (BAK)<", ">Moscow (MOW)<", 1)
+            .replace("Scheduled: 22:30", "Scheduled: 13:55", 1)
+        )
         child_html = STALE_PREINFO_CHILD_FIXTURE.read_text(encoding="utf-8")
-        real_parse = cli.parse_specific_flight
 
-        # Captured Trip.com evidence for 2026-09-25:
-        # SU1095 preInfo identified SU1094 as Scheduled with scheduled arrival
-        # 13:55, while SU1094's own page reported Arrived with actual arrival
-        # 13:31. Only the fields needed for this precedence contract are kept.
-        parent_result = {
-            "ok": True,
-            "date": "2026-09-25",
-            "rows": [
-                {
-                    "flight_number": "SU1095",
-                    "scheduled": {"departure": "14:55"},
-                }
-            ],
-            "_previous_flight": {
-                "flight_number": "SU1094",
-                "status": "Scheduled",
-                "departure_city": "Moscow (MOW)",
-                "arrival_city": "Chelyabinsk (CEK)",
-                "scheduled": {"arrival": "13:55"},
+        code, stdout, stderr, requested = run_cli(
+            cli,
+            "SU1524",
+            "2026-09-26",
+            {
+                "SU1524": main_html,
+                "SU1094": child_html,
             },
-        }
-
-        def parse(html, *, flight_number, operating_date, allow_incomplete=False):
-            if flight_number == "SU1095":
-                self.assertEqual(html, "PARENT_SU1095")
-                self.assertEqual(operating_date, "2026-09-25")
-                self.assertIs(allow_incomplete, False)
-                return parent_result
-            return real_parse(
-                html,
-                flight_number=flight_number,
-                operating_date=operating_date,
-                allow_incomplete=allow_incomplete,
-            )
-
-        with mock.patch.object(cli, "parse_specific_flight", side_effect=parse):
-            code, stdout, stderr, requested = run_cli(
-                cli,
-                "SU1095",
-                "2026-09-25",
-                {
-                    "SU1095": "PARENT_SU1095",
-                    "SU1094": child_html,
-                },
-            )
+        )
 
         self.assertEqual(code, 0, stdout + stderr)
         self.assertEqual(stderr, "")
-        self.assertEqual(requested, ["SU1095", "SU1094"])
+        self.assertEqual(requested, ["SU1524", "SU1094"])
         previous = json.loads(stdout)["previous_flight"]
         self.assertEqual(
             previous,
