@@ -200,6 +200,12 @@ The conclusion must be based on current data. It must not turn a likely
 connection between rotations into certainty when the source does not establish
 that certainty.
 
+When Trip.com exposes a Previous Flight relationship, use the preceding flight's
+own specific-flight operation as the source of its current operational status
+and times. Parent-page Previous Flight metadata may be stale and must not
+override newer operational data from that flight's own page. The relationship
+itself still does not prove physical-aircraft identity.
+
 ## Source and freshness
 
 For the current development stage, use Trip.com.
@@ -226,18 +232,9 @@ tighten the presentation format only after seeing real outputs in use.
 Do not turn these into requirements until we have real evidence:
 
 - how Trip.com represents code-share duplicates;
-- what to do if different Trip.com views disagree;
+- what to do if different Trip.com views disagree outside the established
+  Previous Flight parent/child precedence;
 - behavior for rare status values outside the current five;
 - behavior for source edge cases that have not actually been observed;
 - a fixed final text/table layout.
 
-## Current evidence gap to verify before implementation
-
-The target behavior requires actual departure and arrival times for completed
-flights. The current saved Trip.com fixture used during development contains
-Scheduled and Delayed examples, but not a completed Arrived operation that proves
-which Trip.com fields should be treated as actual times.
-
-Before mapping Trip.com fields to "actual departure" / "actual arrival" in the
-CLI, capture and inspect a real completed-flight example and add an executable
-specification for that behavior.
