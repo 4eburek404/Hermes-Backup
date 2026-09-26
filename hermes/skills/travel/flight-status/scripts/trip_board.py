@@ -154,22 +154,36 @@ def _clean(value: Any) -> str | None:
 
 
 class _SpecificFlightHTML(HTMLParser):
-    """Collect marked card text and deeplink attributes from the page HTML."""
+    """Collect marked fields both globally and within each operation card."""
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.fields: dict[str, list[str]] = {}
         self.attributes: list[str] = []
-        self.stack: list[tuple[str, str | None, list[str] | None]] = []
+        self.cards: list[dict[str, Any]] = []
+        self.stack: list[
+            tuple[str, str | None, list[str] | None, dict[str, Any] | None, bool]
+        ] = []
+        self.active_card: dict[str, Any] | None = None
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         values = dict(attrs)
         self.attributes.extend(value or "" for value in values.values())
+        classes = (values.get("class") or "").split()
+        is_card = tag == "div" and "flight-status-card-item-container" in classes
+        if is_card:
+            self.active_card = {"attributes": [], "fields": {}}
+        if self.active_card is not None:
+            self.active_card["attributes"].extend(
+                value or "" for value in values.values()
+            )
         key = values.get("test-item")
-        self.stack.append((tag, key, [] if key else None))
+        self.stack.append(
+            (tag, key, [] if key else None, self.active_card, is_card)
+        )
 
     def handle_data(self, data: str) -> None:
-        for _, _, chunks in self.stack:
+        for _, _, chunks, _, _ in self.stack:
             if chunks is not None:
                 chunks.append(data)
 
@@ -183,9 +197,16 @@ class _SpecificFlightHTML(HTMLParser):
             return
         closed = self.stack[match:]
         del self.stack[match:]
-        for _, key, chunks in reversed(closed):
+        for _, key, chunks, card, is_card in reversed(closed):
             if key is not None and chunks is not None:
-                self.fields.setdefault(key, []).append("".join(chunks).strip())
+                value = "".join(chunks).strip()
+                self.fields.setdefault(key, []).append(value)
+                if card is not None:
+                    card["fields"].setdefault(key, []).append(value)
+            if is_card and card is not None:
+                self.cards.append(card)
+                if self.active_card is card:
+                    self.active_card = None
 
 
 def parse_specific_flight(
@@ -196,18 +217,43 @@ def parse_specific_flight(
 
     page = _SpecificFlightHTML()
     page.feed(html)
-    metadata = " ".join(page.attributes)
-    found_flight = re.search(r"\bfno=([A-Z0-9]+)\b", metadata, re.IGNORECASE)
-    found_date = re.search(r"\bfd=(\d{4}-\d{2}-\d{2})\b", metadata)
-    if found_flight is None or found_date is None:
-        raise TripBoardError("trip_parser_changed")
-    if found_flight.group(1).upper() != flight_number:
-        raise TripBoardError("flight_not_found", flight_number)
-    if found_date.group(1) != operating_date:
-        raise TripBoardError("trip_operating_date_mismatch")
+
+    def identity(values: list[str]) -> tuple[str | None, str | None]:
+        metadata = " ".join(values)
+        found_flight = re.search(r"\bfno=([A-Z0-9]+)\b", metadata, re.IGNORECASE)
+        found_date = re.search(r"\bfd=(\d{4}-\d{2}-\d{2})\b", metadata)
+        return (
+            found_flight.group(1).upper() if found_flight else None,
+            found_date.group(1) if found_date else None,
+        )
+
+    if page.cards:
+        matching_cards = []
+        for card in page.cards:
+            card_flight, card_date = identity(card["attributes"])
+            if card_flight == flight_number:
+                matching_cards.append((card_date, card))
+        if not matching_cards:
+            raise TripBoardError("flight_not_found", flight_number)
+        selected = next(
+            (card for card_date, card in matching_cards if card_date == operating_date),
+            None,
+        )
+        if selected is None:
+            raise TripBoardError("trip_operating_date_mismatch")
+        fields = selected["fields"]
+    else:
+        found_flight, found_date = identity(page.attributes)
+        if found_flight is None or found_date is None:
+            raise TripBoardError("trip_parser_changed")
+        if found_flight != flight_number:
+            raise TripBoardError("flight_not_found", flight_number)
+        if found_date != operating_date:
+            raise TripBoardError("trip_operating_date_mismatch")
+        fields = page.fields
 
     def field(name: str) -> str:
-        values = page.fields.get(name)
+        values = fields.get(name)
         if not values or not values[0]:
             raise TripBoardError("trip_parser_changed")
         return values[0]
