@@ -11,7 +11,6 @@ import json
 import math
 import re
 import sys
-import time
 from typing import Any
 
 
@@ -403,110 +402,6 @@ def _is_valid_timestamp(value: Any) -> bool:
     return False
 
 
-def _system_local_midnight_ms(local_now: datetime) -> float:
-    target = (local_now.year, local_now.month, local_now.day, 0, 0, 0)
-    candidates: dict[float, tuple[int, ...]] = {}
-    for is_dst in (0, 1):
-        try:
-            epoch = time.mktime((*target, 0, 0, is_dst))
-            candidates[epoch] = time.localtime(epoch)[:6]
-        except (OverflowError, OSError, ValueError):
-            continue
-
-    exact = sorted(
-        epoch for epoch, wall_time in candidates.items() if wall_time == target
-    )
-    if exact:
-        # JavaScript's "compatible" disambiguation chooses the earlier fold.
-        return exact[0] * 1000
-
-    after_gap = sorted(
-        (wall_time, epoch)
-        for epoch, wall_time in candidates.items()
-        if wall_time > target
-    )
-    if after_gap:
-        # For a nonexistent midnight JavaScript advances by the transition gap.
-        return after_gap[0][1] * 1000
-    raise TripBoardError("trip_parser_changed")
-
-
-def _row_for_direction(
-    row: dict[str, Any], direction: str, i18n: dict[str, Any]
-) -> dict[str, Any]:
-    arrivals = direction == "arrivals"
-    return {
-        "time": _clean(
-            row.get("plannedArrivalTime") if arrivals else row.get("plannedDepartTime")
-        ),
-        "flight_number": _clean(row.get("flightNo")),
-        "route_point": _clean(
-            row.get("departCityName") if arrivals else row.get("arrivalCityName")
-        ),
-        "airline": _clean(row.get("airlineName") or row.get("airlineCode")),
-        "terminal": _clean(
-            row.get("arrivalTerminal") if arrivals else row.get("departTerminal")
-        ),
-        "status": _status_text(row, i18n, direction),
-    }
-
-
-def _trip_filter_values(
-    data: dict[str, Any],
-    cutoff: str | None,
-    timezone_offset_minutes: int | None,
-    now: datetime | None,
-) -> tuple[float, float]:
-    """Reproduce Trip.com's client-side time filter for the first board page."""
-    if cutoff is None or re.fullmatch(r"\d{2}:\d{2}", cutoff) is None:
-        raise TripBoardError("trip_parser_changed")
-
-    time_options = data.get("timeOptionsWithMinutes")
-    if not isinstance(time_options, list):
-        raise TripBoardError("trip_parser_changed")
-    selected_option = next(
-        (
-            option
-            for option in time_options
-            if isinstance(option, dict) and option.get("label") == cutoff
-        ),
-        None,
-    )
-    if selected_option is None:
-        raise TripBoardError("trip_parser_changed")
-    selected_minutes = selected_option.get("minutes")
-    if (
-        isinstance(selected_minutes, bool)
-        or not isinstance(selected_minutes, int)
-        or not 0 <= selected_minutes < 24 * 60
-    ):
-        raise TripBoardError("trip_parser_changed")
-
-    local_now = now or datetime.now().astimezone()
-    if local_now.tzinfo is None or local_now.utcoffset() is None:
-        raise TripBoardError("trip_parser_changed")
-
-    if timezone_offset_minutes is None:
-        utc_offset = local_now.utcoffset() or timedelta(0)
-        # JavaScript Date.getTimezoneOffset() is UTC - local time at parse time.
-        timezone_offset_minutes = -int(utc_offset.total_seconds() // 60)
-
-    if now is None:
-        local_midnight_ms = _system_local_midnight_ms(local_now)
-    else:
-        local_midnight_ms = (
-            local_now.replace(
-                hour=0, minute=0, second=0, microsecond=0, fold=0
-            ).timestamp()
-            * 1000
-        )
-    cutoff_ms = local_midnight_ms + selected_minutes * 60_000
-
-    # Trip.com's bundled statusList code normalizes timestamps against UTC+8.
-    adjustment_ms = (timezone_offset_minutes + 480) * 60_000
-    return cutoff_ms, adjustment_ms
-
-
 def parse_trip_board(
     html: str,
     *,
@@ -515,8 +410,6 @@ def parse_trip_board(
     exact_flight: str | None = None,
     operating_date: str | None = None,
     observed_at: str | None = None,
-    timezone_offset_minutes: int | None = None,
-    now: datetime | None = None,
 ) -> dict[str, Any]:
     airport = normalize_iata(airport)
     if direction not in {"arrivals", "departures"}:
@@ -586,9 +479,6 @@ def parse_trip_board(
         if not _is_valid_timestamp(planned_timestamp):
             raise TripBoardError("trip_parser_changed")
 
-    cutoff = _clean(data.get("defaultSelectedTime"))
-    filter_values = _trip_filter_values(data, cutoff, timezone_offset_minutes, now)
-    selected_rows = []
     if exact_flight is not None:
         selected_rows = [
             row for row in raw_rows if _clean(row.get("flightNo")) == exact_flight
@@ -596,12 +486,7 @@ def parse_trip_board(
         if not selected_rows:
             raise TripBoardError("flight_not_found", exact_flight)
     else:
-        cutoff_ms, adjustment_ms = filter_values
-        for raw_row in raw_rows:
-            planned_timestamp = float(raw_row[timestamp_key])
-            if planned_timestamp + adjustment_ms < cutoff_ms:
-                continue
-            selected_rows.append(raw_row)
+        selected_rows = list(raw_rows)
 
     i18n = data.get("i18n") if isinstance(data.get("i18n"), dict) else {}
     rows = [_row_for_direction(row, direction, i18n) for row in selected_rows]
@@ -633,7 +518,6 @@ def parse_trip_board(
         "direction": direction,
         "date": current_date.isoformat(),
         "date_label": date_label,
-        "time_from": cutoff,
         "source": {
             "name": "Trip.com",
             "data_provider": "VariFlight",
@@ -649,11 +533,10 @@ def render_text(result: dict[str, Any]) -> str:
     airport = result.get("airport") or "---"
     direction = str(result.get("direction") or "board").upper()
     date_value = result.get("date_label") or result.get("date") or "current"
-    time_from = result.get("time_from") or "00:00"
     route_header = "Origin" if result.get("direction") == "arrivals" else "Destination"
 
     lines = [
-        f"{airport} — {direction} — {date_value}, from {time_from}",
+        f"{airport} — {direction} — {date_value}",
         f"Time  Flight  {route_header}  Airline  Terminal  Status",
     ]
     for row in result.get("rows") or []:

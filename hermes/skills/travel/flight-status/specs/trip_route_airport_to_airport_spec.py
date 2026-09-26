@@ -9,7 +9,6 @@ day.
 
 This is route lookup, not the normal current airport-board slice:
 
-- rows before Trip.com's defaultSelectedTime remain eligible;
 - all matching rows for the day are returned;
 - only the exact requested arrival airport is included;
 - matching flights are ordered by scheduled departure time.
@@ -188,7 +187,6 @@ class TripAirportRouteSpecification(unittest.TestCase):
 
         self.assertEqual(operating_date, "2026-09-25")
         self.assertEqual(data["airportCode"], ORIGIN)
-        self.assertEqual(data["defaultSelectedTime"], "16:15")
         target_rows = [
             row
             for row in rows
@@ -198,10 +196,6 @@ class TripAirportRouteSpecification(unittest.TestCase):
         self.assertEqual(len(target_rows), 3)
 
         early = next(row for row in rows if row.get("flightNo") == EARLY_TARGET)
-        self.assertLess(
-            early["plannedDepartTime"],
-            data["defaultSelectedTime"],
-        )
         self.assertEqual(early["flightState"], 6)
 
         self.assertTrue(
