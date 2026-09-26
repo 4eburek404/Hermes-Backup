@@ -402,6 +402,26 @@ def _is_valid_timestamp(value: Any) -> bool:
     return False
 
 
+def _row_for_direction(
+    row: dict[str, Any], direction: str, i18n: dict[str, Any]
+) -> dict[str, Any]:
+    arrivals = direction == "arrivals"
+    return {
+        "time": _clean(
+            row.get("plannedArrivalTime") if arrivals else row.get("plannedDepartTime")
+        ),
+        "flight_number": _clean(row.get("flightNo")),
+        "route_point": _clean(
+            row.get("departCityName") if arrivals else row.get("arrivalCityName")
+        ),
+        "airline": _clean(row.get("airlineName") or row.get("airlineCode")),
+        "terminal": _clean(
+            row.get("arrivalTerminal") if arrivals else row.get("departTerminal")
+        ),
+        "status": _status_text(row, i18n, direction),
+    }
+
+
 def parse_trip_board(
     html: str,
     *,
