@@ -1,7 +1,7 @@
 ---
 name: flight-status
 description: Use when checking the current operational status of a flight or airport board, including delays, cancellations, current times, terminals, and other status fields exposed by Trip.com; not for fare search.
-version: 0.2
+version: 0.3
 author: Hermes Agent
 license: MIT
 metadata:
@@ -77,10 +77,23 @@ third-party flight-status data, not as an official airline or airport statement.
      establishes that meaning.
    - Keep the status text separately.
 
-5. **Report the result without reinterpretation.**
+5. **Report Previous Flight when the CLI returns it.**
+   - Treat `previous_flight` as Trip.com's Previous Flight relationship, not as
+     proof that the same physical aircraft will operate both flights.
+   - Report the Previous Flight number, route, status, and
+     `scheduled`/`current`/`actual` fields that are present.
+   - Use the normalized `previous_flight` returned by the CLI. Do not parse
+     Trip.com HTML or independently reconstruct the child-flight lookup.
+   - Do not calculate a missing ETA from delay text or scheduled times.
+   - Do not turn the relationship into a turnaround verdict such as "the aircraft
+     will make it" or "will not make it" unless the user separately asks for an
+     assessment and the available evidence supports it.
+
+6. **Report the result without reinterpretation.**
    Give the source status first, then the scheduled and `actual` or `current`
    times returned by the CLI, followed by route/terminal fields that are present
-   and the observation time. Omit unavailable fields.
+   and the observation time. If `previous_flight` is present, report it after
+   the main operation. Omit unavailable fields.
 
 ## Examples
 
@@ -131,6 +144,12 @@ These mean the requested result could not be established from the current
 Trip.com integration. They are not evidence that the real-world flight does not
 exist or that it is on time.
 
+In particular, `trip_operating_date_mismatch` means that the requested
+operation could not be matched to that operating date in the Trip.com response
+available to the CLI. It does not establish that the flight did not operate or
+that the user's date is wrong. Trip.com may expose an incomplete set of
+operations.
+
 Do not hide these failures by silently using another provider.
 
 ## Check
@@ -143,6 +162,12 @@ Before answering:
 - airport and direction are supplied when using board mode;
 - `scheduled`, `actual`, and `current` retain the semantics returned by the
   CLI;
+- when `previous_flight` is present, it is reported as Trip.com's Previous
+  Flight relationship without asserting physical-aircraft identity;
+- Previous Flight status/times come from the normalized CLI result rather than
+  agent-side HTML parsing or reconstruction;
+- `trip_operating_date_mismatch` is not interpreted as proof that the flight
+  did not operate or that the requested date is wrong;
 - Trip.com status wording is not strengthened by inference;
 - unavailable fields are omitted rather than guessed;
 - Trip.com / VariFlight is identified as the source.
