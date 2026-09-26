@@ -210,7 +210,11 @@ class _SpecificFlightHTML(HTMLParser):
 
 
 def parse_specific_flight(
-    html: str, *, flight_number: str, operating_date: str
+    html: str,
+    *,
+    flight_number: str,
+    operating_date: str,
+    allow_incomplete: bool = False,
 ) -> dict[str, Any]:
     if "challenge validation" in html.lower():
         raise TripBoardError("trip_antibot_challenge")
@@ -227,6 +231,8 @@ def parse_specific_flight(
             found_date.group(1) if found_date else None,
         )
 
+    selected_date = operating_date
+    fields: dict[str, list[str]]
     if page.cards:
         matching_cards = []
         for card in page.cards:
@@ -236,7 +242,11 @@ def parse_specific_flight(
         if not matching_cards:
             raise TripBoardError("flight_not_found", flight_number)
         selected = next(
-            (card for card_date, card in matching_cards if card_date == operating_date),
+            (
+                card
+                for card_date, card in matching_cards
+                if card_date == operating_date
+            ),
             None,
         )
         if selected is None:
@@ -257,6 +267,62 @@ def parse_specific_flight(
         if not values or not values[0]:
             raise TripBoardError("trip_parser_changed")
         return values[0]
+
+    if allow_incomplete:
+        def optional_field(name: str) -> str | None:
+            values = fields.get(name)
+            return values[0] if values and values[0] else None
+
+        operation: dict[str, Any] = {"flight_number": flight_number}
+        for field_name, result_name in (
+            ("status_info_dep_city", "departure_airport"),
+            ("status_info_arr_city", "arrival_airport"),
+        ):
+            city = optional_field(field_name)
+            airport = re.search(r"\(([A-Z]{3})\)", city or "")
+            if airport:
+                operation[result_name] = airport.group(1)
+
+        scheduled: dict[str, str] = {}
+        for field_name, side in (
+            ("status_info_dep_scheduletime", "departure"),
+            ("status_info_arr_scheduletime", "arrival"),
+        ):
+            value = optional_field(field_name)
+            match = re.search(r"Scheduled:\s*(\d{2}:\d{2})", value or "")
+            if match:
+                scheduled[side] = match.group(1)
+        if scheduled:
+            operation["scheduled"] = scheduled
+
+        status = optional_field("status_info_status")
+        if status:
+            operation["status"] = status
+        displayed_times = {
+            side: optional_field(field_name)
+            for field_name, side in (
+                ("status_info_dep_time", "departure"),
+                ("status_info_arr_time", "arrival"),
+            )
+        }
+        displayed_times = {
+            side: value for side, value in displayed_times.items() if value
+        }
+        if displayed_times:
+            operation["actual" if status == "Arrived" else "current"] = displayed_times
+
+        return {
+            "ok": True,
+            "date": selected_date,
+            "source": {
+                "name": "Trip.com",
+                "data_provider": "VariFlight",
+                "kind": "specific_flight",
+                "url": f"https://www.trip.com/flights/status-{flight_number}/",
+            },
+            "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+            "rows": [operation],
+        }
 
     departure_city = field("status_info_dep_city")
     arrival_city = field("status_info_arr_city")
@@ -294,9 +360,9 @@ def parse_specific_flight(
     else:
         operation["current"] = displayed_times
 
-    return {
+    result = {
         "ok": True,
-        "date": operating_date,
+        "date": selected_date,
         "source": {
             "name": "Trip.com",
             "data_provider": "VariFlight",
@@ -306,6 +372,26 @@ def parse_specific_flight(
         "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "rows": [operation],
     }
+
+    previous_numbers = page.fields.get("status_preinfo_flightno") or []
+    previous_number = previous_numbers[0].strip().upper() if previous_numbers else ""
+    if re.fullmatch(r"[A-Z0-9]+", previous_number):
+        previous_flight: dict[str, Any] = {"flight_number": previous_number}
+        departure_values = page.fields.get("status_preinfo_depcity") or []
+        arrival_values = page.fields.get("status_preinfo_arrcity") or []
+        if departure_values and departure_values[0]:
+            previous_flight["departure_city"] = departure_values[0]
+        if arrival_values and arrival_values[0]:
+            previous_flight["arrival_city"] = arrival_values[0]
+        schedule_values = page.fields.get("status_preinfo_scheduletime") or []
+        if schedule_values:
+            scheduled_arrival = re.search(
+                r"Scheduled:\s*(\d{2}:\d{2})", schedule_values[0]
+            )
+            if scheduled_arrival:
+                previous_flight["scheduled"] = {"arrival": scheduled_arrival.group(1)}
+        result["_previous_flight"] = previous_flight
+    return result
 
 
 def _is_valid_timestamp(value: Any) -> bool:
@@ -659,6 +745,24 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _previous_flight_date(
+    main_date: str,
+    main_departure: str | None,
+    previous_arrival: str | None,
+) -> str | None:
+    if not main_departure or not previous_arrival:
+        return None
+    try:
+        departure_time = datetime.strptime(main_departure, "%H:%M").time()
+        arrival_time = datetime.strptime(previous_arrival, "%H:%M").time()
+        operation_date = date.fromisoformat(main_date)
+    except ValueError:
+        return None
+    if arrival_time > departure_time:
+        operation_date -= timedelta(days=1)
+    return operation_date.isoformat()
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
@@ -684,6 +788,43 @@ def main(argv: list[str] | None = None) -> int:
                     flight_number=flight_number,
                     operating_date=args.date,
                 )
+                previous_flight = result.pop("_previous_flight", None)
+                if previous_flight is not None:
+                    result["previous_flight"] = previous_flight
+                    main_departure = result["rows"][0].get("scheduled", {}).get(
+                        "departure"
+                    )
+                    previous_date = _previous_flight_date(
+                        result["date"],
+                        main_departure,
+                        previous_flight.get("scheduled", {}).get("arrival"),
+                    )
+                    if previous_date is not None:
+                        try:
+                            previous_html = fetch_specific_flight_page(
+                                previous_flight["flight_number"], timeout=args.timeout
+                            )
+                            previous_result = parse_specific_flight(
+                                previous_html,
+                                flight_number=previous_flight["flight_number"],
+                                operating_date=previous_date,
+                                allow_incomplete=True,
+                            )
+                        except TripBoardError:
+                            pass
+                        else:
+                            operation = previous_result["rows"][0]
+                            operation["date"] = previous_result["date"]
+                            if "scheduled" not in operation:
+                                operation["scheduled"] = previous_flight.get("scheduled", {})
+                            elif (
+                                not operation["scheduled"].get("arrival")
+                                and previous_flight.get("scheduled", {}).get("arrival")
+                            ):
+                                operation["scheduled"]["arrival"] = previous_flight[
+                                    "scheduled"
+                                ]["arrival"]
+                            result["previous_flight"] = operation
             else:
                 if args.airport is None or args.direction is None:
                     raise TripBoardError("airport_and_direction_required")
