@@ -1,7 +1,7 @@
 ---
 name: flight-status
 description: Use when checking the current operational status of a flight or airport board, including delays, cancellations, current times, terminals, and other status fields exposed by Trip.com; not for fare search.
-version: 0.3
+version: 0.4
 author: Hermes Agent
 license: MIT
 metadata:
@@ -52,8 +52,19 @@ third-party flight-status data, not as an official airline or airport statement.
    Do not require the user to provide the route, airport, or direction. The CLI
    uses Trip.com's specific-flight page and returns the route with the operation.
 
-   For several explicitly requested flight numbers, run the same specific-flight
-   lookup separately for each flight and report the results together.
+   For **one** explicitly requested flight, use the command above without
+   `--no-previous-flight`. If Trip.com exposes Previous Flight, the CLI checks it
+   automatically.
+
+   For **several** explicitly requested flight numbers, run one lookup per
+   requested flight with `--no-previous-flight` and report the results together:
+
+   ```bash
+   "${HERMES_SKILLS_PYTHON:-python3}" "<skill-root>/scripts/trip_board.py" --flight SU1401 --date 2026-09-25 --no-previous-flight --json
+   ```
+
+   Do not automatically expand a multi-flight request into Previous Flight
+   lookups for every requested flight.
 
 3. **For an airport board, use board lookup.**
    Airport-board mode requires an airport and direction:
@@ -77,7 +88,10 @@ third-party flight-status data, not as an official airline or airport statement.
      establishes that meaning.
    - Keep the status text separately.
 
-5. **Report Previous Flight when the CLI returns it.**
+5. **Handle Previous Flight according to request scope.**
+   - For one specific flight, report `previous_flight` when the CLI returns it.
+   - For several specific flights, use `--no-previous-flight` for every lookup
+     unless the user explicitly asks for a feeder/Previous Flight.
    - Treat `previous_flight` as Trip.com's Previous Flight relationship, not as
      proof that the same physical aircraft will operate both flights.
    - Report the Previous Flight number, route, status, and
@@ -159,6 +173,8 @@ Before answering:
 - flight number and operating date match the requested specific operation;
 - a specific-flight request used the specific-flight CLI mode rather than
   requiring the user to supply airport/direction;
+- a request for several specific flights used `--no-previous-flight` for each
+  lookup unless the user explicitly requested feeder/Previous Flight data;
 - airport and direction are supplied when using board mode;
 - `scheduled`, `actual`, and `current` retain the semantics returned by the
   CLI;

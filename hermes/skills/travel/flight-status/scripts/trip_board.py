@@ -638,6 +638,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--date", help="Operating date for --flight, in YYYY-MM-DD format"
     )
+    parser.add_argument(
+        "--no-previous-flight",
+        action="store_true",
+        help="Do not fetch or return Trip.com Previous Flight data",
+    )
     parser.add_argument("--json", action="store_true", help="Emit JSON")
     parser.add_argument(
         "--timeout", type=int, default=30, help="HTTP timeout in seconds"
@@ -689,7 +694,7 @@ def main(argv: list[str] | None = None) -> int:
                     operating_date=args.date,
                 )
                 previous_flight = result.pop("_previous_flight", None)
-                if previous_flight is not None:
+                if previous_flight is not None and not args.no_previous_flight:
                     result["previous_flight"] = previous_flight
                     main_departure = result["rows"][0].get("scheduled", {}).get(
                         "departure"
