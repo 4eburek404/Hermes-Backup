@@ -35,7 +35,14 @@ def load_cli():
     return module
 
 
-def run_cli(module, flight_number: str, operating_date: str, responses):
+def run_cli(
+    module,
+    flight_number: str,
+    operating_date: str,
+    responses,
+    *,
+    extra_args: list[str] | None = None,
+):
     stdout, stderr = io.StringIO(), io.StringIO()
     requested_flights: list[str] = []
 
@@ -55,7 +62,14 @@ def run_cli(module, flight_number: str, operating_date: str, responses):
     ):
         try:
             code = module.main(
-                ["--flight", flight_number, "--date", operating_date, "--json"]
+                [
+                    "--flight",
+                    flight_number,
+                    "--date",
+                    operating_date,
+                    *(extra_args or []),
+                    "--json",
+                ]
             )
         except SystemExit as exc:
             code = int(exc.code or 0)
@@ -92,6 +106,28 @@ class TripPreviousFlightSpecification(unittest.TestCase):
                 "current": {"departure": "20:20", "arrival": "22:25"},
             },
         )
+
+    def test_cli_can_skip_previous_flight_lookup_for_multi_flight_workflow(self) -> None:
+        """Multi-flight callers can suppress automatic Previous Flight expansion."""
+
+        cli = load_cli()
+        code, stdout, stderr, requested = run_cli(
+            cli,
+            "SU1524",
+            "2026-09-26",
+            {
+                "SU1524": MAIN_FIXTURE.read_text(encoding="utf-8"),
+            },
+            extra_args=["--no-previous-flight"],
+        )
+
+        self.assertEqual(code, 0, stdout + stderr)
+        self.assertEqual(stderr, "")
+        self.assertEqual(requested, ["SU1524"])
+        result = json.loads(stdout)
+        self.assertIs(result["ok"], True)
+        self.assertEqual(result["rows"][0]["flight_number"], "SU1524")
+        self.assertNotIn("previous_flight", result)
 
     def test_incomplete_previous_page_keeps_scheduled_values_without_eta(self) -> None:
         cli = load_cli()

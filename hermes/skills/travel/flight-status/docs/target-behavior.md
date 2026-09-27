@@ -23,10 +23,12 @@ The skill must support these user intents for **today**:
 
 1. Show all direct flights on a route.
 2. Show all direct flights on a route filtered by airline.
-3. Check one specific flight.
-4. Check several specific flights.
-5. On a separate explicit request, check the inbound/feeder flight whose aircraft
-   is expected to continue as the user's flight.
+3. Check one specific flight, including its Previous Flight when Trip.com exposes
+   that relationship.
+4. Check several specific flights without automatically expanding each one to
+   its Previous Flight.
+5. On a separate explicit request, check the inbound/feeder flight for a flight
+   when it was not included automatically.
 
 The model may generalize natural-language wording. These are intents, not fixed
 prompt templates.
@@ -74,6 +76,14 @@ For one or several explicitly requested flight numbers:
 - determine today's operation and its route from Trip.com;
 - do not add a route-level overall conclusion;
 - give the information for each requested flight directly.
+
+For **one** explicitly requested flight, if Trip.com exposes a Previous Flight
+relationship, check that preceding flight automatically and include its current
+operational data.
+
+For **several** explicitly requested flights, do **not** automatically check the
+Previous Flight of every flight. Check only the requested flights unless the
+user separately asks for a feeder/Previous Flight.
 
 Each request is an independent snapshot of the current state. The skill does not
 need to compare the result with an earlier check in the conversation.
@@ -183,8 +193,16 @@ A separate calculated delay duration is not required at this stage.
 The feeder flight is the preceding flight whose aircraft is expected to arrive
 and then continue as the user's flight.
 
-This is **not** part of the standard route or flight answer. Check it only when
-the user explicitly asks.
+Previous Flight is an automatic supplementary check only for a request about
+**one specific flight** when Trip.com exposes that relationship.
+
+Do **not** automatically expand:
+- a route overview into Previous Flight lookups;
+- a request for several specific flights into a Previous Flight lookup for each
+  flight.
+
+For those cases, check a feeder/Previous Flight only when the user explicitly
+asks.
 
 For a feeder-flight request, provide:
 
