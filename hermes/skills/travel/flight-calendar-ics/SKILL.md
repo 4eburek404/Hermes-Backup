@@ -1,7 +1,7 @@
 ---
 name: flight-calendar-ics
 description: Create an importable .ics calendar file from a supported airline booking URL or a flight ticket PDF.
-version: 3.07
+version: 3.08
 metadata:
   hermes:
     category: travel
@@ -17,7 +17,7 @@ Use `"${HERMES_SKILLS_PYTHON:-python3}"` for bundled Python commands.
 ## Workflow
 
 Choose the route from the user's source - Booking URL or PDF itinerary.
-AND run the CLI - this is the shortest happy path to get the ICS file.
+AND run the CLI command directly with the terminal tool - THIS IS THE SHORTEST HAPPY PATH to get the ICS file. Do not wrap it in execute_code, Python, or any other execution layer. 
 
 ### Booking URL
 
