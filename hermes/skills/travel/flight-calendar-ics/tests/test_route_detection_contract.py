@@ -35,6 +35,9 @@ class RouteDetectionContractTests(unittest.TestCase):
             "https://www.aeroflot.ru/sb/pnr/app/ru-ru" + credentials,
             "https://www.aeroflot.ru/ru-ru/pnr/" + credentials,
             "https://www.aeroflot.ru/ru-en/pnr/" + credentials,
+            "https://www.aeroflot.ru/RU-ru/pnr/" + credentials,
+            "https://www.aeroflot.ru/RU-en/pnr/" + credentials,
+            "https://www.aeroflot.ru/rU-rU/pnr/" + credentials,
         )
         for url in cases:
             with self.subTest(url=url.split("?", 1)[0]):
@@ -53,9 +56,9 @@ class RouteDetectionContractTests(unittest.TestCase):
             "https://www.aeroflot.ru/foo/pnr/" + credentials,
             "https://www.aeroflot.ru/ru-en/random" + credentials,
             "https://www.aeroflot.ru/ru-en/pnr/extra" + credentials,
-            "https://www.aeroflot.ru/RU-en/pnr/" + credentials,
             "https://www.aeroflot.ru/rue-en/pnr/" + credentials,
             "https://www.aeroflot.ru/ru-e/pnr/" + credentials,
+            "https://www.aeroflot.ru/ſu-en/pnr/" + credentials,
         )
         for url in cases:
             with self.subTest(url=url.split("?", 1)[0]):

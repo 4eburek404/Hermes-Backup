@@ -47,6 +47,11 @@ REPRESENTATIVE_BOOKING_URL = (
     "https://www.aeroflot.ru/sb/pnr/app/ru-ru"
     "#/pnr?pnr_key=" + "0" * 64 + "&pnr_locator=ABC123"
 )
+MIXED_CASE_LOCALE_AEROFLOT_URL = (
+    "https://www.aeroflot.ru/RU-ru/pnr/?pnrKey="
+    + "0" * 64
+    + "&utm_campaign=site&pnrLocator=ABC123&utm_medium=email"
+)
 REPRESENTATIVE_FIXTURE_TEXT = FIXTURE_PATH.read_text(encoding="utf-8")
 RAW_REDIRECT_URL = "https://click.mail.utair.io/private-token?x=secret"
 UNTRUSTED_REDIRECT_URL = (
@@ -140,6 +145,54 @@ class BookingUrlProcessSpecification(unittest.TestCase):
             self.assertNotIn(REPRESENTATIVE_BOOKING_URL, emitted)
             self.assertNotIn("ABC123", emitted)
             self.assertNotIn("0" * 64, emitted)
+
+    def test_mixed_case_locale_aeroflot_url_builds_valid_ics_and_success_result(
+        self,
+    ) -> None:
+        """Mixed-case locale PNR links pass the public CLI and fixture-backed flow."""
+        from flight_calendar import carrier_http, ics_render
+        from flight_calendar.carriers import aeroflot
+
+        with tempfile.TemporaryDirectory(prefix="flight-calendar-aeroflot-locale.") as tmp:
+            output = Path(tmp) / "locale-trip.ics"
+            with (
+                mock.patch.object(
+                    aeroflot,
+                    "build_itinerary",
+                    wraps=aeroflot.build_itinerary,
+                ) as adapter_build,
+                mock.patch.object(
+                    carrier_http,
+                    "request_raw",
+                    side_effect=fixture_http_response(),
+                ) as fixture_request,
+            ):
+                code, stdout, stderr = run_cli(
+                    MIXED_CASE_LOCALE_AEROFLOT_URL,
+                    output,
+                )
+
+            self.assertEqual(code, 0, stdout + stderr)
+            payload = json.loads(stdout)
+            assert_valid_cli_envelope(self, payload)
+            self.assertIs(payload["ok"], True)
+            self.assertEqual(payload["media"], f"MEDIA:{output}")
+            self.assertEqual(payload["segments_count"], 2)
+            self.assertTrue(output.is_file())
+            ics_render.validate_ics_text(
+                output.read_text(encoding="utf-8"), expected_events=2
+            )
+            adapter_build.assert_called_once_with(MIXED_CASE_LOCALE_AEROFLOT_URL)
+            fixture_request.assert_called_once()
+            self.assertEqual(
+                fixture_request.call_args.args[0],
+                aeroflot.AEROFLOT_PNR_API,
+            )
+            emitted = stdout + stderr
+            self.assertNotIn(MIXED_CASE_LOCALE_AEROFLOT_URL, emitted)
+            self.assertNotIn("ABC123", emitted)
+            self.assertNotIn("0" * 64, emitted)
+            self.assertEqual(stderr, "")
 
     def test_unknown_source_fails_closed_without_carrier_dispatch(self) -> None:
         """Unknown sources stop before any carrier adapter or network boundary."""
