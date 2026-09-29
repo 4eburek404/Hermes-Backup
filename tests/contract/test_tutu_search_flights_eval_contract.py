@@ -105,6 +105,49 @@ def test_scenario_2_deterministically_rejects_invented_cabin_baggage_weight():
     assert "cabin baggage weight is not confirmed" in unsupported_details["reason"]
 
 
+def test_scenario_3_deterministically_checks_party_price_and_fare_association():
+    consumer = load_consumer()
+    scenario = consumer.manifest["scenarios"]["party-price-and-fare"]
+    fixture_path = EVAL / scenario["fixture"]
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+
+    def evaluate(answer: str, *, include_judge: bool = True) -> dict:
+        evidence = {
+            "scenario": "party-price-and-fare",
+            "final_answer": answer,
+            "recorded_tutu_result": fixture,
+        }
+        if include_judge:
+            evidence["semantic_judge"] = {"status": "PASS"}
+        return consumer.evaluate_dimension_diagnostic(
+            "outcome", evidence, scenario["evaluation"]["outcome"]
+        )
+
+    grounded = (
+        "Для группы из двух взрослых и ребёнка рейс DP-6949: "
+        "тариф «Базовый» — 11 148,23 ₽; «Выгодный» — 18 214 ₽."
+    )
+    assert evaluate(grounded)["status"] == "PASS"
+
+    multiplied = (
+        "Для группы из двух взрослых и ребёнка рейс DP-6949 по тарифу "
+        "«Базовый»: 11 148,23 × 3 = 33 444,69 ₽."
+    )
+    multiplied_result = evaluate(multiplied, include_judge=False)
+    assert multiplied_result["status"] == "FAIL", multiplied_result
+    assert "price not present" in multiplied_result["reason"]
+
+    crossed_fare_price = "Рейс DP-6949: тариф «Базовый» стоит 18 214 ₽."
+    crossed_price_result = evaluate(crossed_fare_price, include_judge=False)
+    assert crossed_price_result["status"] == "FAIL", crossed_price_result
+    assert "price not present" in crossed_price_result["reason"]
+
+    crossed_fare_condition = "Рейс DP-6949: по тарифу «Базовый» багаж 10 кг."
+    crossed_condition_result = evaluate(crossed_fare_condition, include_judge=False)
+    assert crossed_condition_result["status"] == "FAIL", crossed_condition_result
+    assert "baggage quantity is not confirmed" in crossed_condition_result["reason"]
+
+
 def test_semantic_judge_cannot_return_fail_without_a_claim_level_failure():
     consumer = load_consumer()
     assert consumer._semantic_judge_status({"verdict": "PASS", "claims": [{"supported": True}]}) == "PASS"

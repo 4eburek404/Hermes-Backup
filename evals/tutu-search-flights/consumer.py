@@ -220,7 +220,9 @@ class TutuSearchFlightsConsumer:
                     "candidate source ref resolved to an unexpected commit: "
                     f"{skill_identity['resolved_commit']} != {reference_commit}"
                 )
-            candidate_fixture = materialized / "fixtures" / "avia" / "baseline.json"
+            candidate_fixture = materialized / scenario.get(
+                "candidate_fixture", "fixtures/avia/baseline.json"
+            )
             candidate_fixture_sha = self.sha256(candidate_fixture)
             if candidate_fixture_sha != scenario["fixture_sha256"]:
                 raise RuntimeError(
