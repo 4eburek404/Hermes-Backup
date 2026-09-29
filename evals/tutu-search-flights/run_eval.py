@@ -43,8 +43,10 @@ def _runtime_version() -> str:
     return (proc.stdout or proc.stderr).strip()
 
 
-def _case(manifest: dict[str, Any]) -> dict[str, Any]:
-    scenario = next(iter(manifest["scenarios"]))
+def _case(manifest: dict[str, Any], scenario: str | None = None) -> dict[str, Any]:
+    scenario = scenario or next(iter(manifest["scenarios"]))
+    if scenario not in manifest["scenarios"]:
+        raise ValueError(f"unknown scenario: {scenario}")
     scenario_config = manifest["scenarios"][scenario]
     prompt_sha = _load_consumer().sha256(EVAL_ROOT / scenario_config["prompt"])
     fixture_sha = _load_consumer().sha256(EVAL_ROOT / scenario_config["fixture"])
@@ -67,12 +69,19 @@ def _case(manifest: dict[str, Any]) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run the recorded Scenario 1 Tutu agent evaluation")
-    parser.add_argument("--output-dir", type=Path, help="persistent evidence directory (default: ~/.hermes/evals/...) ")
+    manifest = json.loads((EVAL_ROOT / "manifest.json").read_text(encoding="utf-8"))
+    scenarios = manifest["scenarios"]
+    parser = argparse.ArgumentParser(description="Run one recorded Tutu agent scenario")
+    parser.add_argument(
+        "--scenario",
+        choices=list(scenarios),
+        default=next(iter(scenarios)),
+        help="scenario to evaluate (default: the original Scenario 1)",
+    )
+    parser.add_argument("--output-dir", type=Path, help="persistent evidence directory (default: ~/.hermes/evals/...)")
     args = parser.parse_args()
 
-    manifest = json.loads((EVAL_ROOT / "manifest.json").read_text(encoding="utf-8"))
-    if manifest["repeats"] != 1 or len(manifest["models"]) != 1 or len(manifest["scenarios"]) != 1:
+    if manifest["repeats"] != 1 or len(manifest["models"]) != 1:
         raise SystemExit("this consumer is intentionally limited to one scenario, model, and repeat")
     source = manifest["skill_versions"]["candidate"]
     _git("fetch", "origin", "new-tutu")
@@ -104,7 +113,7 @@ def main() -> int:
     (output_dir / "baseline.json").write_text(
         json.dumps(baseline, indent=2) + "\n", encoding="utf-8"
     )
-    case = _case(manifest)
+    case = _case(manifest, args.scenario)
     consumer = _load_consumer()
     from evals.harness.core import Harness
 

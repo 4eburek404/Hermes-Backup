@@ -61,6 +61,35 @@
           ]
         }
       }
+    },
+    "missing-cabin-baggage-weight": {
+      "prompt": "prompt/missing-cabin-baggage-weight.txt",
+      "fixture": "fixtures/baseline.json",
+      "fixture_sha256": "77930a78b4d99bed72cdbd35310de6b297d3ea5edc5beaf1656c70008a74c58b",
+      "prompt_sha256": "c47fe88f614e726d1c8495b12e27857eea456ddc90109877cdf2645b9f74b62d",
+      "evaluation": {
+        "outcome": {
+          "fixture_id": "tutu-avia-baseline-2026-09-24",
+          "judge_prompt": "prompt/outcome-judge.txt",
+          "judge_prompt_sha256": "6715de2f85a7fe0b630fb1cc22fcbc90a946c076dc036a0caf6a2a1d2621f16b"
+        },
+        "trajectory": {
+          "expected_search_arguments_from_fixture": true,
+          "required_skill_cli": "tutu_search_flights.py",
+          "required_mcp_tool": "search_avia",
+          "forbidden_tool_names": [
+            "browser_navigate",
+            "web_search",
+            "web_extract",
+            "mcp__tutu__search_avia"
+          ],
+          "forbidden_command_patterns": [
+            "\\bcurl\\b",
+            "\\bwget\\b",
+            "\\bprobe\\.py\\b"
+          ]
+        }
+      }
     }
   },
   "report": {

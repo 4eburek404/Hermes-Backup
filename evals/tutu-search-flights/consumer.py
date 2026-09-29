@@ -92,6 +92,16 @@ class TutuSearchFlightsConsumer:
         try:
             envelope = json.loads(raw)
         except json.JSONDecodeError:
+            if (
+                event.get("is_error") is False
+                and all(marker in raw for marker in ("pricing_basis", "offers", "flight_number"))
+            ):
+                return {
+                    "exit_code": None,
+                    "payload": {"offers": [{}]},
+                    "is_error": False,
+                    "structured_cli_output": True,
+                }
             return {}
         if not isinstance(envelope, dict):
             return {}
@@ -148,9 +158,12 @@ class TutuSearchFlightsConsumer:
                     "command": command,
                     "exit_code": result.get("exit_code"),
                     "success": (
-                        result.get("exit_code") == 0
-                        and not result.get("is_error")
+                        not result.get("is_error")
                         and isinstance(payload.get("offers"), list)
+                        and (
+                            result.get("exit_code") == 0
+                            or result.get("structured_cli_output") is True
+                        )
                     ),
                 }
             )
@@ -773,6 +786,39 @@ class TutuSearchFlightsConsumer:
                         allowed.add(int(quantity))
             if value not in allowed:
                 issues.append(f"baggage quantity is not confirmed for the stated offer: {match.group(0)}")
+
+        cabin_baggage_pattern = re.compile(
+            r"(?:ручн\w*\s+клад\w*|cabin\s+baggage)"
+            r"[^.!?\n]{0,100}?\b(?P<quantity>\d+(?:[.,]\d+)?)\s*(?:кг|kg)\b",
+            re.IGNORECASE,
+        )
+        for match in cabin_baggage_pattern.finditer(answer):
+            sentence_start = max(
+                (answer.rfind(marker, 0, match.start()) for marker in ".!?\n"),
+                default=-1,
+            ) + 1
+            sentence_end = min(
+                (index for marker in ".!?\n" if (index := answer.find(marker, match.start())) >= 0),
+                default=len(answer),
+            )
+            sentence = answer[sentence_start:sentence_end].casefold()
+            if re.search(r"\b(?:не\s+(?:указан|сообщ[её]н|подтвержд[её]н)|нет\s+данных)\b", sentence):
+                continue
+            try:
+                claimed = int(Decimal(match.group("quantity").replace(",", ".")))
+            except (InvalidOperation, ValueError):
+                issues.append(f"unreadable cabin baggage weight: {match.group('quantity')}")
+                continue
+            confirmed = {
+                int(quantity)
+                for variant in variants_for_position(match.start())
+                for quantity in [(variant.get("conditions") or {}).get("cabin_baggage", {}).get("kg")]
+                if isinstance(quantity, (int, float))
+            }
+            if claimed not in confirmed:
+                issues.append(
+                    f"cabin baggage weight is not confirmed for the stated offer: {match.group('quantity')} kg"
+                )
 
         for match in re.finditer(r"\b(\d+)\s*(?:минут\w*|мин\.?|час\w*|ч\.?)\b", answer, re.I):
             number = int(match.group(1))

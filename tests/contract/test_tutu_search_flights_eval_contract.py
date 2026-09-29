@@ -28,10 +28,10 @@ def load_consumer():
     return module.TutuSearchFlightsConsumer(EVAL, ROOT, manifest, hermes_command=["hermes"])
 
 
-def evidence_for(answer: str) -> dict:
+def evidence_for(answer: str, scenario: str = "search-results-reflect-tutu") -> dict:
     fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
     return {
-        "scenario": "search-results-reflect-tutu",
+        "scenario": scenario,
         "final_answer": answer,
         "recorded_tutu_result": fixture,
         "semantic_judge": {
@@ -82,6 +82,27 @@ def test_outcome_accepts_grounded_answer_and_rejects_unsupported_claim_mutations
             "date": "date not present in Tutu result",
             "duration": "duration not present in Tutu result",
         }[field] in reason, (field, reason)
+
+
+def test_scenario_2_deterministically_rejects_invented_cabin_baggage_weight():
+    consumer = load_consumer()
+    grounded = "Рейс DP-6949: вес ручной клади в данных Tutu не указан."
+    unsupported = "Рейс DP-6949: ручная кладь — 10 кг."
+
+    grounded_details = consumer.evaluate_dimension_diagnostic(
+        "outcome",
+        evidence_for(grounded, scenario="missing-cabin-baggage-weight"),
+        {},
+    )
+    unsupported_details = consumer.evaluate_dimension_diagnostic(
+        "outcome",
+        evidence_for(unsupported, scenario="missing-cabin-baggage-weight"),
+        {},
+    )
+
+    assert grounded_details["status"] == "PASS", grounded_details
+    assert unsupported_details["status"] == "FAIL", unsupported_details
+    assert "cabin baggage weight is not confirmed" in unsupported_details["reason"]
 
 
 def test_semantic_judge_cannot_return_fail_without_a_claim_level_failure():
@@ -147,6 +168,24 @@ def test_terminal_trace_recognizes_successful_structured_skill_cli_result():
         {"type": "result", "text": "done"},
     ]
     summary = consumer._event_summary("\n".join(json.dumps(event) for event in events))
+    assert summary["terminal_invocations"][0]["success"] is True
+
+
+def test_terminal_trace_recognizes_truncated_successful_structured_skill_cli_result():
+    structured = json.dumps(
+        {"pricing_basis": "party_total", "offers": [{"flight_number": "DP-6949"}]}
+    )
+    output = json.dumps({"output": structured, "exit_code": 0, "error": None})[:99]
+    events = [
+        {"type": "tool_use", "name": "terminal", "input": {"command": '"$PYTHON" tutu_search_flights.py ...'}},
+        {"type": "tool_result", "name": "terminal", "is_error": False, "output": output},
+        {"type": "result", "text": "done"},
+    ]
+
+    summary = load_consumer()._event_summary(
+        "\n".join(json.dumps(event) for event in events)
+    )
+
     assert summary["terminal_invocations"][0]["success"] is True
 
 
