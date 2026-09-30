@@ -75,7 +75,7 @@ def trusted_route(url: str) -> str | None:
     if host == "tn-hgl.mckx.ru":
         return _embedded_ural_route(url)
     if host == "www.aeroflot.ru" and (
-        path == "/sb/pnr/app/ru-ru"
+        path in {"/sb/pnr/app/ru-ru", "/pnr/", "/sb/pnr/app"}
         or re.fullmatch(
             r"/[a-z]{2}-[a-z]{2}/pnr/", path, re.IGNORECASE | re.ASCII
         )

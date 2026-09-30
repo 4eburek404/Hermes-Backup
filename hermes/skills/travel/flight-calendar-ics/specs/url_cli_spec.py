@@ -194,6 +194,61 @@ class BookingUrlProcessSpecification(unittest.TestCase):
             self.assertNotIn("0" * 64, emitted)
             self.assertEqual(stderr, "")
 
+    def test_current_aeroflot_url_families_build_valid_ics(self) -> None:
+        """Current direct and SPA booking links pass the public URL build flow."""
+        from flight_calendar import carrier_http, ics_render
+
+        current_urls = (
+            (
+                "pnr-query",
+                "https://www.aeroflot.ru/pnr/?pnrKey="
+                + "1" * 64
+                + "&pnrLocator=XYZ789&utm_source=spec&campaign=tracking",
+            ),
+            (
+                "app-search-fragment",
+                "https://www.aeroflot.ru/sb/pnr/app#/search?pnr_key="
+                + "2" * 64
+                + "&pnr_locator=XYZ789&redirect=%2Fpnr&_k=synthetic-tracking",
+            ),
+        )
+        for name, url in current_urls:
+            with self.subTest(family=name):
+                with tempfile.TemporaryDirectory(
+                    prefix="flight-calendar-aeroflot-current."
+                ) as tmp:
+                    output = Path(tmp) / "trip.ics"
+                    observed: list[str] = []
+
+                    def fixture_request(*args: Any, **kwargs: Any):
+                        observed.append("Aeroflot API reached")
+                        return fixture_http_response()(*args, **kwargs)
+
+                    with mock.patch.object(
+                        carrier_http,
+                        "request_raw",
+                        side_effect=fixture_request,
+                    ):
+                        code, stdout, stderr = run_cli(url, output)
+
+                    self.assertEqual(code, 0, stdout + stderr)
+                    payload = json.loads(stdout)
+                    assert_valid_cli_envelope(self, payload)
+                    self.assertIs(payload["ok"], True)
+                    self.assertEqual(payload["media"], f"MEDIA:{output}")
+                    self.assertEqual(payload["segments_count"], 2)
+                    self.assertTrue(output.is_file())
+                    ics_render.validate_ics_text(
+                        output.read_text(encoding="utf-8"), expected_events=2
+                    )
+                    self.assertEqual(observed, ["Aeroflot API reached"])
+                    emitted = stdout + stderr
+                    self.assertNotIn(url, emitted)
+                    self.assertNotIn("XYZ789", emitted)
+                    self.assertNotIn("1" * 64, emitted)
+                    self.assertNotIn("2" * 64, emitted)
+                    self.assertEqual(stderr, "")
+
     def test_unknown_source_fails_closed_without_carrier_dispatch(self) -> None:
         """Unknown sources stop before any carrier adapter or network boundary."""
         from flight_calendar import carrier_http
