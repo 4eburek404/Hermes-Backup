@@ -120,22 +120,6 @@ class AeroflotCarrierSpecification(unittest.TestCase):
                     f"?pnrKey={SYNTHETIC_KEY}&pnrLocator={EXPECTED_LOCATOR}{tracking}",
                 )
             )
-        cases.extend(
-            (
-                (
-                    "current-pnr-query",
-                    "https://www.aeroflot.ru/pnr/?"
-                    f"pnrKey={SYNTHETIC_KEY}&pnrLocator={EXPECTED_LOCATOR}"
-                    "&utm_source=spec&campaign=tracking",
-                ),
-                (
-                    "current-app-search-fragment",
-                    f"https://www.aeroflot.ru/sb/pnr/app#/search?"
-                    f"pnr_key={SYNTHETIC_KEY}&pnr_locator={EXPECTED_LOCATOR}"
-                    "&redirect=%2Fpnr&_k=synthetic-tracking",
-                ),
-            )
-        )
 
         for case_name, url in cases:
             with self.subTest(case=case_name):

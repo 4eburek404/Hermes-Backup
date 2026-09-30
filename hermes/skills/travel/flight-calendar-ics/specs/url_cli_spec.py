@@ -194,6 +194,52 @@ class BookingUrlProcessSpecification(unittest.TestCase):
             self.assertNotIn("0" * 64, emitted)
             self.assertEqual(stderr, "")
 
+    def test_current_aeroflot_near_miss_paths_fail_closed(self) -> None:
+        """Nearby untrusted Aeroflot paths fail closed at the CLI boundary."""
+        from flight_calendar import carrier_http
+
+        urls = (
+            "https://www.aeroflot.ru/pnr?pnrKey="
+            + "1" * 64
+            + "&pnrLocator=XYZ789",
+            "https://www.aeroflot.ru/pnr/extra?pnrKey="
+            + "1" * 64
+            + "&pnrLocator=XYZ789",
+            "https://www.aeroflot.ru/sb/pnr/app/extra#/search?pnr_key="
+            + "2" * 64
+            + "&pnr_locator=XYZ789",
+        )
+        for url in urls:
+            with self.subTest(url=url.split("?", 1)[0]):
+                with tempfile.TemporaryDirectory(
+                    prefix="flight-calendar-aeroflot-untrusted."
+                ) as tmp:
+                    output = Path(tmp) / "trip.ics"
+                    network_calls: list[str] = []
+
+                    def unexpected_network(*args: Any, **kwargs: Any) -> None:
+                        del args, kwargs
+                        network_calls.append("external transport")
+                        raise AssertionError("untrusted URL reached transport")
+
+                    with mock.patch.object(
+                        carrier_http,
+                        "request_raw",
+                        side_effect=unexpected_network,
+                    ):
+                        code, stdout, stderr = run_cli(url, output)
+
+                    self.assertEqual(code, 2)
+                    payload = json.loads(stdout)
+                    assert_valid_cli_envelope(self, payload)
+                    self.assertIs(payload["ok"], False)
+                    self.assertEqual(payload["error"]["code"], "route_unknown")
+                    self.assertFalse(output.exists())
+                    self.assertEqual(network_calls, [])
+                    self.assertNotIn(url, stdout + stderr)
+                    self.assertNotIn("XYZ789", stdout + stderr)
+                    self.assertEqual(stderr, "")
+
     def test_current_aeroflot_url_families_build_valid_ics(self) -> None:
         """Current direct and SPA booking links pass the public URL build flow."""
         from flight_calendar import carrier_http, ics_render
@@ -218,16 +264,10 @@ class BookingUrlProcessSpecification(unittest.TestCase):
                     prefix="flight-calendar-aeroflot-current."
                 ) as tmp:
                     output = Path(tmp) / "trip.ics"
-                    observed: list[str] = []
-
-                    def fixture_request(*args: Any, **kwargs: Any):
-                        observed.append("Aeroflot API reached")
-                        return fixture_http_response()(*args, **kwargs)
-
                     with mock.patch.object(
                         carrier_http,
                         "request_raw",
-                        side_effect=fixture_request,
+                        side_effect=fixture_http_response(),
                     ):
                         code, stdout, stderr = run_cli(url, output)
 
@@ -238,10 +278,15 @@ class BookingUrlProcessSpecification(unittest.TestCase):
                     self.assertEqual(payload["media"], f"MEDIA:{output}")
                     self.assertEqual(payload["segments_count"], 2)
                     self.assertTrue(output.is_file())
-                    ics_render.validate_ics_text(
-                        output.read_text(encoding="utf-8"), expected_events=2
+                    ics_text = output.read_text(encoding="utf-8")
+                    ics_render.validate_ics_text(ics_text, expected_events=2)
+                    canonical_url = (
+                        "https://www.aeroflot.ru/sb/pnr/app/ru-ru#/pnr?pnr_key="
+                        + ("1" * 64 if name == "pnr-query" else "2" * 64)
+                        + "&pnr_locator=XYZ789"
                     )
-                    self.assertEqual(observed, ["Aeroflot API reached"])
+                    unfolded_ics = ics_text.replace("\n ", "")
+                    self.assertIn(canonical_url, unfolded_ics)
                     emitted = stdout + stderr
                     self.assertNotIn(url, emitted)
                     self.assertNotIn("XYZ789", emitted)
