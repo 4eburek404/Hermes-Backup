@@ -373,6 +373,37 @@ def test_equivalent_tool_trace_extracts_behavior_red_change_green_without_comman
     assert result["status"] == "PASS", result
 
 
+def test_trace_uses_passing_executable_contracts_for_pre_and_post_behavior() -> None:
+    subject = consumer()
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="bdd-workflow-contract-") as temp:
+        fixture = Path(temp) / "project"
+        check = fixture / "checks" / "public-behavior.feature"
+        production = fixture / "app.py"
+        check.parent.mkdir(parents=True)
+        expected = "50.00" + chr(10)
+        check.write_text(f'regular "50" => {json.dumps(expected)}', encoding="utf-8")
+        production.write_text("implementation", encoding="utf-8")
+        events = [
+            {"type": "tool_use", "name": "terminal", "input": {"command": "./verify-before"}},
+            {"type": "tool_result", "name": "terminal", "output": json.dumps({"output": "1 passed", "exit_code": 0})},
+            {"type": "tool_use", "name": "patch", "input": {"patch": "modify implementation"}},
+            {"type": "tool_result", "name": "patch", "output": json.dumps({"files_modified": [str(production)]})},
+            {"type": "tool_use", "name": "terminal", "input": {"command": "./verify-after"}},
+            {"type": "tool_result", "name": "terminal", "output": json.dumps({"output": "1 passed", "exit_code": 0})},
+        ]
+        cfg = {
+            "current_behavior_probes": [{"exit_code": 0, "stdout": expected, "input_signals": ["50"]}],
+            "preserved_behavior_probes": [{"exit_code": 0, "stdout": expected, "input_signals": ["50"]}],
+        }
+        summary = subject.event_summary(chr(10).join(json.dumps(event) for event in events), cfg, fixture)
+
+    observed = {item["kind"] for item in summary["workflow_events"]}
+    assert "current_behavior_observed" in observed
+    assert "preserved_behavior_observed" in observed
+
+
 def test_outcome_fails_when_tests_reject_behavior_equivalent_implementation() -> None:
     subject = consumer()
     evidence = grounded_evidence()

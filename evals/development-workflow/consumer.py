@@ -58,6 +58,32 @@ def _is_test_result(command: str, output: str) -> tuple[bool, bool]:
     return recognized, failure
 
 
+def _contract_covers_probe(fixture: Path, probe: dict[str, Any]) -> bool:
+    outputs = {
+        str(probe.get("stdout", "")),
+        json.dumps(str(probe.get("stdout", "")), ensure_ascii=False)[1:-1],
+        str(probe.get("stdout", "")).rstrip("\n"),
+    }
+    outputs.discard("")
+    for path in fixture.rglob("*"):
+        if not path.is_file() or not _is_verification_file(str(path.relative_to(fixture))):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        signals_present = all(
+            re.search(
+                rf"(?<![A-Za-z0-9_.]){re.escape(str(signal))}(?![A-Za-z0-9_.])",
+                text,
+            )
+            for signal in probe.get("input_signals", [])
+        )
+        if signals_present and any(output in text for output in outputs):
+            return True
+    return False
+
+
 def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture: Path) -> list[dict[str, Any]]:
     pending: dict[str, deque[dict[str, Any]]] = defaultdict(deque)
     records: list[dict[str, Any]] = []
@@ -122,6 +148,20 @@ def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture:
         if matched:
             facts.append({"kind": "current_behavior_observed", "index": matched["index"],
                           "probe_index": probe_index})
+            continue
+        first_change = min(
+            [rec["index"] for rec in verification_changes]
+            + [rec["index"] for rec in records if any(
+                not change["verification_file"] for change in rec.get("file_changes", [])
+            )],
+            default=None,
+        )
+        covered = _contract_covers_probe(fixture, probe)
+        pre_change_pass = next((rec for rec in records if rec.get("check_result") == "passed"
+                                and (first_change is None or rec["index"] < first_change)), None)
+        if covered and pre_change_pass:
+            facts.append({"kind": "current_behavior_observed", "index": pre_change_pass["index"],
+                          "probe_index": probe_index})
     signals = [str(item) for item in cfg.get("target_check_signals", [])]
     matching_check_change = next((rec for rec in verification_changes
                                   if any(all(signal in change.get("text", "") for signal in signals)
@@ -148,6 +188,14 @@ def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture:
         if matched:
             facts.append({"kind": "preserved_behavior_observed", "index": matched["index"],
                           "probe_index": probe_index})
+            continue
+        if _contract_covers_probe(fixture, probe):
+            post_change_pass = next((rec for rec in records if rec.get("check_result") == "passed"
+                                     and first_source_change is not None
+                                     and rec["index"] > first_source_change), None)
+            if post_change_pass:
+                facts.append({"kind": "preserved_behavior_observed", "index": post_change_pass["index"],
+                              "probe_index": probe_index})
     return facts
 
 
