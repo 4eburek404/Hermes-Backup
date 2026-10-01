@@ -616,8 +616,17 @@ class DevelopmentWorkflowConsumer:
 
             metadata = {
                 "scenario": spec.scenario,
+                "evaluation_mode": mode,
+                "forced_owner_skill": (
+                    str(execution["skill_behavior"]["owner_skill"])
+                    if mode == "skill-behavior"
+                    and execution["skill_behavior"].get("force_owner_skill")
+                    else None
+                ),
                 "skill_version": spec.skill_version,
                 "skill_sources": source_identities,
+                "fixture_baseline_head": prepared["baseline_head"],
+                "fixture_sha256": prepared["actual_fixture_version"],
                 "model": spec.model,
                 "provider": spec.provider,
                 "command": command,

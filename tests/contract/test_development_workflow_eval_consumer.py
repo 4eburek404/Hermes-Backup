@@ -5,6 +5,7 @@ import json
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -259,8 +260,8 @@ def test_hermes_invocation_forces_owner_only_in_skill_behavior_mode(monkeypatch,
     scratch.mkdir()
     monkeypatch.setenv("TMPDIR", str(scratch))
 
-    def invoke(mode: str) -> list[str]:
-        captured: dict[str, list[str]] = {}
+    def invoke(mode: str):
+        captured: dict[str, Any] = {}
         subject = module.DevelopmentWorkflowConsumer(
             ROOT / "evals" / "development-workflow", ROOT, manifest, ["hermes"]
         )
@@ -288,13 +289,21 @@ def test_hermes_invocation_forces_owner_only_in_skill_behavior_mode(monkeypatch,
         run_dir.mkdir()
         prepared = subject.prepare(spec, run_dir, {})
         subject.execute(spec, run_dir, prepared, {})
-        return captured["command"]
+        captured["metadata"] = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
+        return captured
 
     controlled = invoke("skill-behavior")
     audit = invoke("natural-routing")
 
-    assert controlled[controlled.index("--skills") + 1] == "spec-driven-development"
-    assert "--skills" not in audit
+    assert controlled["command"][controlled["command"].index("--skills") + 1] == "spec-driven-development"
+    assert "--skills" not in audit["command"]
+    assert controlled["metadata"]["evaluation_mode"] == "skill-behavior"
+    assert controlled["metadata"]["forced_owner_skill"] == "spec-driven-development"
+    assert controlled["metadata"]["fixture_sha256"] == module.canonical_sha256({
+        "fixture_files": scenario["fixture_files"],
+        "equivalent_implementation_files": scenario.get("equivalent_implementation_files", {}),
+    })
+    assert audit["metadata"]["forced_owner_skill"] is None
     assert list(scratch.iterdir()) == []
     assert not (tmp_path / "skill-behavior" / "fixture-repo").exists()
     assert (tmp_path / "skill-behavior" / "final.diff").exists()
