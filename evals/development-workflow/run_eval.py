@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+"""Run the BDD development-workflow agent evaluation."""
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+REPO_ROOT = ROOT.parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from consumer import DevelopmentWorkflowConsumer, canonical_sha256
+from evals.harness.core import Harness
+
+
+def load_manifest() -> dict:
+    return json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
+
+
+def hermes_version(command: list[str]) -> str:
+    proc = subprocess.run(
+        [*command, "--version"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"Hermes runtime unavailable: exit={proc.returncode} "
+            f"stderr={proc.stderr.strip()}"
+        )
+    return proc.stdout.strip()
+
+
+def build_case(
+    manifest: dict,
+    scenarios: list[str],
+    versions: list[str],
+    models: list[dict[str, str]],
+    repeats: int,
+    runtime_version: str,
+) -> dict:
+    scenario_metadata: dict[str, dict[str, str]] = {}
+    rules: dict[str, dict] = {}
+    global_trajectory = manifest.get("evaluation", {}).get("trajectory", {})
+
+    for scenario in scenarios:
+        cfg = manifest["scenarios"][scenario]
+        scenario_metadata[scenario] = {
+            "fixture_version": canonical_sha256(cfg["fixture_files"]),
+            "prompt_version": canonical_sha256(cfg["prompt"]),
+        }
+        rules[scenario] = {
+            "outcome": {
+                "require_repository_change": bool(
+                    cfg.get("require_repository_change", False)
+                )
+            },
+            "trajectory": dict(global_trajectory),
+        }
+
+    return {
+        "consumer": manifest["name"],
+        "scenarios": scenarios,
+        "models": models,
+        "skill_versions": versions,
+        "repeats": repeats,
+        "fixture_version": "scenario-specific",
+        "prompt_version": "scenario-specific",
+        "runtime_version": runtime_version,
+        "mode": manifest.get("mode", "recorded-local-fixture"),
+        "scenario_metadata": scenario_metadata,
+        "rules": rules,
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--scenario")
+    parser.add_argument("--version", choices=("baseline", "candidate"))
+    parser.add_argument("--repeat", type=int, default=None)
+    parser.add_argument("--model")
+    parser.add_argument("--provider")
+    args = parser.parse_args()
+
+    manifest = load_manifest()
+    configured = list(manifest["scenarios"])
+    if args.scenario is not None and args.scenario not in configured:
+        parser.error("--scenario must be one of: " + ", ".join(configured))
+    scenarios = [args.scenario] if args.scenario else configured
+
+    if bool(args.model) != bool(args.provider):
+        parser.error("--model and --provider must be supplied together")
+    models = (
+        [{"model": args.model, "provider": args.provider}]
+        if args.model
+        else list(manifest["models"])
+    )
+    versions = [args.version] if args.version else list(manifest["skill_versions"])
+    repeats = (
+        args.repeat
+        if args.repeat is not None
+        else int(manifest.get("repeats", 1))
+    )
+    if repeats < 1:
+        parser.error("--repeat must be >= 1")
+
+    hermes_command = [shutil.which("hermes") or "hermes"]
+    runtime = hermes_version(hermes_command)
+    consumer = DevelopmentWorkflowConsumer(
+        ROOT,
+        REPO_ROOT,
+        manifest,
+        hermes_command=hermes_command,
+    )
+    case = build_case(
+        manifest,
+        scenarios,
+        versions,
+        models,
+        repeats,
+        runtime,
+    )
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    batch_dir = ROOT / "runs" / stamp
+    batch = Harness(consumer).run(case, batch_dir)
+
+    print(f"batch={batch_dir}")
+    bad = [
+        run
+        for run in batch["runs"]
+        if run.get("execution_status") != "COMPLETED"
+        or run.get("score", {}).get("outcome") != "PASS"
+        or run.get("score", {}).get("trajectory") != "PASS"
+    ]
+    return 1 if bad else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
