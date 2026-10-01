@@ -53,7 +53,14 @@ def build_case(
     for scenario in scenarios:
         cfg = manifest["scenarios"][scenario]
         scenario_metadata[scenario] = {
-            "fixture_version": canonical_sha256(cfg["fixture_files"]),
+            "fixture_version": canonical_sha256(
+                {
+                    "fixture_files": cfg["fixture_files"],
+                    "equivalent_implementation_files": cfg.get(
+                        "equivalent_implementation_files", {}
+                    ),
+                }
+            ),
             "prompt_version": canonical_sha256(cfg["prompt"]),
         }
         rules[scenario] = {

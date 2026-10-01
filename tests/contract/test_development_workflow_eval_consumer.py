@@ -193,3 +193,49 @@ def test_seed_specs_accept_behavior_equivalent_implementations() -> None:
                 equivalent.stdout,
                 equivalent.stderr,
             )
+
+
+def test_eval_setup_accepts_its_complete_fixture_fingerprint() -> None:
+    import runpy
+
+    from evals.harness.core import build_matrix
+
+    manifest = json.loads(
+        (ROOT / "evals" / "development-workflow" / "manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    runner_path = ROOT / "evals" / "development-workflow"
+    import sys
+
+    sys.path.insert(0, str(runner_path))
+    try:
+        runner = runpy.run_path(
+            str(runner_path / "run_eval.py"),
+            run_name="development_workflow_eval_test",
+        )
+    finally:
+        sys.path.remove(str(runner_path))
+    case = runner["build_case"](
+        manifest,
+        list(manifest["scenarios"]),
+        ["baseline"],
+        list(manifest["models"]),
+        1,
+        "Hermes test runtime",
+    )
+    spec = build_matrix(case)[0]
+    consumer_module = load_consumer_module()
+    subject = consumer_module.DevelopmentWorkflowConsumer(
+        ROOT / "evals" / "development-workflow",
+        ROOT,
+        manifest=manifest,
+        hermes_command=["hermes"],
+    )
+
+    with tempfile.TemporaryDirectory(prefix="bdd-fingerprint-") as temp:
+        run_dir = Path(temp) / "run"
+        run_dir.mkdir()
+        prepared = subject.prepare(spec, run_dir, case)
+
+    assert prepared["actual_fixture_version"] == spec.fixture_version
