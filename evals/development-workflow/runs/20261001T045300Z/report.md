@@ -1,5 +1,11 @@
 # EVAL REPORT
 
+## CLASSIFICATION
+
+UNFORCED / CONTROL BASELINE. This run omitted Hermes `--skills`; it records
+natural routing behavior and does not measure the effect of changing a specific
+skill tree.
+
 ## STATUS
 
 Result: FAIL
