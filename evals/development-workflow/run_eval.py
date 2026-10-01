@@ -15,7 +15,7 @@ REPO_ROOT = ROOT.parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from consumer import DevelopmentWorkflowConsumer, canonical_sha256
+from consumer import DevelopmentWorkflowConsumer, canonical_sha256, fixture_fingerprint_payload
 from evals.harness.core import Harness
 
 
@@ -54,21 +54,15 @@ def build_case(
     for scenario in scenarios:
         cfg = manifest["scenarios"][scenario]
         scenario_metadata[scenario] = {
-            "fixture_version": canonical_sha256(
-                {
-                    "fixture_files": cfg["fixture_files"],
-                    "equivalent_implementation_files": cfg.get(
-                        "equivalent_implementation_files", {}
-                    ),
-                }
-            ),
+            "fixture_version": canonical_sha256(fixture_fingerprint_payload(cfg)),
             "prompt_version": canonical_sha256(cfg["prompt"]),
         }
         rules[scenario] = {
             "outcome": {
                 "require_repository_change": bool(
                     cfg.get("require_repository_change", False)
-                )
+                ),
+                "review_only": bool(cfg.get("review_only", False)),
             },
             "trajectory": {
                 **dict(global_trajectory),
@@ -76,6 +70,7 @@ def build_case(
                 "mechanical": bool(cfg.get("mechanical", False)),
                 "preserved_probe_count": len(cfg.get("preserved_behavior_probes", [])),
                 "current_probe_count": len(cfg.get("current_behavior_probes", [])),
+                "review_only": bool(cfg.get("review_only", False)),
                 "target_failure_signal": (cfg.get("target_check_signals") or [None])[0],
             },
         }

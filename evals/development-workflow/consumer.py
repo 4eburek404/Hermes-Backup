@@ -20,13 +20,19 @@ from evals.harness.skill_source import materialize_skill_source
 
 def _decode_tool_output(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
+        if "output" not in value and isinstance(value.get("content"), str):
+            return {**value, "output": value["content"]}
         return value
     if isinstance(value, str):
         try:
             decoded = json.loads(value)
         except json.JSONDecodeError:
             return {"output": value}
-        return decoded if isinstance(decoded, dict) else {"output": value}
+        if isinstance(decoded, dict):
+            if "output" not in decoded and isinstance(decoded.get("content"), str):
+                return {**decoded, "output": decoded["content"]}
+            return decoded
+        return {"output": value}
     return {}
 
 
@@ -84,6 +90,92 @@ def _contract_covers_probe(fixture: Path, probe: dict[str, Any]) -> bool:
     return False
 
 
+def _review_finding_supported(answer: str, review_evidence: list[dict[str, Any]]) -> bool:
+    text = answer.lower()
+    mentions_subject = bool(re.search(r"shipping|delivery|доставк", text))
+    mentions_boundary = bool(re.search(r"\b100(?:\.00)?\b", text))
+    mentions_expected = bool(re.search(r"free|no\s+charge|zero|бесплатн|без\s+оплаты|\$?0(?:\.00)?", text))
+    mentions_actual = bool(re.search(r"\$?10(?:\.00)?", text))
+    inspected = "\n".join(
+        str(item.get("output", "")) for item in review_evidence
+        if item.get("kind") == "change_inspected"
+    ).lower()
+    checked = "\n".join(
+        str(item.get("command", "")) + "\n" + str(item.get("output", ""))
+        for item in review_evidence if item.get("kind") == "check_observed"
+    ).lower()
+    documented_rule = "100" in inspected and bool(re.search(r"free|бесплатн", inspected))
+    observed_bug = "100" in checked and "10" in checked
+    return all((mentions_subject, mentions_boundary, mentions_expected, mentions_actual, documented_rule, observed_bug))
+
+
+def _review_trace(
+    events: list[dict[str, Any]], fixture: Path
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    pending: dict[str, deque[dict[str, Any]]] = defaultdict(deque)
+    evidence: list[dict[str, Any]] = []
+    mutations: list[dict[str, Any]] = []
+    unsafe = re.compile(
+        r"\bgit\s+(?:add|commit|push|merge|checkout|switch|reset|clean|apply)\b|"
+        r"\bgh\s+pr\s+(?:create|merge)\b|\brm\s+-|\b(?:mv|tee)\s+",
+        re.IGNORECASE,
+    )
+    for event in events:
+        kind = event.get("type")
+        name = str(event.get("name", ""))
+        if kind == "tool_use":
+            args = event.get("input") or {}
+            pending[name].append({"args": args if isinstance(args, dict) else {}})
+            command = str(args.get("command", "")) if isinstance(args, dict) else ""
+            if name == "terminal" and unsafe.search(command):
+                mutations.append({"command": command})
+            continue
+        if kind != "tool_result" or not pending[name]:
+            continue
+        call = pending[name].popleft()
+        args = call["args"]
+        result = _decode_tool_output(event.get("output"))
+        output = str(result.get("output", ""))
+        command = str(args.get("command", "")) if name == "terminal" else ""
+        inspected = name in {"read_file", "file_read"} or bool(re.search(
+            r"\bgit\s+(?:diff|show|status)\b|\b(?:cat|sed|less)\s+",
+            command,
+            re.IGNORECASE,
+        ))
+        check = name == "terminal" and bool(re.search(
+            r"pytest|unittest|\btest\b|python(?:3)?|ruff|mypy",
+            command,
+            re.IGNORECASE,
+        ))
+        if output:
+            if inspected:
+                evidence.append({
+                    "kind": "change_inspected",
+                    "tool": name,
+                    "command": command,
+                    "output": output,
+                    "exit_code": result.get("exit_code"),
+                })
+            if check:
+                evidence.append({
+                    "kind": "check_observed",
+                    "tool": name,
+                    "command": command,
+                    "output": output,
+                    "exit_code": result.get("exit_code"),
+                })
+        if name in {"patch", "write_file", "edit_file"}:
+            paths = result.get("files_modified", []) if name == "patch" else [args.get("path", "")]
+            for raw_path in paths:
+                if not raw_path:
+                    continue
+                path = Path(str(raw_path))
+                if not path.is_absolute():
+                    path = fixture / path
+                mutations.append({"path": str(path.resolve()), "verification_file": _is_verification_file(str(raw_path))})
+    return evidence, mutations
+
+
 def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture: Path) -> list[dict[str, Any]]:
     pending: dict[str, deque[dict[str, Any]]] = defaultdict(deque)
     records: list[dict[str, Any]] = []
@@ -106,6 +198,8 @@ def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture:
             recognized, failed = _is_test_result(command, output)
             if recognized:
                 record["check_result"] = "failed" if failed or result.get("exit_code", 0) else "passed"
+        elif name in {"read_file", "file_read"}:
+            record["read_only_file_read"] = True
         paths: list[str] = []
         changed_text = ""
         if name == "patch":
@@ -213,6 +307,17 @@ def canonical_sha256(value: Any) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def fixture_fingerprint_payload(cfg: dict[str, Any]) -> dict[str, Any]:
+    payload = {
+        "fixture_files": cfg["fixture_files"],
+        "equivalent_implementation_files": cfg.get("equivalent_implementation_files", {}),
+    }
+    for key in ("base_fixture_files", "preexisting_changes"):
+        if key in cfg:
+            payload[key] = cfg[key]
+    return payload
+
+
 class DevelopmentWorkflowConsumer:
     name = "development-workflow"
 
@@ -258,7 +363,8 @@ class DevelopmentWorkflowConsumer:
 
     def materialize_fixture(self, cfg: dict[str, Any], destination: Path) -> str:
         destination.mkdir(parents=True)
-        for relative, content in cfg["fixture_files"].items():
+        base_files = cfg.get("base_fixture_files", cfg["fixture_files"])
+        for relative, content in base_files.items():
             path = destination / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8")
@@ -280,6 +386,10 @@ class DevelopmentWorkflowConsumer:
             cwd=destination,
             env=env,
         )
+        for relative, content in cfg.get("preexisting_changes", {}).items():
+            path = destination / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
         return self._git(destination, "rev-parse", "HEAD")
 
     def snapshot(self, repo: Path) -> dict[str, Any]:
@@ -376,13 +486,20 @@ class DevelopmentWorkflowConsumer:
             if name == "skill_view":
                 skill_views.append(args)
 
+        workflow_facts = _workflow_events(events, cfg or {}, fixture) if fixture else []
+        if cfg and cfg.get("review_only") and fixture:
+            review_evidence, mutation_events = _review_trace(events, fixture)
+        else:
+            review_evidence, mutation_events = [], []
         return {
             "event_count": len(events),
             "tool_calls": commands,
             "tool_names": tool_names,
             "skill_views": skill_views,
             "terminal_result": result,
-            "workflow_events": _workflow_events(events, cfg or {}, fixture) if fixture else [],
+            "workflow_events": workflow_facts,
+            "review_evidence": review_evidence,
+            "mutation_events": mutation_events,
         }
 
     @staticmethod
@@ -467,14 +584,7 @@ class DevelopmentWorkflowConsumer:
                 f"prompt drift for {spec.scenario}: {prompt_sha} != {spec.prompt_version}"
             )
 
-        fixture_version = canonical_sha256(
-            {
-                "fixture_files": cfg["fixture_files"],
-                "equivalent_implementation_files": cfg.get(
-                    "equivalent_implementation_files", {}
-                ),
-            }
-        )
+        fixture_version = canonical_sha256(fixture_fingerprint_payload(cfg))
         if fixture_version != spec.fixture_version:
             shutil.rmtree(fixture_parent, ignore_errors=True)
             raise RuntimeError(
@@ -548,7 +658,10 @@ class DevelopmentWorkflowConsumer:
             ]
             mode = spec.mode.split(":", 1)[0]
             if mode == "skill-behavior" and execution["skill_behavior"].get("force_owner_skill"):
-                command.extend(["--skills", str(execution["skill_behavior"]["owner_skill"])])
+                command.extend([
+                    "--skills",
+                    str(cfg.get("owner_skill", execution["skill_behavior"]["owner_skill"])),
+                ])
             if execution.get("yolo"):
                 command.append("--yolo")
             if execution.get("source"):
@@ -622,7 +735,7 @@ class DevelopmentWorkflowConsumer:
                 "scenario": spec.scenario,
                 "evaluation_mode": mode,
                 "forced_owner_skill": (
-                    str(execution["skill_behavior"]["owner_skill"])
+                    str(cfg.get("owner_skill", execution["skill_behavior"]["owner_skill"]))
                     if mode == "skill-behavior"
                     and execution["skill_behavior"].get("force_owner_skill")
                     else None
@@ -649,6 +762,8 @@ class DevelopmentWorkflowConsumer:
                 "equivalent_behavior_probes": equivalent_behavior_probes,
                 "equivalent_test_result": equivalent_test_result,
                 "event_summary": summary,
+                "review_evidence": summary.get("review_evidence", []),
+                "mutation_events": summary.get("mutation_events", []),
                 "prompt_sha256": prepared["prompt_sha256"],
             }
             (run_dir / "metadata.json").write_text(
@@ -678,6 +793,21 @@ class DevelopmentWorkflowConsumer:
         rules: dict[str, Any],
     ) -> dict[str, Any]:
         if dimension == "outcome":
+            if rules.get("review_only"):
+                failures: list[str] = []
+                if evidence.get("execution_status") != "COMPLETED":
+                    failures.append("review execution did not complete")
+                review_evidence = evidence.get("review_evidence", [])
+                if not _review_finding_supported(
+                    str(evidence.get("final_answer", "")), review_evidence
+                ):
+                    failures.append("fixture review finding was not reported with supporting evidence")
+                if not any(item.get("kind") == "check_observed" for item in review_evidence):
+                    failures.append("no read-only verification evidence was observed")
+                return {
+                    "status": "FAIL" if failures else "PASS",
+                    "reason": "; ".join(failures) if failures else None,
+                }
             failures: list[str] = []
             if evidence.get("execution_status") != "COMPLETED":
                 failures.append(
@@ -741,6 +871,42 @@ class DevelopmentWorkflowConsumer:
             }
 
         if dimension == "trajectory":
+            if rules.get("review_only"):
+                pre = evidence.get("pre_snapshot") or {}
+                post = evidence.get("post_snapshot") or {}
+                review_evidence = evidence.get("review_evidence", [])
+                reasons = []
+                unsafe_patterns = (
+                    r"\bgit\s+(?:add|commit|push|merge|checkout|switch|reset|clean|apply)\b",
+                    r"\bgh\s+pr\s+(?:create|merge)\b",
+                    r"\brm\s+-|\b(?:mv|tee)\s+",
+                )
+                if any(
+                    re.search(pattern, str(command), re.IGNORECASE)
+                    for pattern in unsafe_patterns
+                    for command in evidence.get("tool_calls", [])
+                ):
+                    reasons.append("delivery or destructive action was observed")
+                if pre != post or evidence.get("repository_changed"):
+                    reasons.append("checkout state mutated during review")
+                if evidence.get("mutation_events"):
+                    reasons.append("implementation, test, or other mutation action was observed")
+                if not any(item.get("kind") == "change_inspected" for item in review_evidence):
+                    reasons.append("existing change inspection is UNCONFIRMED")
+                if not any(
+                    item.get("kind") == "check_observed"
+                    and item.get("exit_code") == 0
+                    and item.get("output")
+                    for item in review_evidence
+                ):
+                    reasons.append("read-only evidence check is UNCONFIRMED")
+                changed_protected = sorted(
+                    path for path, unchanged in (evidence.get("protected_paths_unchanged") or {}).items()
+                    if not unchanged
+                )
+                if changed_protected:
+                    reasons.append("unrelated user content changed: " + ", ".join(changed_protected))
+                return {"status": "FAIL" if reasons else "PASS", "reason": "; ".join(reasons) if reasons else None}
             commands = "\n".join(
                 str(item) for item in evidence.get("tool_calls", [])
             )

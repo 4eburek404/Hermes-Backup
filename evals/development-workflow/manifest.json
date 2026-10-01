@@ -245,6 +245,35 @@
       "behavior_probes": [
         {"name": "greeting", "command": ["python3", "app.py"], "exit_code": 0, "stdout": "Hello, world!\n"}
       ]
+    },
+    "review-only": {
+      "review_only": true,
+      "owner_skill": "github-code-review",
+      "prompt": "Проведи review текущего изменения в этом небольшом Python-проекте. Найди существенные проблемы, если они есть, и сообщи findings с подтверждением из diff, кода, тестов или read-only проверок. Не исправляй найденные проблемы и не изменяй checkout; не создавай commit и не выполняй delivery actions. Сохрани файл `notes.txt` без изменений.\n",
+      "fixture_files": {
+        "shipping.py": "from __future__ import annotations\n\nfrom decimal import Decimal\nimport sys\n\n\ndef shipping_cost(total: Decimal) -> int:\n    return 10 if total <= Decimal(\"100\") else 0\n\n\ndef main(argv: list[str]) -> int:\n    print(shipping_cost(Decimal(argv[0])))\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main(sys.argv[1:]))\n",
+        "README.md": "Shipping contract: orders below 100 cost 10 to ship; orders of 100 or more ship free.\n",
+        ".gitignore": "__pycache__/\n.pytest_cache/\n",
+        "tests/test_shipping.py": "from __future__ import annotations\n\nimport subprocess\nimport sys\n\n\ndef run(total: str) -> subprocess.CompletedProcess[str]:\n    return subprocess.run([sys.executable, \"shipping.py\", total], text=True, capture_output=True, check=False)\n\n\ndef test_below_threshold_costs_ten() -> None:\n    result = run(\"99.99\")\n    assert result.returncode == 0\n    assert result.stdout == \"10\\n\"\n\n\ndef test_above_threshold_is_free() -> None:\n    result = run(\"100.01\")\n    assert result.returncode == 0\n    assert result.stdout == \"0\\n\"\n",
+        "notes.txt": "User note: preserve this file unchanged.\n"
+      },
+      "base_fixture_files": {
+        "shipping.py": "from __future__ import annotations\n\nfrom decimal import Decimal\nimport sys\n\n\ndef shipping_cost(total: Decimal) -> int:\n    return 10 if total < Decimal(\"100\") else 0\n\n\ndef main(argv: list[str]) -> int:\n    print(shipping_cost(Decimal(argv[0])))\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main(sys.argv[1:]))\n",
+        "README.md": "Shipping contract: orders below 100 cost 10 to ship; orders of 100 or more ship free.\n",
+        ".gitignore": "__pycache__/\n.pytest_cache/\n",
+        "tests/test_shipping.py": "from __future__ import annotations\n\nimport subprocess\nimport sys\n\n\ndef run(total: str) -> subprocess.CompletedProcess[str]:\n    return subprocess.run([sys.executable, \"shipping.py\", total], text=True, capture_output=True, check=False)\n\n\ndef test_below_threshold_costs_ten() -> None:\n    result = run(\"99.99\")\n    assert result.returncode == 0\n    assert result.stdout == \"10\\n\"\n\n\ndef test_above_threshold_is_free() -> None:\n    result = run(\"100.01\")\n    assert result.returncode == 0\n    assert result.stdout == \"0\\n\"\n",
+        "notes.txt": "User note: preserve this file unchanged.\n"
+      },
+      "preexisting_changes": {
+        "shipping.py": "from __future__ import annotations\n\nfrom decimal import Decimal\nimport sys\n\n\ndef shipping_cost(total: Decimal) -> int:\n    return 10 if total <= Decimal(\"100\") else 0\n\n\ndef main(argv: list[str]) -> int:\n    print(shipping_cost(Decimal(argv[0])))\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main(sys.argv[1:]))\n"
+      },
+      "protected_paths": ["notes.txt"],
+      "test_command": ["python3", "-m", "pytest", "-q"],
+      "current_behavior_probes": [],
+      "preserved_behavior_probes": [],
+      "behavior_probes": [
+        {"name": "threshold-runtime", "command": ["python3", "shipping.py", "100"], "exit_code": 0, "stdout": "10\n"}
+      ]
     }
   },
   "evaluation": {

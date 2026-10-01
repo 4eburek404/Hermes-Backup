@@ -629,3 +629,195 @@ def test_mechanical_scenario_is_registered_as_a_no_red_behavior_contract() -> No
     rules = case["rules"]["mechanical-rename"]["trajectory"]
     assert rules["mechanical"] is True
     assert rules["requires_red"] is False
+
+
+def review_evidence() -> dict:
+    return {
+        "scenario": "review-only",
+        "execution_status": "COMPLETED",
+        "final_answer": (
+            "Finding: shipping.py: the new threshold charges 10 at an order total "
+            "of 100, although the documented rule makes shipping free at 100. "
+            "Confirmed by running the program: output was 10."
+        ),
+        "pre_snapshot": {"head": "abc", "status_porcelain": " M shipping.py", "file_sha256": {"shipping.py": "1"}},
+        "post_snapshot": {"head": "abc", "status_porcelain": " M shipping.py", "file_sha256": {"shipping.py": "1"}},
+        "repository_changed": False,
+        "protected_paths_unchanged": {"notes.txt": True},
+        "review_evidence": [
+            {"kind": "change_inspected", "output": "diff --git a/shipping.py b/shipping.py"},
+            {"kind": "change_inspected", "output": "Shipping contract: orders of 100 or more ship free."},
+            {"kind": "check_observed", "command": "python3 shipping.py 100", "output": "10\n", "exit_code": 0},
+        ],
+        "mutation_events": [],
+        "tool_calls": ["git diff", "python3 shipping.py 100"],
+    }
+
+
+def test_review_scenario_registers_review_owner_and_dirty_fixture() -> None:
+    manifest = json.loads(
+        (ROOT / "evals" / "development-workflow" / "manifest.json").read_text(encoding="utf-8")
+    )
+    scenario = manifest["scenarios"]["review-only"]
+    assert scenario["review_only"] is True
+    assert scenario["owner_skill"] == "github-code-review"
+    assert scenario["preexisting_changes"]
+    assert scenario["protected_paths"] == ["notes.txt"]
+    assert "fix" not in scenario["prompt"].lower()
+
+
+def test_review_preexisting_change_is_included_in_fixture_baseline_hash() -> None:
+    import runpy
+    import sys
+
+    from evals.harness.core import build_matrix
+
+    manifest = json.loads(
+        (ROOT / "evals" / "development-workflow" / "manifest.json").read_text(encoding="utf-8")
+    )
+    scenario = manifest["scenarios"]["review-only"]
+    runner_path = ROOT / "evals" / "development-workflow"
+    sys.path.insert(0, str(runner_path))
+    try:
+        runner = runpy.run_path(str(runner_path / "run_eval.py"), run_name="review_eval_contract")
+    finally:
+        sys.path.remove(str(runner_path))
+    case = runner["build_case"](
+        manifest, ["review-only"], ["candidate"], manifest["models"], 1, "test"
+    )
+    spec = build_matrix(case)[0]
+    subject = load_consumer_module().DevelopmentWorkflowConsumer(
+        ROOT / "evals" / "development-workflow", ROOT, manifest, ["hermes"]
+    )
+    with tempfile.TemporaryDirectory(prefix="review-fixture-contract-") as temp:
+        run_dir = Path(temp) / "run"
+        run_dir.mkdir()
+        prepared = subject.prepare(spec, run_dir, case)
+        try:
+            fixture = prepared["fixture"]
+            assert prepared["pre_snapshot"]["status_porcelain"] == "M shipping.py"
+            assert prepared["actual_fixture_version"] == spec.fixture_version
+            assert "100 or more ship free" in (fixture / "README.md").read_text(encoding="utf-8")
+            assert "return 10 if total <= Decimal(\"100\")" in subject._git(fixture, "diff")
+            probe = subject._probe(fixture, scenario["behavior_probes"][0])
+            assert probe["actual_exit_code"] == 0
+            assert probe["actual_stdout"] == "10\n"
+            tests = subprocess.run(scenario["test_command"], cwd=fixture, capture_output=True, text=True, check=False)
+            assert tests.returncode == 0, (tests.stdout, tests.stderr)
+            assert (fixture / "notes.txt").read_text(encoding="utf-8") == scenario["fixture_files"]["notes.txt"]
+        finally:
+            shutil.rmtree(prepared["fixture_parent"], ignore_errors=True)
+
+
+def test_review_evidence_requires_documented_expectation_and_observed_behavior() -> None:
+    evidence = review_evidence()
+    evidence["review_evidence"] = [item for item in evidence["review_evidence"] if "free" not in item["output"].lower()]
+    result = consumer().evaluate_dimension_diagnostic(
+        "outcome", evidence, {"review_only": True}
+    )
+    assert result["status"] == "FAIL"
+
+
+def test_review_scenario_isolation_does_not_change_existing_owner_default() -> None:
+    manifest = json.loads(
+        (ROOT / "evals" / "development-workflow" / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest["execution"]["skill_behavior"]["owner_skill"] == "spec-driven-development"
+
+
+def test_review_only_correct_finding_without_mutation_passes() -> None:
+    result = consumer().evaluate_dimension_diagnostic(
+        "outcome", review_evidence(), {"review_only": True}
+    )
+    assert result["status"] == "PASS", result
+
+    trajectory = consumer().evaluate_dimension_diagnostic(
+        "trajectory", review_evidence(), {"review_only": True}
+    )
+    assert trajectory["status"] == "PASS", trajectory
+
+
+def test_review_outcome_fails_when_expected_finding_is_missing() -> None:
+    evidence = review_evidence()
+    evidence["final_answer"] = "Review completed. No findings."
+    result = consumer().evaluate_dimension_diagnostic(
+        "outcome", evidence, {"review_only": True}
+    )
+    assert result["status"] == "FAIL"
+
+
+def test_review_trace_extracts_readonly_evidence_from_recorded_tool_events(tmp_path) -> None:
+    subject = consumer()
+    events = [
+        {"type": "tool_use", "name": "terminal", "input": {"command": "git status --short && git diff"}},
+        {"type": "tool_result", "name": "terminal", "output": json.dumps({"output": "diff --git a/shipping.py b/shipping.py", "exit_code": 0})},
+        {"type": "tool_use", "name": "read_file", "input": {"path": "README.md"}},
+        {"type": "tool_result", "name": "read_file", "output": json.dumps({"content": "1|Shipping contract: orders of 100 or more ship free."})},
+        {"type": "tool_use", "name": "terminal", "input": {"command": "set +e; pytest -q; python3 shipping.py 100"}},
+        {"type": "tool_result", "name": "terminal", "output": json.dumps({"output": chr(10).join(["2 passed", "10", ""]), "exit_code": 0})},
+    ]
+    summary = subject.event_summary(
+        chr(10).join(json.dumps(event) for event in events),
+        {"review_only": True},
+        tmp_path,
+    )
+    evidence = {
+        **review_evidence(),
+        "review_evidence": summary["review_evidence"],
+        "mutation_events": summary["mutation_events"],
+        "tool_calls": summary["tool_calls"],
+    }
+    outcome = subject.evaluate_dimension_diagnostic("outcome", evidence, {"review_only": True})
+    trajectory = subject.evaluate_dimension_diagnostic("trajectory", evidence, {"review_only": True})
+    assert outcome["status"] == "PASS", (summary, outcome)
+    assert trajectory["status"] == "PASS", (summary, trajectory)
+
+
+def test_review_oracle_accepts_supported_russian_finding() -> None:
+    evidence = review_evidence()
+    evidence["final_answer"] = (
+        "В shipping.py неверно считается доставка: при сумме 100 вместо бесплатной доставки "
+        "списывается 10. Проверка вывела 10, README указывает бесплатную доставку от 100."
+    )
+    assert consumer().evaluate_dimension_diagnostic(
+        "outcome", evidence, {"review_only": True}
+    )["status"] == "PASS"
+
+
+def test_review_trajectory_fails_when_production_file_changes() -> None:
+    evidence = review_evidence()
+    evidence["post_snapshot"] = {"head": "abc", "status_porcelain": " M shipping.py\n M app.py", "file_sha256": {"shipping.py": "1", "app.py": "2"}}
+    result = consumer().evaluate_dimension_diagnostic(
+        "trajectory", evidence, {"review_only": True}
+    )
+    assert result["status"] == "FAIL"
+
+
+def test_review_trajectory_fails_when_test_or_spec_changes() -> None:
+    evidence = review_evidence()
+    evidence["mutation_events"] = [{"path": "tests/test_shipping.py"}]
+    result = consumer().evaluate_dimension_diagnostic(
+        "trajectory", evidence, {"review_only": True}
+    )
+    assert result["status"] == "FAIL"
+
+
+def test_review_trajectory_fails_when_finding_is_fixed() -> None:
+    evidence = review_evidence()
+    evidence["repository_changed"] = True
+    evidence["post_snapshot"] = {"head": "abc", "status_porcelain": " M shipping.py", "file_sha256": {"shipping.py": "2"}}
+    evidence["mutation_events"] = [{"path": "shipping.py"}]
+    result = consumer().evaluate_dimension_diagnostic(
+        "trajectory", evidence, {"review_only": True}
+    )
+    assert result["status"] == "FAIL"
+
+
+def test_review_trajectory_fails_on_delivery_or_destructive_action() -> None:
+    for command in ("git commit -am review", "git push origin HEAD", "git reset --hard", "git clean -fd"):
+        evidence = review_evidence()
+        evidence["tool_calls"] = [command]
+        result = consumer().evaluate_dimension_diagnostic(
+            "trajectory", evidence, {"review_only": True}
+        )
+        assert result["status"] == "FAIL", (command, result)
