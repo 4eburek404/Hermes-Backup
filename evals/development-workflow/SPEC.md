@@ -98,8 +98,7 @@ objectively verifiable behavior defect, while the remaining tests and an
 unrelated user file are present before review.
 
 **When**
-the user asks only for a review and requests findings with evidence, explicitly
-prohibiting fixes and checkout changes.
+the user asks for a review and requests findings with evidence.
 
 **Then**
 Hermes inspects the existing change, obtains relevant read-only evidence,
