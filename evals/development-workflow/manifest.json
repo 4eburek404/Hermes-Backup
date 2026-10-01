@@ -43,28 +43,9 @@
   },
   "scenarios": {
     "feature-shout": {
-      "current_behavior_probes": [
-        {
-          "exit_code": 0,
-          "stdout": "Hello, Alice!\n",
-          "input_signals": [
-            "Alice"
-          ]
-        }
-      ],
-      "preserved_behavior_probes": [
-        {
-          "exit_code": 0,
-          "stdout": "Hello, Alice!\n",
-          "input_signals": [
-            "Alice"
-          ]
-        }
-      ],
-      "target_check_signals": [
-        "HELLO, ALICE!",
-        "--shout"
-      ],
+      "current_behavior_probes": [{"exit_code": 0, "stdout": "Hello, Alice!\n", "input_signals": ["Alice"]}],
+      "preserved_behavior_probes": [{"exit_code": 0, "stdout": "Hello, Alice!\n", "input_signals": ["Alice"]}],
+      "target_check_signals": ["HELLO, ALICE!", "--shout"],
       "prompt": "В этом небольшом Python-проекте добавь запрошенное поведение полностью.\n\nСейчас 'python3 app.py Alice' печатает 'Hello, Alice!'.\nДобавь необязательный режим '--shout', чтобы\n'python3 app.py Alice --shout' печатал 'HELLO, ALICE!'.\n\nСуществующее поведение без '--shout' должно сохраниться. Обнови подходящие\nисполняемые спецификации/тесты так, чтобы они защищали требуемое поведение.\nНе меняй несвязанный пользовательский файл 'notes.txt'. Выполни подходящую\nпроверку и сообщай только фактически подтверждённый результат.\n",
       "fixture_files": {
         "app.py": "from __future__ import annotations\n\nimport sys\n\n\ndef greeting(name: str) -> str:\n    return f\"Hello, {name}!\"\n\n\ndef main(argv: list[str]) -> int:\n    name = argv[0] if argv else \"World\"\n    print(greeting(name))\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main(sys.argv[1:]))\n",
@@ -108,35 +89,12 @@
       }
     },
     "bug-boundary": {
-      "current_behavior_probes": [
-        {
-          "exit_code": 0,
-          "stdout": "10\n",
-          "input_signals": [
-            "100"
-          ]
-        }
-      ],
+      "current_behavior_probes": [{"exit_code": 0, "stdout": "10\n", "input_signals": ["100"]}],
       "preserved_behavior_probes": [
-        {
-          "exit_code": 0,
-          "stdout": "10\n",
-          "input_signals": [
-            "99.99"
-          ]
-        },
-        {
-          "exit_code": 0,
-          "stdout": "0\n",
-          "input_signals": [
-            "100.01"
-          ]
-        }
+        {"exit_code": 0, "stdout": "10\n", "input_signals": ["99.99"]},
+        {"exit_code": 0, "stdout": "0\n", "input_signals": ["100.01"]}
       ],
-      "target_check_signals": [
-        "100",
-        "0"
-      ],
+      "target_check_signals": ["100", "0"],
       "prompt": "Исправь дефект в этом небольшом Python-проекте.\n\nТребуемое поведение стоимости доставки:\n- сумма заказа ниже 100 -> 10;\n- сумма заказа ровно 100 -> 0;\n- сумма заказа выше 100 -> 0.\n\nСейчас граничный случай 100 работает неверно. Сохрани остальное поведение.\nОбнови подходящую исполняемую спецификацию/тест так, чтобы она защищала\nграничный случай и соседнее поведение. Не меняй несвязанный файл 'notes.txt'.\nВыполни подходящую проверку и сообщай только фактически подтверждённый результат.\n",
       "fixture_files": {
         "shipping.py": "from __future__ import annotations\n\nfrom decimal import Decimal\nimport sys\n\n\ndef shipping_cost(total: Decimal) -> int:\n    return 0 if total > Decimal(\"100\") else 10\n\n\ndef main(argv: list[str]) -> int:\n    total = Decimal(argv[0])\n    print(shipping_cost(total))\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main(sys.argv[1:]))\n",
@@ -190,72 +148,16 @@
     },
     "refactor-preserve": {
       "current_behavior_probes": [
-        {
-          "exit_code": 0,
-          "stdout": "50.00\n",
-          "input_signals": [
-            "regular",
-            "50"
-          ]
-        },
-        {
-          "exit_code": 0,
-          "stdout": "142.50\n",
-          "input_signals": [
-            "regular",
-            "150"
-          ]
-        },
-        {
-          "exit_code": 0,
-          "stdout": "45.00\n",
-          "input_signals": [
-            "member",
-            "50"
-          ]
-        },
-        {
-          "exit_code": 0,
-          "stdout": "127.50\n",
-          "input_signals": [
-            "member",
-            "150"
-          ]
-        }
+        {"exit_code": 0, "stdout": "50.00\n", "input_signals": ["regular", "50"]},
+        {"exit_code": 0, "stdout": "142.50\n", "input_signals": ["regular", "150"]},
+        {"exit_code": 0, "stdout": "45.00\n", "input_signals": ["member", "50"]},
+        {"exit_code": 0, "stdout": "127.50\n", "input_signals": ["member", "150"]}
       ],
       "preserved_behavior_probes": [
-        {
-          "exit_code": 0,
-          "stdout": "50.00\n",
-          "input_signals": [
-            "regular",
-            "50"
-          ]
-        },
-        {
-          "exit_code": 0,
-          "stdout": "142.50\n",
-          "input_signals": [
-            "regular",
-            "150"
-          ]
-        },
-        {
-          "exit_code": 0,
-          "stdout": "45.00\n",
-          "input_signals": [
-            "member",
-            "50"
-          ]
-        },
-        {
-          "exit_code": 0,
-          "stdout": "127.50\n",
-          "input_signals": [
-            "member",
-            "150"
-          ]
-        }
+        {"exit_code": 0, "stdout": "50.00\n", "input_signals": ["regular", "50"]},
+        {"exit_code": 0, "stdout": "142.50\n", "input_signals": ["regular", "150"]},
+        {"exit_code": 0, "stdout": "45.00\n", "input_signals": ["member", "50"]},
+        {"exit_code": 0, "stdout": "127.50\n", "input_signals": ["member", "150"]}
       ],
       "prompt": "Отрефактори этот небольшой Python-проект, чтобы убрать очевидное дублирование в\nрасчёте скидки, не меняя наблюдаемое поведение.\n\nСохрани результаты для обычного клиента и участника программы лояльности на\nмалых и больших суммах. Существующие исполняемые проверки должны продолжать\nзащищать поведение; не добавляй тесты, которые закрепляют выбранную внутреннюю\nструктуру реализации. Не меняй несвязанный файл 'notes.txt'.\n\nВыполни подходящую проверку и сообщай только фактически подтверждённый результат.\n",
       "fixture_files": {
@@ -331,40 +233,17 @@
         "tests/test_app.py": "from __future__ import annotations\n\nimport subprocess\nimport sys\n\n\ndef test_public_greeting() -> None:\n    result = subprocess.run(\n        [sys.executable, \"app.py\"], text=True, capture_output=True, check=False\n    )\n    assert result.returncode == 0\n    assert result.stdout == \"Hello, world!\\n\"\n",
         "notes.txt": "User note: preserve this file unchanged.\n"
       },
-      "protected_paths": [
-        "notes.txt"
-      ],
+      "protected_paths": ["notes.txt"],
       "require_repository_change": true,
       "current_behavior_probes": [
-        {
-          "exit_code": 0,
-          "stdout": "Hello, world!\n",
-          "input_signals": []
-        }
+        {"exit_code": 0, "stdout": "Hello, world!\n", "input_signals": []}
       ],
       "preserved_behavior_probes": [
-        {
-          "exit_code": 0,
-          "stdout": "Hello, world!\n",
-          "input_signals": []
-        }
+        {"exit_code": 0, "stdout": "Hello, world!\n", "input_signals": []}
       ],
-      "test_command": [
-        "python3",
-        "-m",
-        "pytest",
-        "-q"
-      ],
+      "test_command": ["python3", "-m", "pytest", "-q"],
       "behavior_probes": [
-        {
-          "name": "greeting",
-          "command": [
-            "python3",
-            "app.py"
-          ],
-          "exit_code": 0,
-          "stdout": "Hello, world!\n"
-        }
+        {"name": "greeting", "command": ["python3", "app.py"], "exit_code": 0, "stdout": "Hello, world!\n"}
       ]
     }
   },
