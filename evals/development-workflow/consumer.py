@@ -171,6 +171,10 @@ def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture:
     for rec in records:
         if rec.get("check_result"):
             facts.append({"kind": "target_check_" + rec["check_result"], "index": rec["index"], "output": rec["output"]})
+            if rec["check_result"] == "failed":
+                facts.append({"kind": "verification_failed", "index": rec["index"]})
+        if any(change["verification_file"] for change in rec.get("file_changes", [])):
+            facts.append({"kind": "verification_changed", "index": rec["index"]})
         if any(not change["verification_file"] for change in rec.get("file_changes", [])):
             facts.append({"kind": "production_changed", "index": rec["index"]})
     source_change_indices = [rec["index"] for rec in records
@@ -767,6 +771,28 @@ class DevelopmentWorkflowConsumer:
             preserved = [event for event in events if event.get("kind") == "preserved_behavior_observed"]
             reasons: list[str] = []
             first_production = min(production) if production else None
+            if rules.get("mechanical"):
+                if not current or (first_production is not None and min(current) >= first_production):
+                    reasons.append("current observable behavior is UNCONFIRMED before mechanical change")
+                if first_production is None:
+                    reasons.append("mechanical production change is UNCONFIRMED")
+                if positions.get("verification_changed"):
+                    reasons.append("unnecessary regression/executable specification change")
+                if positions.get("verification_failed"):
+                    reasons.append("artificial RED or failing verification was observed")
+                post_change_pass = [index for index in passed
+                                    if first_production is not None and index > first_production]
+                if not post_change_pass:
+                    reasons.append("proportionate verification after mechanical change is UNCONFIRMED")
+                required_preserved = int(rules.get("preserved_probe_count", 0))
+                after_change = [event for event in preserved if first_production is not None
+                                and int(event.get("index", -1)) > first_production]
+                observed_ids = {event.get("probe_index") for event in after_change}
+                preserved_count = len(observed_ids) if None not in observed_ids else len(after_change)
+                if preserved_count < required_preserved:
+                    reasons.append("observable behavior was not preserved after mechanical change")
+                return {"status": "FAIL" if reasons else "PASS",
+                        "reason": "; ".join(reasons) if reasons else None}
             required_current = int(rules.get("current_probe_count", 1))
             current_before_change = [event for event in events
                                      if event.get("kind") == "current_behavior_observed"

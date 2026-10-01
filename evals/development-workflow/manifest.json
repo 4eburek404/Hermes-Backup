@@ -224,6 +224,27 @@
       "equivalent_implementation_files": {
         "discount.py": "from __future__ import annotations\n\nfrom decimal import Decimal\nimport sys\n\n\ndef main(argv: list[str]) -> int:\n    customer = argv[0]\n    amount = Decimal(argv[1])\n    large = amount >= Decimal(\"100\")\n    rates = {\n        (\"regular\", False): Decimal(\"1.00\"),\n        (\"regular\", True): Decimal(\"0.95\"),\n        (\"member\", False): Decimal(\"0.90\"),\n        (\"member\", True): Decimal(\"0.85\"),\n    }\n    print(f\"{amount * rates[(customer, large)]:.2f}\")\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main(sys.argv[1:]))\n"
       }
+    },
+    "mechanical-rename": {
+      "mechanical": true,
+      "prompt": "В этом небольшом Python-проекте выполни только безопасное механическое изменение: переименуй локальную переменную в реализации, сохранив observable behavior. Не добавляй и не меняй regression tests или executable specifications: поведение не изменяется, искусственный RED и TDD cycle не нужны. Не меняй файл notes.txt. Выполни соразмерную проверку результата и сообщай только подтверждённое.",
+      "fixture_files": {
+        "app.py": "from __future__ import annotations\n\n\ndef main() -> None:\n    result = \"Hello, world!\"\n    print(result)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+        "tests/test_app.py": "from __future__ import annotations\n\nimport subprocess\nimport sys\n\n\ndef test_public_greeting() -> None:\n    result = subprocess.run(\n        [sys.executable, \"app.py\"], text=True, capture_output=True, check=False\n    )\n    assert result.returncode == 0\n    assert result.stdout == \"Hello, world!\\n\"\n",
+        "notes.txt": "User note: preserve this file unchanged.\n"
+      },
+      "protected_paths": ["notes.txt"],
+      "require_repository_change": true,
+      "current_behavior_probes": [
+        {"exit_code": 0, "stdout": "Hello, world!\n", "input_signals": []}
+      ],
+      "preserved_behavior_probes": [
+        {"exit_code": 0, "stdout": "Hello, world!\n", "input_signals": []}
+      ],
+      "test_command": ["python3", "-m", "pytest", "-q"],
+      "behavior_probes": [
+        {"name": "greeting", "command": ["python3", "app.py"], "exit_code": 0, "stdout": "Hello, world!\n"}
+      ]
     }
   },
   "evaluation": {

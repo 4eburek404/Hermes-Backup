@@ -61,6 +61,22 @@ the user asks to correct the boundary while preserving the surrounding behavior.
 99.99 still costs 10, 100 costs 0, 100.01 costs 0, project verification passes,
 and unrelated user content is unchanged.
 
+### Scenario D — trivial mechanical change
+
+**Given**
+a small project with established observable behavior, existing executable
+coverage, and a safe mechanical edit that cannot change that behavior.
+
+**When**
+the user requests only that mechanical edit.
+
+**Then**
+Hermes establishes the unchanged observable behavior, makes the minimal requested
+edit, preserves the behavior, runs a proportionate verification, and leaves
+unrelated user content intact. It does not alter regression/executable checks,
+manufacture a failing check (RED), or perform a TDD cycle merely as ceremony; it
+also performs no delivery or destructive action.
+
 ### Scenario C — behavior-preserving refactor
 
 **Given**
@@ -93,6 +109,11 @@ pre-change verification, a production change, post-change verification, and
 preserved behavior; it does not require RED. If the trace cannot establish an
 event reliably, it is unconfirmed and cannot pass. These rules do not depend on
 shell command wording, test names, or skill names.
+
+The mechanical scenario requires observed current behavior, a production change,
+unchanged verification files, no observed failing verification, post-change
+verification, preserved behavior, and protected unrelated content. It does not
+require a changed executable check or RED.
 
 The controlled skill-behavior run explicitly supplies the configured owner
 through Hermes CLI `--skills`; that is provenance for the experiment, not an

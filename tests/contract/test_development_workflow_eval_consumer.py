@@ -453,9 +453,9 @@ def test_seed_specs_accept_behavior_equivalent_implementations() -> None:
                 baseline.stderr,
             )
 
-            for relative, content in scenario[
-                "equivalent_implementation_files"
-            ].items():
+            for relative, content in scenario.get(
+                "equivalent_implementation_files", {}
+            ).items():
                 path = root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(content, encoding="utf-8")
@@ -543,3 +543,89 @@ def test_eval_setup_accepts_its_complete_fixture_fingerprint() -> None:
     finally:
         if prepared is not None:
             shutil.rmtree(prepared["fixture_parent"], ignore_errors=True)
+
+
+def test_mechanical_trajectory_allows_minimal_change_without_test_ceremony() -> None:
+    subject = consumer()
+    evidence = grounded_evidence()
+    evidence["workflow_events"] = [
+        {"kind": "current_behavior_observed", "index": 1, "probe_index": 0},
+        {"kind": "target_check_passed", "index": 2},
+        {"kind": "production_changed", "index": 3},
+        {"kind": "target_check_passed", "index": 4},
+        {"kind": "preserved_behavior_observed", "index": 5, "probe_index": 0},
+    ]
+
+    result = subject.evaluate_dimension_diagnostic(
+        "trajectory", evidence,
+        {"mechanical": True, "preserved_probe_count": 1},
+    )
+
+    assert result["status"] == "PASS", result
+
+
+def test_mechanical_trajectory_rejects_regression_edits_artificial_red_and_missing_check() -> None:
+    subject = consumer()
+    base = grounded_evidence()
+    base["workflow_events"] = [
+        {"kind": "current_behavior_observed", "index": 1, "probe_index": 0},
+        {"kind": "production_changed", "index": 2},
+        {"kind": "target_check_passed", "index": 3},
+        {"kind": "preserved_behavior_observed", "index": 4, "probe_index": 0},
+    ]
+    rules = {"mechanical": True, "preserved_probe_count": 1}
+
+    for invalid_event, expected_reason in [
+        ({"kind": "verification_changed", "index": 2}, "unnecessary regression"),
+        ({"kind": "verification_failed", "index": 2}, "artificial RED"),
+    ]:
+        evidence = {**base, "workflow_events": [*base["workflow_events"], invalid_event]}
+        result = subject.evaluate_dimension_diagnostic("trajectory", evidence, rules)
+        assert result["status"] == "FAIL"
+        assert expected_reason in result["reason"]
+
+    missing_check = {
+        **base,
+        "workflow_events": [
+            event for event in base["workflow_events"]
+            if event["kind"] != "target_check_passed"
+        ],
+    }
+    result = subject.evaluate_dimension_diagnostic("trajectory", missing_check, rules)
+    assert result["status"] == "FAIL"
+    assert "verification after mechanical change" in result["reason"]
+
+    missing_current = {
+        **base,
+        "workflow_events": [
+            event for event in base["workflow_events"]
+            if event["kind"] != "current_behavior_observed"
+        ],
+    }
+    result = subject.evaluate_dimension_diagnostic("trajectory", missing_current, rules)
+    assert result["status"] == "FAIL"
+    assert "current observable behavior" in result["reason"]
+
+
+def test_mechanical_scenario_is_registered_as_a_no_red_behavior_contract() -> None:
+    import runpy
+
+    manifest = json.loads(
+        (ROOT / "evals" / "development-workflow" / "manifest.json").read_text(encoding="utf-8")
+    )
+    scenario = manifest["scenarios"]["mechanical-rename"]
+    assert scenario["mechanical"] is True
+    assert len(scenario["current_behavior_probes"]) == 1
+    assert scenario["current_behavior_probes"] == scenario["preserved_behavior_probes"]
+    assert scenario["protected_paths"] == ["notes.txt"]
+    import sys
+    runner_path = ROOT / "evals" / "development-workflow"
+    sys.path.insert(0, str(runner_path))
+    try:
+        runner = runpy.run_path(str(runner_path / "run_eval.py"), run_name="mechanical_eval_test")
+    finally:
+        sys.path.remove(str(runner_path))
+    case = runner["build_case"](manifest, ["mechanical-rename"], ["candidate"], manifest["models"], 1, "test")
+    rules = case["rules"]["mechanical-rename"]["trajectory"]
+    assert rules["mechanical"] is True
+    assert rules["requires_red"] is False

@@ -72,7 +72,8 @@ def build_case(
             },
             "trajectory": {
                 **dict(global_trajectory),
-                "requires_red": scenario != "refactor-preserve",
+                "requires_red": scenario not in {"refactor-preserve"} and not cfg.get("mechanical", False),
+                "mechanical": bool(cfg.get("mechanical", False)),
                 "preserved_probe_count": len(cfg.get("preserved_behavior_probes", [])),
                 "current_probe_count": len(cfg.get("current_behavior_probes", [])),
                 "target_failure_signal": (cfg.get("target_check_signals") or [None])[0],
