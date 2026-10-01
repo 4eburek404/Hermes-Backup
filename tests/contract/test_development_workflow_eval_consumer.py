@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -532,9 +533,13 @@ def test_eval_setup_accepts_its_complete_fixture_fingerprint() -> None:
         hermes_command=["hermes"],
     )
 
-    with tempfile.TemporaryDirectory(prefix="bdd-fingerprint-") as temp:
-        run_dir = Path(temp) / "run"
-        run_dir.mkdir()
-        prepared = subject.prepare(spec, run_dir, case)
-
-    assert prepared["actual_fixture_version"] == spec.fixture_version
+    prepared = None
+    try:
+        with tempfile.TemporaryDirectory(prefix="bdd-fingerprint-") as temp:
+            run_dir = Path(temp) / "run"
+            run_dir.mkdir()
+            prepared = subject.prepare(spec, run_dir, case)
+            assert prepared["actual_fixture_version"] == spec.fixture_version
+    finally:
+        if prepared is not None:
+            shutil.rmtree(prepared["fixture_parent"], ignore_errors=True)
