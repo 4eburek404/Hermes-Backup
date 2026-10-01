@@ -65,11 +65,13 @@ use the smallest bounded assumption and state it.
 
 ### 3. Define target behavior
 
-Before changing production code, define only the relevant target behavior:
-inputs, observable outputs, errors, constraints, meaningful edge cases, public
-contract, and non-goals. Specify behavior rather than private function names,
-class layout, call order, file layout, or framework choice. Given/When/Then is
-optional; BDD is not required.
+Before changing production code, define only the relevant target behavior: inputs,
+observable outputs, errors, constraints, meaningful edge cases, public contract,
+and non-goals. BDD is mandatory at the behavioral-contract level: identify the
+observable scenario and what evidence would distinguish the current behavior
+from the required behavior. Given/When/Then is optional. Specify behavior rather
+than private function names, class layout, call order, file layout, or framework
+choice.
 
 ### 4. Map requirements to checks
 
@@ -82,6 +84,38 @@ or integration verification when automation is impractical.
 Audit existing tests/specs against the target behavior. Classify them as correct,
 partial, irrelevant, stale, contradictory, or implementation-coupled. A green
 suite that does not prove the target behavior is not sufficient.
+
+### 4a. Behavioral verification gate
+
+For new or changed behavior that needs regression protection, including bug fixes,
+complete this handoff before changing production implementation:
+
+1. Before editing the check, execute the current system or an existing
+   executable check at the relevant observable boundary and confirm what it
+   actually does. Source inspection alone, or a generic green-suite result that
+   does not expose the target behavior, is not current-behavior evidence. Then
+   define the required observable behavior at that boundary.
+2. Create, update, or select an executable check that expresses the required
+   behavior without prescribing internal implementation.
+3. Run that check against the current implementation and observe the expected
+   RED. For a bug fix, the failure must demonstrate the reported defect. Merely
+   editing a check, or seeing it pass after changing production code, does not
+   establish RED. Do not change production implementation until the expected
+   failure is confirmed; if it is not, refine or diagnose the check first.
+4. After the implementation change, run the same check and verify GREEN, then
+   verify the required existing behavior remains intact.
+
+For a behavior-preserving refactor, do not manufacture RED. First run suitable
+executable checks or characterization checks to confirm the observable behavior
+to preserve; then refactor and rerun those checks. Add a passing characterization
+check before the refactor only when existing checks do not adequately establish
+that behavior.
+
+This is SDD's required behavioral handoff and sequencing contract, not a second
+TDD procedure. `test-driven-development` owns the detailed RED/GREEN/REFACTOR
+loop and test design; invoke it when the change warrants that workflow. Checks
+must protect observable behavior, not filenames, symbols, implementation shape,
+command wording, or skill routing.
 
 ### 5. Choose the mode and baseline
 
