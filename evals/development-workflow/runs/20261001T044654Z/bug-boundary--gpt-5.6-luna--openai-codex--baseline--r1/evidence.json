@@ -1,0 +1,269 @@
+{
+  "agent_execution_count": 2,
+  "agent_started": true,
+  "behavior_probes": [
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "10\n",
+      "command": [
+        "python3",
+        "shipping.py",
+        "99.99"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "10\\n",
+      "name": "below-boundary",
+      "stderr": ""
+    },
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "0\n",
+      "command": [
+        "python3",
+        "shipping.py",
+        "100"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "0\\n",
+      "name": "boundary",
+      "stderr": ""
+    },
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "0\n",
+      "command": [
+        "python3",
+        "shipping.py",
+        "100.01"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "0\\n",
+      "name": "above-boundary",
+      "stderr": ""
+    }
+  ],
+  "command": [
+    "/home/konstantin/.local/bin/hermes",
+    "chat",
+    "--query-file",
+    "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T044654Z/bug-boundary--gpt-5.6-luna--openai-codex--baseline--r1/prompt.txt",
+    "--oneshot",
+    "--quiet",
+    "--format",
+    "stream-json",
+    "--model",
+    "gpt-5.6-luna",
+    "--provider",
+    "openai-codex",
+    "--toolsets",
+    "terminal,file,skills",
+    "--max-turns",
+    "36",
+    "--run-budget",
+    "240",
+    "--yolo",
+    "--source",
+    "eval"
+  ],
+  "comparable": true,
+  "diagnostics": {
+    "outcome": {
+      "reason": "behavior-equivalent evaluator fixture is invalid: below-boundary: stdout mismatch; boundary: stdout mismatch; above-boundary: stdout mismatch",
+      "status": "ERROR"
+    },
+    "privacy": {
+      "reason": "no privacy contract in this fixture",
+      "status": "UNDEFINED"
+    },
+    "trajectory": {
+      "reason": null,
+      "status": "PASS"
+    }
+  },
+  "elapsed_seconds": 61.68549739709124,
+  "ended_at": "2026-10-01T04:49:04.668367+00:00",
+  "equivalent_behavior_probes": [
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "10\n",
+      "command": [
+        "python3",
+        "shipping.py",
+        "99.99"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "10\\n",
+      "name": "below-boundary",
+      "stderr": ""
+    },
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "0\n",
+      "command": [
+        "python3",
+        "shipping.py",
+        "100"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "0\\n",
+      "name": "boundary",
+      "stderr": ""
+    },
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "0\n",
+      "command": [
+        "python3",
+        "shipping.py",
+        "100.01"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "0\\n",
+      "name": "above-boundary",
+      "stderr": ""
+    }
+  ],
+  "equivalent_test_result": {
+    "command": [
+      "python3",
+      "-m",
+      "pytest",
+      "-q"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": ".                                                                        [100%]\n1 passed in 0.14s\n"
+  },
+  "event_summary": {
+    "event_count": 128,
+    "skill_views": [],
+    "terminal_result": {
+      "duration_ms": 58202,
+      "exit_code": 0,
+      "session_id": "20261001_064804_4383c0",
+      "text": "\u0418\u0441\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u043e:\n\n- `shipping.py`: \u0431\u0435\u0441\u043f\u043b\u0430\u0442\u043d\u0430\u044f \u0434\u043e\u0441\u0442\u0430\u0432\u043a\u0430 \u0442\u0435\u043f\u0435\u0440\u044c \u043d\u0430\u0447\u0438\u043d\u0430\u0435\u0442\u0441\u044f \u043f\u0440\u0438 \u0441\u0443\u043c\u043c\u0435 `>= 100`.\n- `tests/test_shipping.py`: \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d\u0430 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u0441\u0443\u043c\u043c \u043d\u0438\u0436\u0435, \u0440\u043e\u0432\u043d\u043e \u043d\u0430 \u0433\u0440\u0430\u043d\u0438\u0446\u0435 \u0438 \u0432\u044b\u0448\u0435.\n- `notes.txt` \u043d\u0435 \u0438\u0437\u043c\u0435\u043d\u0451\u043d.\n\n\u041f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043d\u0430:\n- `pytest -q`: `1 passed`\n- `99.99 -> 10`, `100 -> 0`, `100.01 -> 0`\n- `git diff --check`: \u0431\u0435\u0437 \u043e\u0448\u0438\u0431\u043e\u043a.",
+      "timestamp": 1790830142877,
+      "tokens": {
+        "cache_read": 39936,
+        "cache_write": 0,
+        "input": 24512,
+        "output": 1718,
+        "total": 66166
+      },
+      "type": "result"
+    },
+    "tool_calls": [
+      "git status --short --branch && git log -1 --oneline",
+      "pytest -q",
+      "pytest -q",
+      "git diff --check && git diff --stat && git status --short && git diff -- notes.txt",
+      "python shipping.py 99.99 && python shipping.py 100 && python shipping.py 100.01"
+    ],
+    "tool_names": [
+      "search_files",
+      "search_files",
+      "terminal",
+      "read_file",
+      "read_file",
+      "read_file",
+      "terminal",
+      "patch",
+      "terminal",
+      "terminal",
+      "terminal"
+    ]
+  },
+  "execution_status": "COMPLETED",
+  "exit_code": 0,
+  "final_answer": "\u0418\u0441\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u043e:\n\n- `shipping.py`: \u0431\u0435\u0441\u043f\u043b\u0430\u0442\u043d\u0430\u044f \u0434\u043e\u0441\u0442\u0430\u0432\u043a\u0430 \u0442\u0435\u043f\u0435\u0440\u044c \u043d\u0430\u0447\u0438\u043d\u0430\u0435\u0442\u0441\u044f \u043f\u0440\u0438 \u0441\u0443\u043c\u043c\u0435 `>= 100`.\n- `tests/test_shipping.py`: \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d\u0430 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u0441\u0443\u043c\u043c \u043d\u0438\u0436\u0435, \u0440\u043e\u0432\u043d\u043e \u043d\u0430 \u0433\u0440\u0430\u043d\u0438\u0446\u0435 \u0438 \u0432\u044b\u0448\u0435.\n- `notes.txt` \u043d\u0435 \u0438\u0437\u043c\u0435\u043d\u0451\u043d.\n\n\u041f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043d\u0430:\n- `pytest -q`: `1 passed`\n- `99.99 -> 10`, `100 -> 0`, `100.01 -> 0`\n- `git diff --check`: \u0431\u0435\u0437 \u043e\u0448\u0438\u0431\u043e\u043a.",
+  "fixture_version": "955558b0beb5787e5f739bdbb72ddccffe2f5a10fce38d8d4633360c17789e20",
+  "metadata_path": "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T044654Z/bug-boundary--gpt-5.6-luna--openai-codex--baseline--r1/metadata.json",
+  "mode": "recorded-local-fixture",
+  "model": "gpt-5.6-luna",
+  "post_snapshot": {
+    "file_sha256": {
+      "notes.txt": "5cd635dc875b6cfb0171cd062d756f0bbfff06c0cb3a73c7fb193449eebd04d4",
+      "shipping.py": "fce29f101de02935a72ca8cb975ce81a284f8601e5b07071ebfd0b761d38d3c5",
+      "tests/__pycache__/test_shipping.cpython-311-pytest-9.1.1.pyc": "31cc3fe37c5ec9403ea1d6e217261ae3dfaa57a13865550bfd03841bd8b560e5",
+      "tests/test_shipping.py": "5fc93e97880fccf2a9f52b9cac3f3f3bdb5eccb0920a71c77748273a230a25cc"
+    },
+    "head": "3c84345c04c208593e6e50073f39d106a0347b82",
+    "status_porcelain": "M shipping.py\n M tests/test_shipping.py\n?? tests/__pycache__/"
+  },
+  "pre_snapshot": {
+    "file_sha256": {
+      "notes.txt": "5cd635dc875b6cfb0171cd062d756f0bbfff06c0cb3a73c7fb193449eebd04d4",
+      "shipping.py": "7368ac1cda4790ff302986f6bc3e641b10d8afaf7d281aeb2eef21484ba7905c",
+      "tests/test_shipping.py": "9aacb6fe599b326d268f16501d1c6f7278e04b396f17fae7797f7e979c640946"
+    },
+    "head": "3c84345c04c208593e6e50073f39d106a0347b82",
+    "status_porcelain": ""
+  },
+  "prompt_sha256": "1bdd5fd2d17d0188757fbfaced96aaa03e5089a30a69905fd8dbb7d6f5037a06",
+  "prompt_version": "1bdd5fd2d17d0188757fbfaced96aaa03e5089a30a69905fd8dbb7d6f5037a06",
+  "protected_paths_unchanged": {
+    "notes.txt": true
+  },
+  "provider": "openai-codex",
+  "raw_final_answer_path": "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T044654Z/bug-boundary--gpt-5.6-luna--openai-codex--baseline--r1/raw_final_answer.txt",
+  "raw_stderr_path": "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T044654Z/bug-boundary--gpt-5.6-luna--openai-codex--baseline--r1/raw_stderr.txt",
+  "raw_stream_path": "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T044654Z/bug-boundary--gpt-5.6-luna--openai-codex--baseline--r1/raw_stream.jsonl",
+  "repeat": 1,
+  "repository_changed": true,
+  "run_id": "bug-boundary--gpt-5.6-luna--openai-codex--baseline--r1",
+  "runtime_version": "Hermes Agent v0.21.4 (2026.9.21) \u00b7 upstream d3b25b52\nInstall directory: /home/konstantin/.hermes/hermes-agent\nInstall method: git\nPython: 3.11.15\nOpenAI SDK: 2.24.0\nUpdate available: 6250 commits behind \u2014 run 'hermes update'",
+  "scenario": "bug-boundary",
+  "skill_sources": [
+    {
+      "content_sha256": "c59d11ab95c452bd4e3f2d98ca01925b85ff55d378a5cca0d98378e4c3bf6f17",
+      "requested_ref": "ddab90073d5b00e44c0b2987217eef6ae14f67fb",
+      "resolved_commit": "ddab90073d5b00e44c0b2987217eef6ae14f67fb",
+      "skill_path": "hermes/skills/software-development",
+      "source": "git",
+      "working_tree_dirty": null
+    },
+    {
+      "content_sha256": "a643c2569e5599174f527670e120c836747f598481f96cf81c98bc197ccef8ca",
+      "requested_ref": "ddab90073d5b00e44c0b2987217eef6ae14f67fb",
+      "resolved_commit": "ddab90073d5b00e44c0b2987217eef6ae14f67fb",
+      "skill_path": "hermes/skills/github",
+      "source": "git",
+      "working_tree_dirty": null
+    }
+  ],
+  "skill_version": "baseline",
+  "skill_views": [],
+  "started_at": "2026-10-01T04:48:02.982813+00:00",
+  "test_result": {
+    "command": [
+      "python3",
+      "-m",
+      "pytest",
+      "-q"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": ".                                                                        [100%]\n1 passed in 0.14s\n"
+  },
+  "timed_out": false,
+  "tool_calls": [
+    "git status --short --branch && git log -1 --oneline",
+    "pytest -q",
+    "pytest -q",
+    "git diff --check && git diff --stat && git status --short && git diff -- notes.txt",
+    "python shipping.py 99.99 && python shipping.py 100 && python shipping.py 100.01"
+  ],
+  "tool_names": [
+    "search_files",
+    "search_files",
+    "terminal",
+    "read_file",
+    "read_file",
+    "read_file",
+    "terminal",
+    "patch",
+    "terminal",
+    "terminal",
+    "terminal"
+  ]
+}

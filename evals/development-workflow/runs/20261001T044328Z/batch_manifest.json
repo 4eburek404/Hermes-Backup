@@ -1,0 +1,101 @@
+{
+  "agent_execution_count": 0,
+  "comparison": {
+    "changed_material_conditions": [],
+    "controlled": false,
+    "retained_evidence_by_version": {
+      "baseline": [
+        "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T044328Z/feature-shout--gpt-5.6-luna--openai-codex--baseline--r1/evidence.json",
+        "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T044328Z/bug-boundary--gpt-5.6-luna--openai-codex--baseline--r1/evidence.json",
+        "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T044328Z/refactor-preserve--gpt-5.6-luna--openai-codex--baseline--r1/evidence.json"
+      ]
+    }
+  },
+  "consumer": "development-workflow",
+  "executed_run_ids": [
+    "feature-shout--gpt-5.6-luna--openai-codex--baseline--r1",
+    "bug-boundary--gpt-5.6-luna--openai-codex--baseline--r1",
+    "refactor-preserve--gpt-5.6-luna--openai-codex--baseline--r1"
+  ],
+  "expected_run_ids": [
+    "feature-shout--gpt-5.6-luna--openai-codex--baseline--r1",
+    "bug-boundary--gpt-5.6-luna--openai-codex--baseline--r1",
+    "refactor-preserve--gpt-5.6-luna--openai-codex--baseline--r1"
+  ],
+  "orchestrator_contract_version": "1",
+  "report_path": "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T044328Z/report.md",
+  "runs": [
+    {
+      "agent_started": false,
+      "comparable": false,
+      "error": "RuntimeError: fixture drift for feature-shout: 9e3df3f6578af55f5a43077aea91b51f85581f8d13256437e4b01ab65db4d472 != 101db1ef2079a339bab0dda89d85daa623624a088430c2bac96a9b85a2ec2254",
+      "evidence_id": "feature-shout--gpt-5.6-luna--openai-codex--baseline--r1",
+      "evidence_path": "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T044328Z/feature-shout--gpt-5.6-luna--openai-codex--baseline--r1/evidence.json",
+      "execution_status": "SETUP_FAILURE",
+      "fixture_version": "101db1ef2079a339bab0dda89d85daa623624a088430c2bac96a9b85a2ec2254",
+      "mode": "recorded-local-fixture",
+      "model": "gpt-5.6-luna",
+      "prompt_version": "f718451f0c2a14e426844a828f6245100cd179f0af7396435492287f6544a014",
+      "provider": "openai-codex",
+      "repeat": 1,
+      "run_id": "feature-shout--gpt-5.6-luna--openai-codex--baseline--r1",
+      "runtime_version": "Hermes Agent v0.21.4 (2026.9.21) \u00b7 upstream d3b25b52\nInstall directory: /home/konstantin/.hermes/hermes-agent\nInstall method: git\nPython: 3.11.15\nOpenAI SDK: 2.24.0\nUpdate available: 6250 commits behind \u2014 run 'hermes update'",
+      "scenario": "feature-shout",
+      "score": {
+        "outcome": "UNDEFINED",
+        "privacy": "UNDEFINED",
+        "trajectory": "UNDEFINED"
+      },
+      "score_path": "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T044328Z/feature-shout--gpt-5.6-luna--openai-codex--baseline--r1/score.json",
+      "skill_version": "baseline"
+    },
+    {
+      "agent_started": false,
+      "comparable": false,
+      "error": "RuntimeError: fixture drift for bug-boundary: 955558b0beb5787e5f739bdbb72ddccffe2f5a10fce38d8d4633360c17789e20 != 874c3bd725c227ef433d5da6f1b93d77045de49eb6d3ce9cf7e226a745964b3a",
+      "evidence_id": "bug-boundary--gpt-5.6-luna--openai-codex--baseline--r1",
+      "evidence_path": "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T044328Z/bug-boundary--gpt-5.6-luna--openai-codex--baseline--r1/evidence.json",
+      "execution_status": "SETUP_FAILURE",
+      "fixture_version": "874c3bd725c227ef433d5da6f1b93d77045de49eb6d3ce9cf7e226a745964b3a",
+      "mode": "recorded-local-fixture",
+      "model": "gpt-5.6-luna",
+      "prompt_version": "1bdd5fd2d17d0188757fbfaced96aaa03e5089a30a69905fd8dbb7d6f5037a06",
+      "provider": "openai-codex",
+      "repeat": 1,
+      "run_id": "bug-boundary--gpt-5.6-luna--openai-codex--baseline--r1",
+      "runtime_version": "Hermes Agent v0.21.4 (2026.9.21) \u00b7 upstream d3b25b52\nInstall directory: /home/konstantin/.hermes/hermes-agent\nInstall method: git\nPython: 3.11.15\nOpenAI SDK: 2.24.0\nUpdate available: 6250 commits behind \u2014 run 'hermes update'",
+      "scenario": "bug-boundary",
+      "score": {
+        "outcome": "UNDEFINED",
+        "privacy": "UNDEFINED",
+        "trajectory": "UNDEFINED"
+      },
+      "score_path": "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T044328Z/bug-boundary--gpt-5.6-luna--openai-codex--baseline--r1/score.json",
+      "skill_version": "baseline"
+    },
+    {
+      "agent_started": false,
+      "comparable": false,
+      "error": "RuntimeError: fixture drift for refactor-preserve: 3b96819d75eaea2ef9bada6c11afc5123b01d31460bd07ba529e68d8c8c87f5f != 6a8ba19db99ff5afbba3b5c6c69e32b9a70929830f405b577f41d1d6485cc536",
+      "evidence_id": "refactor-preserve--gpt-5.6-luna--openai-codex--baseline--r1",
+      "evidence_path": "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T044328Z/refactor-preserve--gpt-5.6-luna--openai-codex--baseline--r1/evidence.json",
+      "execution_status": "SETUP_FAILURE",
+      "fixture_version": "6a8ba19db99ff5afbba3b5c6c69e32b9a70929830f405b577f41d1d6485cc536",
+      "mode": "recorded-local-fixture",
+      "model": "gpt-5.6-luna",
+      "prompt_version": "80eb67d175c070720936093344970b4b5f78f1a10b244120992baf6564b76966",
+      "provider": "openai-codex",
+      "repeat": 1,
+      "run_id": "refactor-preserve--gpt-5.6-luna--openai-codex--baseline--r1",
+      "runtime_version": "Hermes Agent v0.21.4 (2026.9.21) \u00b7 upstream d3b25b52\nInstall directory: /home/konstantin/.hermes/hermes-agent\nInstall method: git\nPython: 3.11.15\nOpenAI SDK: 2.24.0\nUpdate available: 6250 commits behind \u2014 run 'hermes update'",
+      "scenario": "refactor-preserve",
+      "score": {
+        "outcome": "UNDEFINED",
+        "privacy": "UNDEFINED",
+        "trajectory": "UNDEFINED"
+      },
+      "score_path": "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T044328Z/refactor-preserve--gpt-5.6-luna--openai-codex--baseline--r1/score.json",
+      "skill_version": "baseline"
+    }
+  ]
+}

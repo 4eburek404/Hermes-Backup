@@ -1,0 +1,26 @@
+diff --git a/discount.py b/discount.py
+index bb6b2ed..afdd887 100644
+--- a/discount.py
++++ b/discount.py
+@@ -5,14 +5,14 @@ import sys
+ 
+ 
+ def final_price(customer: str, amount: Decimal) -> Decimal:
+-    if customer == "member":
+-        if amount >= Decimal("100"):
+-            return amount * Decimal("0.85")
+-        return amount * Decimal("0.90")
+-
+     if amount >= Decimal("100"):
+-        return amount * Decimal("0.95")
+-    return amount
++        rate = Decimal("0.85") if customer == "member" else Decimal("0.95")
++    elif customer == "member":
++        rate = Decimal("0.90")
++    else:
++        rate = Decimal("1")
++
++    return amount * rate
+ 
+ 
+ def main(argv: list[str]) -> int:

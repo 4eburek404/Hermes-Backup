@@ -1,0 +1,195 @@
+{
+  "behavior_probes": [
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "Hello, Alice!\n",
+      "command": [
+        "python3",
+        "app.py",
+        "Alice"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "Hello, Alice!\\n",
+      "name": "normal-greeting",
+      "stderr": ""
+    },
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "HELLO, ALICE!\n",
+      "command": [
+        "python3",
+        "app.py",
+        "Alice",
+        "--shout"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "HELLO, ALICE!\\n",
+      "name": "shout-greeting",
+      "stderr": ""
+    }
+  ],
+  "command": [
+    "/home/konstantin/.local/bin/hermes",
+    "chat",
+    "--query-file",
+    "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T044654Z/feature-shout--gpt-5.6-luna--openai-codex--baseline--r1/prompt.txt",
+    "--oneshot",
+    "--quiet",
+    "--format",
+    "stream-json",
+    "--model",
+    "gpt-5.6-luna",
+    "--provider",
+    "openai-codex",
+    "--toolsets",
+    "terminal,file,skills",
+    "--max-turns",
+    "36",
+    "--run-budget",
+    "240",
+    "--yolo",
+    "--source",
+    "eval"
+  ],
+  "elapsed_seconds": 66.67117294995114,
+  "ended_at": "2026-10-01T04:48:01.057480+00:00",
+  "equivalent_behavior_probes": [
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "Hello, Alice!\n",
+      "command": [
+        "python3",
+        "app.py",
+        "Alice"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "Hello, Alice!\\n",
+      "name": "normal-greeting",
+      "stderr": ""
+    },
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "HELLO, ALICE!\n",
+      "command": [
+        "python3",
+        "app.py",
+        "Alice",
+        "--shout"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "HELLO, ALICE!\\n",
+      "name": "shout-greeting",
+      "stderr": ""
+    }
+  ],
+  "equivalent_test_result": {
+    "command": [
+      "python3",
+      "-m",
+      "pytest",
+      "-q"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "..                                                                       [100%]\n2 passed in 0.10s\n"
+  },
+  "event_summary": {
+    "event_count": 120,
+    "skill_views": [],
+    "terminal_result": {
+      "duration_ms": 63293,
+      "exit_code": 0,
+      "session_id": "20261001_064655_97cd43",
+      "text": "\u0414\u043e\u0431\u0430\u0432\u043b\u0435\u043d\u043e:\n\n- `--shout` \u0432 `app.py`: `python3 app.py Alice --shout` \u0432\u044b\u0432\u043e\u0434\u0438\u0442 `HELLO, ALICE!`.\n- \u0421\u0443\u0449\u0435\u0441\u0442\u0432\u0443\u044e\u0449\u0438\u0439 \u0440\u0435\u0436\u0438\u043c \u0441\u043e\u0445\u0440\u0430\u043d\u0451\u043d: `python3 app.py Alice` \u0432\u044b\u0432\u043e\u0434\u0438\u0442 `Hello, Alice!`.\n- \u0414\u043e\u0431\u0430\u0432\u043b\u0435\u043d \u0438\u0441\u043f\u043e\u043b\u043d\u044f\u0435\u043c\u044b\u0439 \u0442\u0435\u0441\u0442 \u0434\u043b\u044f \u0440\u0435\u0436\u0438\u043c\u0430 `--shout`.\n- `notes.txt` \u043d\u0435 \u0438\u0437\u043c\u0435\u043d\u0451\u043d.\n\n\u041f\u0440\u043e\u0432\u0435\u0440\u043a\u0430: `python3 -m pytest -q` \u2014 `2 passed`.",
+      "timestamp": 1790830079444,
+      "tokens": {
+        "cache_read": 28160,
+        "cache_write": 0,
+        "input": 25353,
+        "output": 2214,
+        "total": 55727
+      },
+      "type": "result"
+    },
+    "tool_calls": [
+      "git status --short && git branch --show-current && git log -1 --oneline",
+      "git ls-files && git diff -- notes.txt",
+      "python3 -m pytest -q",
+      "printf '%s\\n' 'regular:' && python3 app.py Alice && printf '%s\\n' 'shout:' && python3 app.py Alice --shout",
+      "git status --short && git diff --check && git diff -- notes.txt"
+    ],
+    "tool_names": [
+      "search_files",
+      "search_files",
+      "terminal",
+      "read_file",
+      "read_file",
+      "terminal",
+      "patch",
+      "terminal",
+      "terminal",
+      "terminal"
+    ]
+  },
+  "execution_status": "COMPLETED",
+  "exit_code": 0,
+  "model": "gpt-5.6-luna",
+  "post_snapshot": {
+    "file_sha256": {
+      "app.py": "213140a72c6a2366d67287dc935bb830d5f0d0a7436af0d22ad297b11f7061f2",
+      "notes.txt": "5cd635dc875b6cfb0171cd062d756f0bbfff06c0cb3a73c7fb193449eebd04d4",
+      "tests/__pycache__/test_app.cpython-311-pytest-9.1.1.pyc": "58d5b8bb010425dcd07b82e1b2d16e91c44c2649315e1c0931e3384a6b9b2735",
+      "tests/test_app.py": "550c881b5a6f98b25fcde0d19adbc30f24bef61f1ec4783a1ea884aaa03bf221"
+    },
+    "head": "59f300ee5512b86d9530d197071ae2cf241030c4",
+    "status_porcelain": "M app.py\n M tests/test_app.py\n?? tests/__pycache__/"
+  },
+  "pre_snapshot": {
+    "file_sha256": {
+      "app.py": "607b12614693fa83efb672a5909d43c96f39a245bf41fcc76d998aaa9f51497f",
+      "notes.txt": "5cd635dc875b6cfb0171cd062d756f0bbfff06c0cb3a73c7fb193449eebd04d4",
+      "tests/test_app.py": "df162860553ff2816f237940a456863550cbb5111a2d57299010fe0b97d218e4"
+    },
+    "head": "59f300ee5512b86d9530d197071ae2cf241030c4",
+    "status_porcelain": ""
+  },
+  "prompt_sha256": "f718451f0c2a14e426844a828f6245100cd179f0af7396435492287f6544a014",
+  "protected_paths_unchanged": {
+    "notes.txt": true
+  },
+  "provider": "openai-codex",
+  "repository_changed": true,
+  "scenario": "feature-shout",
+  "skill_sources": [
+    {
+      "content_sha256": "c59d11ab95c452bd4e3f2d98ca01925b85ff55d378a5cca0d98378e4c3bf6f17",
+      "requested_ref": "ddab90073d5b00e44c0b2987217eef6ae14f67fb",
+      "resolved_commit": "ddab90073d5b00e44c0b2987217eef6ae14f67fb",
+      "skill_path": "hermes/skills/software-development",
+      "source": "git",
+      "working_tree_dirty": null
+    },
+    {
+      "content_sha256": "a643c2569e5599174f527670e120c836747f598481f96cf81c98bc197ccef8ca",
+      "requested_ref": "ddab90073d5b00e44c0b2987217eef6ae14f67fb",
+      "resolved_commit": "ddab90073d5b00e44c0b2987217eef6ae14f67fb",
+      "skill_path": "hermes/skills/github",
+      "source": "git",
+      "working_tree_dirty": null
+    }
+  ],
+  "skill_version": "baseline",
+  "started_at": "2026-10-01T04:46:54.386311+00:00",
+  "test_result": {
+    "command": [
+      "python3",
+      "-m",
+      "pytest",
+      "-q"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "..                                                                       [100%]\n2 passed in 0.11s\n"
+  },
+  "timed_out": false
+}

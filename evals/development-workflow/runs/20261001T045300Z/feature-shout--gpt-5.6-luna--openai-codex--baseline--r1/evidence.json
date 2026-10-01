@@ -1,0 +1,239 @@
+{
+  "agent_execution_count": 1,
+  "agent_started": true,
+  "behavior_probes": [
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "Hello, Alice!\n",
+      "command": [
+        "python3",
+        "app.py",
+        "Alice"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "Hello, Alice!\n",
+      "name": "normal-greeting",
+      "stderr": ""
+    },
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "HELLO, ALICE!\n",
+      "command": [
+        "python3",
+        "app.py",
+        "Alice",
+        "--shout"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "HELLO, ALICE!\n",
+      "name": "shout-greeting",
+      "stderr": ""
+    }
+  ],
+  "command": [
+    "/home/konstantin/.local/bin/hermes",
+    "chat",
+    "--query-file",
+    "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T045300Z/feature-shout--gpt-5.6-luna--openai-codex--baseline--r1/prompt.txt",
+    "--oneshot",
+    "--quiet",
+    "--format",
+    "stream-json",
+    "--model",
+    "gpt-5.6-luna",
+    "--provider",
+    "openai-codex",
+    "--toolsets",
+    "terminal,file,skills",
+    "--max-turns",
+    "36",
+    "--run-budget",
+    "240",
+    "--yolo",
+    "--source",
+    "eval"
+  ],
+  "comparable": true,
+  "diagnostics": {
+    "outcome": {
+      "reason": null,
+      "status": "PASS"
+    },
+    "privacy": {
+      "reason": "no privacy contract in this fixture",
+      "status": "UNDEFINED"
+    },
+    "trajectory": {
+      "reason": null,
+      "status": "PASS"
+    }
+  },
+  "elapsed_seconds": 67.28478377801366,
+  "ended_at": "2026-10-01T04:54:07.795653+00:00",
+  "equivalent_behavior_probes": [
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "Hello, Alice!\n",
+      "command": [
+        "python3",
+        "app.py",
+        "Alice"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "Hello, Alice!\n",
+      "name": "normal-greeting",
+      "stderr": ""
+    },
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "HELLO, ALICE!\n",
+      "command": [
+        "python3",
+        "app.py",
+        "Alice",
+        "--shout"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "HELLO, ALICE!\n",
+      "name": "shout-greeting",
+      "stderr": ""
+    }
+  ],
+  "equivalent_test_result": {
+    "command": [
+      "python3",
+      "-m",
+      "pytest",
+      "-q"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "..                                                                       [100%]\n2 passed in 0.11s\n"
+  },
+  "event_summary": {
+    "event_count": 118,
+    "skill_views": [],
+    "terminal_result": {
+      "duration_ms": 64428,
+      "exit_code": 0,
+      "session_id": "20261001_065302_1d9408",
+      "text": "\u0414\u043e\u0431\u0430\u0432\u043b\u0435\u043d \u043d\u0435\u043e\u0431\u044f\u0437\u0430\u0442\u0435\u043b\u044c\u043d\u044b\u0439 \u0440\u0435\u0436\u0438\u043c `--shout`:\n\n- `python3 app.py Alice` \u2192 `Hello, Alice!`\n- `python3 app.py Alice --shout` \u2192 `HELLO, ALICE!`\n- \u041f\u043e\u0432\u0435\u0434\u0435\u043d\u0438\u0435 \u043f\u043e \u0443\u043c\u043e\u043b\u0447\u0430\u043d\u0438\u044e `python3 app.py` \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u043e: `Hello, World!`\n\n\u041e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u044b `app.py` \u0438 `tests/test_app.py`. \u041f\u0440\u043e\u0432\u0435\u0440\u043a\u0430: `2 passed`. `notes.txt` \u043d\u0435 \u0438\u0437\u043c\u0435\u043d\u0451\u043d.",
+      "timestamp": 1790830446663,
+      "tokens": {
+        "cache_read": 41472,
+        "cache_write": 0,
+        "input": 13657,
+        "output": 2298,
+        "total": 57427
+      },
+      "type": "result"
+    },
+    "tool_calls": [
+      "git status --short --branch && printf '\\nFiles:\\n' && python3 - <<'PY'\nimport os\nfor root, dirs, files in os.walk('.'):\n    dirs[:] = [d for d in dirs if d != '.git']\n    for f in sorted(files):\n        print(os.path.join(root, f))\nPY",
+      "git diff -- notes.txt && git status --short -- notes.txt",
+      "python3 -m pytest -q",
+      "set -e\npython3 -m pytest -q\nprintf '\\nRegular:\\n'\npython3 app.py Alice\nprintf 'Shout:\\n'\npython3 app.py Alice --shout\nprintf 'Default:\\n'\npython3 app.py\nprintf '\\nGit status:\\n'\ngit status --short\nprintf '\\nNotes diff check:\\n'\ngit diff --exit-code -- notes.txt"
+    ],
+    "tool_names": [
+      "terminal",
+      "search_files",
+      "search_files",
+      "read_file",
+      "read_file",
+      "terminal",
+      "terminal",
+      "patch",
+      "terminal"
+    ]
+  },
+  "execution_status": "COMPLETED",
+  "exit_code": 0,
+  "final_answer": "\u0414\u043e\u0431\u0430\u0432\u043b\u0435\u043d \u043d\u0435\u043e\u0431\u044f\u0437\u0430\u0442\u0435\u043b\u044c\u043d\u044b\u0439 \u0440\u0435\u0436\u0438\u043c `--shout`:\n\n- `python3 app.py Alice` \u2192 `Hello, Alice!`\n- `python3 app.py Alice --shout` \u2192 `HELLO, ALICE!`\n- \u041f\u043e\u0432\u0435\u0434\u0435\u043d\u0438\u0435 \u043f\u043e \u0443\u043c\u043e\u043b\u0447\u0430\u043d\u0438\u044e `python3 app.py` \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u043e: `Hello, World!`\n\n\u041e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u044b `app.py` \u0438 `tests/test_app.py`. \u041f\u0440\u043e\u0432\u0435\u0440\u043a\u0430: `2 passed`. `notes.txt` \u043d\u0435 \u0438\u0437\u043c\u0435\u043d\u0451\u043d.",
+  "fixture_version": "9e3df3f6578af55f5a43077aea91b51f85581f8d13256437e4b01ab65db4d472",
+  "metadata_path": "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T045300Z/feature-shout--gpt-5.6-luna--openai-codex--baseline--r1/metadata.json",
+  "mode": "recorded-local-fixture",
+  "model": "gpt-5.6-luna",
+  "post_snapshot": {
+    "file_sha256": {
+      "app.py": "912c5eefbc9bb1b9547baf00c78846cc9381fcab046a0f9b1df211d5b5b2d3f3",
+      "notes.txt": "5cd635dc875b6cfb0171cd062d756f0bbfff06c0cb3a73c7fb193449eebd04d4",
+      "tests/__pycache__/test_app.cpython-311-pytest-9.1.1.pyc": "edc22285be8247ca9922979ff0026682f3afbb0c6b3f9099c9243c0013ae82f8",
+      "tests/test_app.py": "a7ada534c9e6d09ad4f6cddd0b4c6c918337c430878583ba2c89217c91c761fb"
+    },
+    "head": "59f300ee5512b86d9530d197071ae2cf241030c4",
+    "status_porcelain": "M app.py\n M tests/test_app.py\n?? tests/__pycache__/"
+  },
+  "pre_snapshot": {
+    "file_sha256": {
+      "app.py": "607b12614693fa83efb672a5909d43c96f39a245bf41fcc76d998aaa9f51497f",
+      "notes.txt": "5cd635dc875b6cfb0171cd062d756f0bbfff06c0cb3a73c7fb193449eebd04d4",
+      "tests/test_app.py": "df162860553ff2816f237940a456863550cbb5111a2d57299010fe0b97d218e4"
+    },
+    "head": "59f300ee5512b86d9530d197071ae2cf241030c4",
+    "status_porcelain": ""
+  },
+  "prompt_sha256": "f718451f0c2a14e426844a828f6245100cd179f0af7396435492287f6544a014",
+  "prompt_version": "f718451f0c2a14e426844a828f6245100cd179f0af7396435492287f6544a014",
+  "protected_paths_unchanged": {
+    "notes.txt": true
+  },
+  "provider": "openai-codex",
+  "raw_final_answer_path": "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T045300Z/feature-shout--gpt-5.6-luna--openai-codex--baseline--r1/raw_final_answer.txt",
+  "raw_stderr_path": "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T045300Z/feature-shout--gpt-5.6-luna--openai-codex--baseline--r1/raw_stderr.txt",
+  "raw_stream_path": "/home/konstantin/Hermes-Backup-SDD-skill/evals/development-workflow/runs/20261001T045300Z/feature-shout--gpt-5.6-luna--openai-codex--baseline--r1/raw_stream.jsonl",
+  "repeat": 1,
+  "repository_changed": true,
+  "run_id": "feature-shout--gpt-5.6-luna--openai-codex--baseline--r1",
+  "runtime_version": "Hermes Agent v0.21.4 (2026.9.21) \u00b7 upstream d3b25b52\nInstall directory: /home/konstantin/.hermes/hermes-agent\nInstall method: git\nPython: 3.11.15\nOpenAI SDK: 2.24.0\nUpdate available: 6250 commits behind \u2014 run 'hermes update'",
+  "scenario": "feature-shout",
+  "skill_sources": [
+    {
+      "content_sha256": "c59d11ab95c452bd4e3f2d98ca01925b85ff55d378a5cca0d98378e4c3bf6f17",
+      "requested_ref": "ddab90073d5b00e44c0b2987217eef6ae14f67fb",
+      "resolved_commit": "ddab90073d5b00e44c0b2987217eef6ae14f67fb",
+      "skill_path": "hermes/skills/software-development",
+      "source": "git",
+      "working_tree_dirty": null
+    },
+    {
+      "content_sha256": "a643c2569e5599174f527670e120c836747f598481f96cf81c98bc197ccef8ca",
+      "requested_ref": "ddab90073d5b00e44c0b2987217eef6ae14f67fb",
+      "resolved_commit": "ddab90073d5b00e44c0b2987217eef6ae14f67fb",
+      "skill_path": "hermes/skills/github",
+      "source": "git",
+      "working_tree_dirty": null
+    }
+  ],
+  "skill_version": "baseline",
+  "skill_views": [],
+  "started_at": "2026-10-01T04:53:00.510870+00:00",
+  "test_result": {
+    "command": [
+      "python3",
+      "-m",
+      "pytest",
+      "-q"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "..                                                                       [100%]\n2 passed in 0.11s\n"
+  },
+  "timed_out": false,
+  "tool_calls": [
+    "git status --short --branch && printf '\\nFiles:\\n' && python3 - <<'PY'\nimport os\nfor root, dirs, files in os.walk('.'):\n    dirs[:] = [d for d in dirs if d != '.git']\n    for f in sorted(files):\n        print(os.path.join(root, f))\nPY",
+    "git diff -- notes.txt && git status --short -- notes.txt",
+    "python3 -m pytest -q",
+    "set -e\npython3 -m pytest -q\nprintf '\\nRegular:\\n'\npython3 app.py Alice\nprintf 'Shout:\\n'\npython3 app.py Alice --shout\nprintf 'Default:\\n'\npython3 app.py\nprintf '\\nGit status:\\n'\ngit status --short\nprintf '\\nNotes diff check:\\n'\ngit diff --exit-code -- notes.txt"
+  ],
+  "tool_names": [
+    "terminal",
+    "search_files",
+    "search_files",
+    "read_file",
+    "read_file",
+    "terminal",
+    "terminal",
+    "patch",
+    "terminal"
+  ]
+}

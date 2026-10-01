@@ -1,0 +1,53 @@
+diff --git a/app.py b/app.py
+index c859e8f..160b120 100644
+--- a/app.py
++++ b/app.py
+@@ -1,15 +1,21 @@
+ from __future__ import annotations
+ 
++import argparse
+ import sys
+ 
+ 
+-def greeting(name: str) -> str:
+-    return f"Hello, {name}!"
++def greeting(name: str, *, shout: bool = False) -> str:
++    message = f"Hello, {name}!"
++    return message.upper() if shout else message
+ 
+ 
+ def main(argv: list[str]) -> int:
+-    name = argv[0] if argv else "World"
+-    print(greeting(name))
++    parser = argparse.ArgumentParser()
++    parser.add_argument("name", nargs="?", default="World")
++    parser.add_argument("--shout", action="store_true")
++    args = parser.parse_args(argv)
++
++    print(greeting(args.name, shout=args.shout))
+     return 0
+ 
+ 
+diff --git a/tests/test_app.py b/tests/test_app.py
+index 0bad82a..57b2912 100644
+--- a/tests/test_app.py
++++ b/tests/test_app.py
+@@ -4,7 +4,7 @@ import subprocess
+ import sys
+ 
+ 
+-def run_app(*args: string) -> subprocess.CompletedProcess[str]:
++def run_app(*args: str) -> subprocess.CompletedProcess[str]:
+     return subprocess.run(
+         [sys.executable, "app.py", *args],
+         text=True,
+@@ -17,3 +17,9 @@ def test_regular_greeting_behavior() -> None:
+     result = run_app("Alice")
+     assert result.returncode == 0
+     assert result.stdout == "Hello, Alice!\n"
++
++
++def test_shout_greeting_behavior() -> None:
++    result = run_app("Alice", "--shout")
++    assert result.returncode == 0
++    assert result.stdout == "HELLO, ALICE!\n"

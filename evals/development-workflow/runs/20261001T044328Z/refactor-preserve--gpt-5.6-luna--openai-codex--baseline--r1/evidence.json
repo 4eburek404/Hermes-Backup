@@ -1,0 +1,16 @@
+{
+  "agent_started": false,
+  "comparable": false,
+  "error": "RuntimeError: fixture drift for refactor-preserve: 3b96819d75eaea2ef9bada6c11afc5123b01d31460bd07ba529e68d8c8c87f5f != 6a8ba19db99ff5afbba3b5c6c69e32b9a70929830f405b577f41d1d6485cc536",
+  "execution_status": "SETUP_FAILURE",
+  "fixture_version": "6a8ba19db99ff5afbba3b5c6c69e32b9a70929830f405b577f41d1d6485cc536",
+  "mode": "recorded-local-fixture",
+  "model": "gpt-5.6-luna",
+  "prompt_version": "80eb67d175c070720936093344970b4b5f78f1a10b244120992baf6564b76966",
+  "provider": "openai-codex",
+  "repeat": 1,
+  "run_id": "refactor-preserve--gpt-5.6-luna--openai-codex--baseline--r1",
+  "runtime_version": "Hermes Agent v0.21.4 (2026.9.21) \u00b7 upstream d3b25b52\nInstall directory: /home/konstantin/.hermes/hermes-agent\nInstall method: git\nPython: 3.11.15\nOpenAI SDK: 2.24.0\nUpdate available: 6250 commits behind \u2014 run 'hermes update'",
+  "scenario": "refactor-preserve",
+  "skill_version": "baseline"
+}
