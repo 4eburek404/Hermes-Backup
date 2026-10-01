@@ -16,7 +16,7 @@ from typing import Any
 from unittest.mock import patch
 
 from evals.harness import core
-from evals.harness.report import write_report
+from evals.harness.report import render_report, write_report
 
 
 SUBJECT_MODULE = "evals.harness.contract_subject"
@@ -81,6 +81,65 @@ def only_run(batch: dict[str, Any]) -> dict[str, Any]:
     if len(runs) != 1:
         raise AssertionError(f"expected one run, got {len(runs)}")
     return runs[0]
+
+
+def test_report_treats_non_applicable_undefined_dimension_as_neutral() -> None:
+    run = {
+        "run_id": "run-a",
+        "scenario": "scenario-a",
+        "model": "model-a",
+        "provider": "provider-a",
+        "execution_status": "COMPLETED",
+        "elapsed_seconds": 1,
+        "score": {"outcome": "PASS", "trajectory": "PASS", "privacy": "UNDEFINED"},
+        "diagnostics": {
+            "outcome": {"status": "PASS", "reason": None},
+            "trajectory": {"status": "PASS", "reason": None},
+            "privacy": {"status": "UNDEFINED", "reason": "not applicable"},
+        },
+    }
+    report = render_report(
+        {"runs": [run], "expected_run_ids": ["run-a"], "executed_run_ids": ["run-a"]},
+        {},
+    )
+
+    assert "Result: PASS" in report
+
+
+def test_report_keeps_defined_failure_blocking_when_other_dimension_is_undefined() -> None:
+    run = {
+        "run_id": "run-fail",
+        "scenario": "scenario-a",
+        "model": "model-a",
+        "provider": "provider-a",
+        "execution_status": "COMPLETED",
+        "score": {"outcome": "FAIL", "trajectory": "PASS", "privacy": "UNDEFINED"},
+        "diagnostics": {},
+    }
+    report = render_report({"runs": [run]}, {})
+
+    assert "Result: FAIL" in report
+
+
+def test_report_keeps_trajectory_failure_and_evaluator_error_visible() -> None:
+    for dimension, status, report_cell in (
+        ("trajectory", "FAIL", "FAIL ·"),
+        ("outcome", "ERROR", "ERROR ·"),
+    ):
+        run = {
+            "run_id": f"run-{dimension}",
+            "scenario": "scenario-a",
+            "model": "model-a",
+            "provider": "provider-a",
+            "execution_status": "COMPLETED",
+            "score": {"outcome": "PASS", "trajectory": "PASS", "privacy": "UNDEFINED"},
+            "diagnostics": {},
+        }
+        run["score"][dimension] = status
+        report = render_report({"runs": [run]}, {})
+
+        assert "Result: FAIL" in report
+        assert report_cell in report
 
 
 class EvalHarnessContract(unittest.TestCase):

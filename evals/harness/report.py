@@ -99,9 +99,10 @@ def _run_result(run: dict[str, Any]) -> str:
         return "ERROR"
     if any(value == "FAIL" for value in values):
         return "FAIL"
-    if values and all(value == "PASS" for value in values):
+    defined = [value for value in values if value != "UNDEFINED"]
+    if defined and all(value == "PASS" for value in defined):
         return "PASS"
-    if any(value == "PASS" for value in values):
+    if any(value == "PASS" for value in defined):
         return "PARTIAL"
     if run.get("execution_status") == "AGENT_FAILURE":
         return "FAIL"
