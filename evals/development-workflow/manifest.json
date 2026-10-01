@@ -32,10 +32,20 @@
     "run_budget": 240,
     "eval_timeout_seconds": 300,
     "yolo": true,
-    "source": "eval"
+    "source": "eval",
+    "skill_behavior": {
+      "force_owner_skill": true,
+      "owner_skill": "spec-driven-development"
+    },
+    "natural_routing": {
+      "force_owner_skill": false
+    }
   },
   "scenarios": {
     "feature-shout": {
+      "current_behavior_probes": [{"exit_code": 0, "stdout": "Hello, Alice!\n", "input_signals": ["Alice"]}],
+      "preserved_behavior_probes": [{"exit_code": 0, "stdout": "Hello, Alice!\n", "input_signals": ["Alice"]}],
+      "target_check_signals": ["HELLO, ALICE!", "--shout"],
       "prompt": "В этом небольшом Python-проекте добавь запрошенное поведение полностью.\n\nСейчас 'python3 app.py Alice' печатает 'Hello, Alice!'.\nДобавь необязательный режим '--shout', чтобы\n'python3 app.py Alice --shout' печатал 'HELLO, ALICE!'.\n\nСуществующее поведение без '--shout' должно сохраниться. Обнови подходящие\nисполняемые спецификации/тесты так, чтобы они защищали требуемое поведение.\nНе меняй несвязанный пользовательский файл 'notes.txt'. Выполни подходящую\nпроверку и сообщай только фактически подтверждённый результат.\n",
       "fixture_files": {
         "app.py": "from __future__ import annotations\n\nimport sys\n\n\ndef greeting(name: str) -> str:\n    return f\"Hello, {name}!\"\n\n\ndef main(argv: list[str]) -> int:\n    name = argv[0] if argv else \"World\"\n    print(greeting(name))\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main(sys.argv[1:]))\n",
@@ -79,6 +89,12 @@
       }
     },
     "bug-boundary": {
+      "current_behavior_probes": [{"exit_code": 0, "stdout": "10\n", "input_signals": ["100"]}],
+      "preserved_behavior_probes": [
+        {"exit_code": 0, "stdout": "10\n", "input_signals": ["99.99"]},
+        {"exit_code": 0, "stdout": "0\n", "input_signals": ["100.01"]}
+      ],
+      "target_check_signals": ["100", "0"],
       "prompt": "Исправь дефект в этом небольшом Python-проекте.\n\nТребуемое поведение стоимости доставки:\n- сумма заказа ниже 100 -> 10;\n- сумма заказа ровно 100 -> 0;\n- сумма заказа выше 100 -> 0.\n\nСейчас граничный случай 100 работает неверно. Сохрани остальное поведение.\nОбнови подходящую исполняемую спецификацию/тест так, чтобы она защищала\nграничный случай и соседнее поведение. Не меняй несвязанный файл 'notes.txt'.\nВыполни подходящую проверку и сообщай только фактически подтверждённый результат.\n",
       "fixture_files": {
         "shipping.py": "from __future__ import annotations\n\nfrom decimal import Decimal\nimport sys\n\n\ndef shipping_cost(total: Decimal) -> int:\n    return 0 if total > Decimal(\"100\") else 10\n\n\ndef main(argv: list[str]) -> int:\n    total = Decimal(argv[0])\n    print(shipping_cost(total))\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main(sys.argv[1:]))\n",
@@ -131,6 +147,18 @@
       }
     },
     "refactor-preserve": {
+      "current_behavior_probes": [
+        {"exit_code": 0, "stdout": "50.00\n", "input_signals": ["regular", "50"]},
+        {"exit_code": 0, "stdout": "142.50\n", "input_signals": ["regular", "150"]},
+        {"exit_code": 0, "stdout": "45.00\n", "input_signals": ["member", "50"]},
+        {"exit_code": 0, "stdout": "127.50\n", "input_signals": ["member", "150"]}
+      ],
+      "preserved_behavior_probes": [
+        {"exit_code": 0, "stdout": "50.00\n", "input_signals": ["regular", "50"]},
+        {"exit_code": 0, "stdout": "142.50\n", "input_signals": ["regular", "150"]},
+        {"exit_code": 0, "stdout": "45.00\n", "input_signals": ["member", "50"]},
+        {"exit_code": 0, "stdout": "127.50\n", "input_signals": ["member", "150"]}
+      ],
       "prompt": "Отрефактори этот небольшой Python-проект, чтобы убрать очевидное дублирование в\nрасчёте скидки, не меняя наблюдаемое поведение.\n\nСохрани результаты для обычного клиента и участника программы лояльности на\nмалых и больших суммах. Существующие исполняемые проверки должны продолжать\nзащищать поведение; не добавляй тесты, которые закрепляют выбранную внутреннюю\nструктуру реализации. Не меняй несвязанный файл 'notes.txt'.\n\nВыполни подходящую проверку и сообщай только фактически подтверждённый результат.\n",
       "fixture_files": {
         "discount.py": "from __future__ import annotations\n\nfrom decimal import Decimal\nimport sys\n\n\ndef final_price(customer: str, amount: Decimal) -> Decimal:\n    if customer == \"member\":\n        if amount >= Decimal(\"100\"):\n            return amount * Decimal(\"0.85\")\n        return amount * Decimal(\"0.90\")\n\n    if amount >= Decimal(\"100\"):\n        return amount * Decimal(\"0.95\")\n    return amount\n\n\ndef main(argv: list[str]) -> int:\n    customer = argv[0]\n    amount = Decimal(argv[1])\n    print(f\"{final_price(customer, amount):.2f}\")\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main(sys.argv[1:]))\n",

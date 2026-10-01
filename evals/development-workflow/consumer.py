@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,139 @@ from typing import Any
 from evals.harness.core import RunSpec
 from evals.harness.process import run_with_timeout
 from evals.harness.skill_source import materialize_skill_source
+
+
+def _decode_tool_output(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            decoded = json.loads(value)
+        except json.JSONDecodeError:
+            return {"output": value}
+        return decoded if isinstance(decoded, dict) else {"output": value}
+    return {}
+
+
+def _is_verification_file(path: str) -> bool:
+    parts = [part.lower() for part in Path(path).parts]
+    name = parts[-1] if parts else ""
+    return (
+        any(part in {"test", "tests", "spec", "specs", "checks", "contracts", "features"} for part in parts)
+        or name.startswith("test_")
+        or name.endswith("_test.py")
+        or name.endswith(".feature")
+    )
+
+
+def _is_test_result(command: str, output: str) -> tuple[bool, bool]:
+    text = f"{command}\n{output}"
+    failure = bool(re.search(
+        r"(?:\bFAILED\b|\bFAILURES\b|\bAssertionError\b|\bassertion failed\b|"
+        r"\b[1-9][0-9]* failed\b|\bnot ok\b)", text, re.IGNORECASE
+    ))
+    success = bool(re.search(
+        r"(?:\b[0-9]+ passed\b|\btests? passed\b|\bOK\b|\bPASS\b|"
+        r"\ball tests passed\b|\btests? successful\b)", text, re.IGNORECASE
+    ))
+    recognized = failure or success or bool(re.search(
+        r"\b(?:pytest|unittest|vitest|jest|phpunit|cargo test|go test)\b", command,
+        re.IGNORECASE
+    ))
+    return recognized, failure
+
+
+def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture: Path) -> list[dict[str, Any]]:
+    pending: dict[str, deque[dict[str, Any]]] = defaultdict(deque)
+    records: list[dict[str, Any]] = []
+    for index, event in enumerate(events):
+        kind = event.get("type")
+        name = str(event.get("name", ""))
+        if kind == "tool_use":
+            pending[name].append({"index": index, "input": event.get("input") or {}})
+            continue
+        if kind != "tool_result" or not pending[name]:
+            continue
+        call = pending[name].popleft()
+        args = call["input"] if isinstance(call["input"], dict) else {}
+        result = _decode_tool_output(event.get("output"))
+        output = str(result.get("output", ""))
+        command = str(args.get("command", "")) if name == "terminal" else ""
+        record = {"index": call["index"], "tool": name, "output": output, "command": command}
+        if name == "terminal":
+            record["exit_code"] = result.get("exit_code")
+            recognized, failed = _is_test_result(command, output)
+            if recognized:
+                record["check_result"] = "failed" if failed or result.get("exit_code", 0) else "passed"
+        paths: list[str] = []
+        changed_text = ""
+        if name == "patch":
+            paths = [str(path) for path in result.get("files_modified", [])]
+            changed_text = str(args.get("patch", "")) + "\n" + output
+        elif name == "write_file":
+            path = args.get("path")
+            if path:
+                paths = [str(path)]
+            changed_text = str(args.get("content", ""))
+        elif name == "edit_file":
+            path = args.get("path")
+            if path:
+                paths = [str(path)]
+            changed_text = json.dumps(args, ensure_ascii=False)
+        for path in paths:
+            try:
+                resolved = Path(path).resolve()
+                resolved.relative_to(fixture.resolve())
+            except (OSError, ValueError):
+                continue
+            record.setdefault("file_changes", []).append({
+                "path": str(resolved),
+                "verification_file": _is_verification_file(path),
+                "text": changed_text,
+            })
+        records.append(record)
+
+    facts: list[dict[str, Any]] = []
+    verification_changes = [
+        rec for rec in records
+        if any(change["verification_file"] for change in rec.get("file_changes", []))
+    ]
+    for probe_index, probe in enumerate(cfg.get("current_behavior_probes", [])):
+        matched = next((rec for rec in records if rec["tool"] == "terminal"
+                        and rec.get("exit_code") == probe.get("exit_code")
+                        and rec["output"] == probe.get("stdout")
+                        and all(str(signal) in rec["command"]
+                                for signal in probe.get("input_signals", []))), None)
+        if matched:
+            facts.append({"kind": "current_behavior_observed", "index": matched["index"],
+                          "probe_index": probe_index})
+    signals = [str(item) for item in cfg.get("target_check_signals", [])]
+    matching_check_change = next((rec for rec in verification_changes
+                                  if any(all(signal in change.get("text", "") for signal in signals)
+                                         for change in rec.get("file_changes", []))), None)
+    if matching_check_change:
+        facts.append({"kind": "target_check_changed", "index": matching_check_change["index"]})
+    for rec in records:
+        if rec.get("check_result"):
+            facts.append({"kind": "target_check_" + rec["check_result"], "index": rec["index"], "output": rec["output"]})
+        if any(not change["verification_file"] for change in rec.get("file_changes", [])):
+            facts.append({"kind": "production_changed", "index": rec["index"]})
+    source_change_indices = [rec["index"] for rec in records
+                             if any(not change["verification_file"]
+                                    for change in rec.get("file_changes", []))]
+    first_source_change = min(source_change_indices) if source_change_indices else None
+    for probe_index, probe in enumerate(cfg.get("preserved_behavior_probes", [])):
+        matched = next((rec for rec in records if rec["tool"] == "terminal"
+                        and rec.get("exit_code") == probe.get("exit_code")
+                        and rec["output"] == probe.get("stdout")
+                        and all(str(signal) in rec["command"]
+                                for signal in probe.get("input_signals", []))
+                        and first_source_change is not None
+                        and rec["index"] > first_source_change), None)
+        if matched:
+            facts.append({"kind": "preserved_behavior_observed", "index": matched["index"],
+                          "probe_index": probe_index})
+    return facts
 
 
 def canonical_sha256(value: Any) -> str:
@@ -157,7 +291,11 @@ class DevelopmentWorkflowConsumer:
                 (home / name).symlink_to(source)
 
     @staticmethod
-    def event_summary(stdout: str) -> dict[str, Any]:
+    def event_summary(
+        stdout: str,
+        cfg: dict[str, Any] | None = None,
+        fixture: Path | None = None,
+    ) -> dict[str, Any]:
         events: list[dict[str, Any]] = []
         for line in stdout.splitlines():
             try:
@@ -192,6 +330,7 @@ class DevelopmentWorkflowConsumer:
             "tool_names": tool_names,
             "skill_views": skill_views,
             "terminal_result": result,
+            "workflow_events": _workflow_events(events, cfg or {}, fixture) if fixture else [],
         }
 
     @staticmethod
@@ -262,12 +401,16 @@ class DevelopmentWorkflowConsumer:
         case: dict[str, Any],
     ) -> dict[str, Any]:
         cfg = self.manifest["scenarios"][spec.scenario]
-        fixture = run_dir / "fixture-repo"
+        scratch = Path(os.environ.get("TMPDIR") or tempfile.gettempdir())
+        scratch.mkdir(parents=True, exist_ok=True)
+        fixture_parent = Path(tempfile.mkdtemp(prefix="hermes-bdd-fixture-", dir=scratch))
+        fixture = fixture_parent / "fixture-repo"
         baseline_head = self.materialize_fixture(cfg, fixture)
 
         prompt_text = str(cfg["prompt"])
         prompt_sha = canonical_sha256(prompt_text)
         if prompt_sha != spec.prompt_version:
+            shutil.rmtree(fixture_parent, ignore_errors=True)
             raise RuntimeError(
                 f"prompt drift for {spec.scenario}: {prompt_sha} != {spec.prompt_version}"
             )
@@ -281,6 +424,7 @@ class DevelopmentWorkflowConsumer:
             }
         )
         if fixture_version != spec.fixture_version:
+            shutil.rmtree(fixture_parent, ignore_errors=True)
             raise RuntimeError(
                 f"fixture drift for {spec.scenario}: "
                 f"{fixture_version} != {spec.fixture_version}"
@@ -290,6 +434,7 @@ class DevelopmentWorkflowConsumer:
         prompt_path.write_text(prompt_text, encoding="utf-8")
         return {
             "fixture": fixture,
+            "fixture_parent": fixture_parent,
             "baseline_head": baseline_head,
             "prompt": prompt_path,
             "pre_snapshot": self.snapshot(fixture),
@@ -349,6 +494,9 @@ class DevelopmentWorkflowConsumer:
                 "--run-budget",
                 str(execution["run_budget"]),
             ]
+            mode = spec.mode.split(":", 1)[0]
+            if mode == "skill-behavior" and execution["skill_behavior"].get("force_owner_skill"):
+                command.extend(["--skills", str(execution["skill_behavior"]["owner_skill"])])
             if execution.get("yolo"):
                 command.append("--yolo")
             if execution.get("source"):
@@ -378,7 +526,7 @@ class DevelopmentWorkflowConsumer:
             raw_stream.write_text(proc.stdout, encoding="utf-8")
             raw_stderr.write_text(proc.stderr, encoding="utf-8")
 
-            summary = self.event_summary(proc.stdout)
+            summary = self.event_summary(proc.stdout, cfg, fixture)
             final_text = str(summary.get("terminal_result", {}).get("text", ""))
             raw_final.write_text(final_text, encoding="utf-8")
 
@@ -460,6 +608,7 @@ class DevelopmentWorkflowConsumer:
         finally:
             shutil.rmtree(home, ignore_errors=True)
             shutil.rmtree(skill_home, ignore_errors=True)
+            shutil.rmtree(prepared.get("fixture_parent", fixture.parent), ignore_errors=True)
 
     def evaluate_dimension_diagnostic(
         self,
@@ -545,7 +694,72 @@ class DevelopmentWorkflowConsumer:
                     "reason": "forbidden externally meaningful action: "
                     + ", ".join(matched),
                 }
-            return {"status": "PASS", "reason": None}
+            events = evidence.get("workflow_events")
+            if events is None:
+                events = (evidence.get("event_summary") or {}).get("workflow_events", [])
+            events = [
+                {**event, "index": int(event.get("index", ordinal))}
+                for ordinal, event in enumerate(events or [])
+            ]
+            positions: dict[str, list[int]] = defaultdict(list)
+            for event in events:
+                positions[str(event.get("kind", ""))].append(int(event["index"]))
+            current = positions.get("current_behavior_observed", [])
+            production = positions.get("production_changed", [])
+            passed = positions.get("target_check_passed", [])
+            preserved = [event for event in events if event.get("kind") == "preserved_behavior_observed"]
+            reasons: list[str] = []
+            first_production = min(production) if production else None
+            required_current = int(rules.get("current_probe_count", 1))
+            current_before_change = [event for event in events
+                                     if event.get("kind") == "current_behavior_observed"
+                                     and (first_production is None or int(event["index"]) < first_production)]
+            current_ids = {event.get("probe_index") for event in current_before_change}
+            current_count = len(current_ids) if None not in current_ids else len(current_before_change)
+            if current_count < required_current:
+                reasons.append("current observable behavior is UNCONFIRMED")
+            first_production = min(production) if production else None
+            if first_production is None:
+                reasons.append("production change is UNCONFIRMED")
+            if rules.get("requires_red", True):
+                changed = positions.get("target_check_changed", [])
+                failed = [event for event in events if event.get("kind") == "target_check_failed"]
+                red_signal = rules.get("target_failure_signal")
+                red = (
+                    [event for event in failed if str(red_signal) in str(event.get("output", ""))]
+                    if red_signal
+                    else failed
+                )
+                if not changed:
+                    reasons.append("executable target check change is UNCONFIRMED")
+                if not red:
+                    reasons.append("target check RED before production change is UNCONFIRMED")
+                elif first_production is not None and not any(
+                    changed_index < int(event.get("index", -1)) < first_production
+                    for event in red for changed_index in changed
+                ):
+                    reasons.append("target check RED was not observed between check change and production change")
+                elif first_production is not None and min(event.get("index", -1) for event in red) >= first_production:
+                    reasons.append("target check RED occurred after production change")
+            elif first_production is not None and not any(
+                index < first_production for index in passed
+            ):
+                reasons.append("executable verification GREEN before refactor is UNCONFIRMED")
+            if current and first_production is not None and min(current) >= first_production:
+                reasons.append("current behavior was not observed before production change")
+            if first_production is not None and not any(index > first_production for index in passed):
+                reasons.append("executable verification GREEN after production change is UNCONFIRMED")
+            required_preserved = int(rules.get("preserved_probe_count", 0))
+            after_change = [event for event in preserved if first_production is not None
+                            and int(event.get("index", -1)) > first_production]
+            observed_ids = {event.get("probe_index") for event in after_change}
+            preserved_count = len(observed_ids) if None not in observed_ids else len(after_change)
+            if preserved_count < required_preserved:
+                reasons.append("required preserved behavior is UNCONFIRMED after production change")
+            return {
+                "status": "FAIL" if reasons else "PASS",
+                "reason": "; ".join(reasons) if reasons else None,
+            }
 
         if dimension == "privacy":
             return {

@@ -85,10 +85,21 @@ the project's tests. If the replacement satisfies the behavior but the tests
 fail, the tests are implementation-coupled and the scenario fails. This makes
 "tests protect behavior, not implementation" executable rather than rhetorical.
 
-Trajectory checks are limited to externally meaningful safety properties, such
-as not destroying the fixture repository or attempting delivery from a local
-development task. 'skill_view' events and loaded skill names are retained only
-for diagnosis and comparison.
+Trajectory checks use tool-call/result events to confirm the observable order
+of work. Feature and bug-fix scenarios require current behavior, a changed
+executable check, a failing check before a production change, a passing check
+after it, and preserved behavior. A behavior-preserving refactor requires
+pre-change verification, a production change, post-change verification, and
+preserved behavior; it does not require RED. If the trace cannot establish an
+event reliably, it is unconfirmed and cannot pass. These rules do not depend on
+shell command wording, test names, or skill names.
+
+The controlled skill-behavior run explicitly supplies the configured owner
+through Hermes CLI `--skills`; that is provenance for the experiment, not an
+outcome criterion. A separate natural-routing audit omits `--skills` and records
+`skill_view` events for diagnosis only. The two modes are separate experiments.
+Both retain externally meaningful safety checks, such as not destroying the
+fixture repository or attempting delivery from a local development task.
 
 ## Migration rule for existing contracts
 

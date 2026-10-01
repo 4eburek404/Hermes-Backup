@@ -111,6 +111,14 @@ def test_refactor_scenario_requires_a_change_but_not_an_implementation_shape() -
 def test_trajectory_checks_external_safety_not_skill_routing() -> None:
     subject = consumer()
     evidence = grounded_evidence()
+    evidence["workflow_events"] = [
+        {"kind": "current_behavior_observed", "index": 1},
+        {"kind": "target_check_changed", "index": 2},
+        {"kind": "target_check_failed", "index": 3},
+        {"kind": "production_changed", "index": 4},
+        {"kind": "target_check_passed", "index": 5},
+        {"kind": "preserved_behavior_observed", "index": 6},
+    ]
 
     safe = subject.evaluate_dimension_diagnostic(
         "trajectory",
@@ -133,6 +141,236 @@ def test_trajectory_checks_external_safety_not_skill_routing() -> None:
     assert safe["status"] == "PASS"
     assert still_safe["status"] == "PASS"
     assert unsafe["status"] == "FAIL"
+
+
+def test_missing_red_evidence_does_not_pass_feature_trajectory() -> None:
+    subject = consumer()
+    evidence = grounded_evidence()
+    evidence["scenario"] = "feature-shout"
+    evidence["workflow_events"] = [
+        {"kind": "current_behavior_observed"},
+        {"kind": "target_check_changed"},
+        {"kind": "production_changed"},
+        {"kind": "target_check_passed"},
+        {"kind": "preserved_behavior_observed"},
+    ]
+
+    result = subject.evaluate_dimension_diagnostic(
+        "trajectory", evidence, {"target_failure_signal": "100"}
+    )
+
+    assert result["status"] == "FAIL"
+    assert "RED" in result["reason"]
+
+
+def test_saved_unforced_boundary_baseline_does_not_prove_red_before_fix() -> None:
+    subject = consumer()
+    run = ROOT / "evals" / "development-workflow" / "runs" / "20261001T045300Z" / (
+        "bug-boundary--gpt-5.6-luna--openai-codex--baseline--r1"
+    )
+    evidence = json.loads((run / "evidence.json").read_text(encoding="utf-8"))
+    metadata = json.loads((run / "metadata.json").read_text(encoding="utf-8"))
+    score = json.loads((run / "score.json").read_text(encoding="utf-8"))["score"]
+    raw_events = [
+        json.loads(line)
+        for line in (run / "raw_stream.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.lstrip().startswith("{")
+    ]
+    skill_views = [event for event in raw_events if event.get("type") == "tool_use" and event.get("name") == "skill_view"]
+
+    assert "--skills" not in metadata["command"]
+    assert skill_views == []
+    assert score["trajectory"] == "PASS"
+    assert subject.evaluate_dimension_diagnostic("trajectory", evidence, {})["status"] == "FAIL"
+
+
+def test_equivalent_red_green_trajectory_is_not_bound_to_command_wording() -> None:
+    subject = consumer()
+    evidence = grounded_evidence()
+    evidence["scenario"] = "bug-boundary"
+    evidence["workflow_events"] = [
+        {"kind": "current_behavior_observed"},
+        {"kind": "target_check_changed"},
+        {"kind": "target_check_failed", "output": "expected 0 at 100; observed 10"},
+        {"kind": "production_changed"},
+        {"kind": "target_check_passed"},
+        {"kind": "preserved_behavior_observed"},
+    ]
+
+    result = subject.evaluate_dimension_diagnostic(
+        "trajectory", evidence, {"target_failure_signal": "100"}
+    )
+
+    assert result["status"] == "PASS", result
+
+
+def test_refactor_trajectory_requires_observed_green_before_and_after_change() -> None:
+    subject = consumer()
+    evidence = grounded_evidence()
+    evidence["scenario"] = "refactor-preserve"
+    rules = {"requires_red": False, "current_probe_count": 2, "preserved_probe_count": 2}
+    evidence["workflow_events"] = [
+        {"kind": "current_behavior_observed", "index": 1, "probe_index": 0},
+        {"kind": "current_behavior_observed", "index": 2, "probe_index": 1},
+        {"kind": "target_check_passed", "index": 3},
+        {"kind": "production_changed", "index": 4},
+        {"kind": "target_check_passed", "index": 5},
+        {"kind": "preserved_behavior_observed", "index": 6, "probe_index": 0},
+        {"kind": "preserved_behavior_observed", "index": 7, "probe_index": 1},
+    ]
+
+    result = subject.evaluate_dimension_diagnostic("trajectory", evidence, rules)
+    assert result["status"] == "PASS", result
+
+    evidence["workflow_events"] = [
+        event for event in evidence["workflow_events"]
+        if not (event["kind"] == "target_check_passed" and event["index"] == 3)
+    ]
+    missing_pre_green = subject.evaluate_dimension_diagnostic("trajectory", evidence, rules)
+    assert missing_pre_green["status"] == "FAIL"
+    assert "GREEN before refactor" in missing_pre_green["reason"]
+
+
+def test_controlled_owner_command_is_recorded_but_routing_is_not_outcome() -> None:
+    subject = consumer()
+    manifest = json.loads(
+        (ROOT / "evals" / "development-workflow" / "manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert manifest["execution"]["skill_behavior"]["owner_skill"] == "spec-driven-development"
+    assert manifest["execution"]["skill_behavior"]["force_owner_skill"] is True
+    assert manifest["execution"]["natural_routing"]["force_owner_skill"] is False
+    evidence = grounded_evidence()
+    evidence["skill_views"] = []
+    assert subject.evaluate_dimension_diagnostic("outcome", evidence, {})["status"] == "PASS"
+
+
+def test_hermes_invocation_forces_owner_only_in_skill_behavior_mode(monkeypatch, tmp_path) -> None:
+    module = load_consumer_module()
+    manifest = json.loads(
+        (ROOT / "evals" / "development-workflow" / "manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    scenario = manifest["scenarios"]["feature-shout"]
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.setenv("TMPDIR", str(scratch))
+
+    def invoke(mode: str) -> list[str]:
+        captured: dict[str, list[str]] = {}
+        subject = module.DevelopmentWorkflowConsumer(
+            ROOT / "evals" / "development-workflow", ROOT, manifest, ["hermes"]
+        )
+
+        def fake_skill_root(version, root):
+            skills = root / "skills"
+            skills.mkdir(parents=True)
+            return skills, [{"resolved_commit": "test-source"}]
+
+        def fake_run(command, **kwargs):
+            captured["command"] = command
+            return subprocess.CompletedProcess(command, 0, '{"type":"result","text":"done"}\n', ""), False
+
+        subject._build_skill_root = fake_skill_root
+        monkeypatch.setattr(module, "run_with_timeout", fake_run)
+        fixture_version = module.canonical_sha256({
+            "fixture_files": scenario["fixture_files"],
+            "equivalent_implementation_files": scenario.get("equivalent_implementation_files", {}),
+        })
+        spec = module.RunSpec(
+            "feature-shout", "test-model", "test-provider", "baseline", 1,
+            fixture_version, module.canonical_sha256(scenario["prompt"]), "test-runtime", mode,
+        )
+        run_dir = tmp_path / mode
+        run_dir.mkdir()
+        prepared = subject.prepare(spec, run_dir, {})
+        subject.execute(spec, run_dir, prepared, {})
+        return captured["command"]
+
+    controlled = invoke("skill-behavior")
+    audit = invoke("natural-routing")
+
+    assert controlled[controlled.index("--skills") + 1] == "spec-driven-development"
+    assert "--skills" not in audit
+    assert list(scratch.iterdir()) == []
+    assert not (tmp_path / "skill-behavior" / "fixture-repo").exists()
+    assert (tmp_path / "skill-behavior" / "final.diff").exists()
+
+
+def test_fixture_setup_failure_removes_only_its_temporary_repository(monkeypatch, tmp_path) -> None:
+    module = load_consumer_module()
+    manifest = json.loads(
+        (ROOT / "evals" / "development-workflow" / "manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    scenario = manifest["scenarios"]["feature-shout"]
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.setenv("TMPDIR", str(scratch))
+    subject = module.DevelopmentWorkflowConsumer(
+        ROOT / "evals" / "development-workflow", ROOT, manifest, ["hermes"]
+    )
+    spec = module.RunSpec(
+        "feature-shout", "test-model", "test-provider", "baseline", 1,
+        "intentionally-wrong", module.canonical_sha256(scenario["prompt"]),
+        "test-runtime", "skill-behavior",
+    )
+    run_dir = tmp_path / "setup-failure"
+    run_dir.mkdir()
+
+    try:
+        subject.prepare(spec, run_dir, {})
+    except RuntimeError as exc:
+        assert "fixture drift" in str(exc)
+    else:
+        raise AssertionError("fixture drift was not detected")
+
+    assert list(scratch.iterdir()) == []
+
+
+def test_equivalent_tool_trace_extracts_behavior_red_change_green_without_command_names(tmp_path) -> None:
+    subject = consumer()
+    fixture = tmp_path / "project"
+    fixture.mkdir()
+    source = fixture / "src" / "shipping.py"
+    check = fixture / "checks" / "boundary.spec"
+    events = [
+        {"type": "tool_use", "name": "terminal", "input": {"command": "./observe-edge"}},
+        {"type": "tool_result", "name": "terminal", "output": json.dumps({"output": "10\n", "exit_code": 0})},
+        {"type": "tool_use", "name": "patch", "input": {"patch": "- expect(100, 10)\n+ expect(100, 0)"}},
+        {"type": "tool_result", "name": "patch", "output": json.dumps({"files_modified": [str(check)]})},
+        {"type": "tool_use", "name": "terminal", "input": {"command": "./verify-contract"}},
+        {"type": "tool_result", "name": "terminal", "output": json.dumps({"output": "AssertionError: expected 0 at 100, received 10", "exit_code": 1})},
+        {"type": "tool_use", "name": "patch", "input": {"patch": "change shipping calculation"}},
+        {"type": "tool_result", "name": "patch", "output": json.dumps({"files_modified": [str(source)]})},
+        {"type": "tool_use", "name": "terminal", "input": {"command": "./verify-contract"}},
+        {"type": "tool_result", "name": "terminal", "output": json.dumps({"output": "2 passed", "exit_code": 0})},
+        {"type": "tool_use", "name": "terminal", "input": {"command": "./check-neighbor-a"}},
+        {"type": "tool_result", "name": "terminal", "output": json.dumps({"output": "10\n", "exit_code": 0})},
+        {"type": "tool_use", "name": "terminal", "input": {"command": "./check-neighbor-b"}},
+        {"type": "tool_result", "name": "terminal", "output": json.dumps({"output": "0\n", "exit_code": 0})},
+    ]
+    cfg = {
+        "current_behavior_probes": [{"exit_code": 0, "stdout": "10\n"}],
+        "target_check_signals": ["100", "0"],
+        "preserved_behavior_probes": [
+            {"exit_code": 0, "stdout": "10\n"},
+            {"exit_code": 0, "stdout": "0\n"},
+        ],
+    }
+    summary = subject.event_summary("\n".join(json.dumps(event) for event in events), cfg, fixture)
+    evidence = grounded_evidence()
+    evidence["workflow_events"] = summary["workflow_events"]
+
+    result = subject.evaluate_dimension_diagnostic(
+        "trajectory", evidence, {"requires_red": True, "target_failure_signal": "100", "preserved_probe_count": 2}
+    )
+
+    assert result["status"] == "PASS", result
 
 
 def test_outcome_fails_when_tests_reject_behavior_equivalent_implementation() -> None:
@@ -225,6 +463,7 @@ def test_eval_setup_accepts_its_complete_fixture_fingerprint() -> None:
     import sys
 
     sys.path.insert(0, str(runner_path))
+    prior_consumer = sys.modules.get("consumer")
     try:
         runner = runpy.run_path(
             str(runner_path / "run_eval.py"),
@@ -232,6 +471,10 @@ def test_eval_setup_accepts_its_complete_fixture_fingerprint() -> None:
         )
     finally:
         sys.path.remove(str(runner_path))
+        if prior_consumer is None:
+            sys.modules.pop("consumer", None)
+        else:
+            sys.modules["consumer"] = prior_consumer
     case = runner["build_case"](
         manifest,
         list(manifest["scenarios"]),

@@ -45,6 +45,7 @@ def build_case(
     models: list[dict[str, str]],
     repeats: int,
     runtime_version: str,
+    evaluation_mode: str = "skill-behavior",
 ) -> dict:
     scenario_metadata: dict[str, dict[str, str]] = {}
     rules: dict[str, dict] = {}
@@ -69,7 +70,13 @@ def build_case(
                     cfg.get("require_repository_change", False)
                 )
             },
-            "trajectory": dict(global_trajectory),
+            "trajectory": {
+                **dict(global_trajectory),
+                "requires_red": scenario != "refactor-preserve",
+                "preserved_probe_count": len(cfg.get("preserved_behavior_probes", [])),
+                "current_probe_count": len(cfg.get("current_behavior_probes", [])),
+                "target_failure_signal": (cfg.get("target_check_signals") or [None])[0],
+            },
         }
 
     return {
@@ -81,7 +88,7 @@ def build_case(
         "fixture_version": "scenario-specific",
         "prompt_version": "scenario-specific",
         "runtime_version": runtime_version,
-        "mode": manifest.get("mode", "recorded-local-fixture"),
+        "mode": evaluation_mode,
         "scenario_metadata": scenario_metadata,
         "rules": rules,
     }
@@ -94,6 +101,11 @@ def main() -> int:
     parser.add_argument("--repeat", type=int, default=None)
     parser.add_argument("--model")
     parser.add_argument("--provider")
+    parser.add_argument(
+        "--mode",
+        choices=("skill-behavior", "natural-routing"),
+        default="skill-behavior",
+    )
     args = parser.parse_args()
 
     manifest = load_manifest()
@@ -133,6 +145,7 @@ def main() -> int:
         models,
         repeats,
         runtime,
+        args.mode,
     )
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")

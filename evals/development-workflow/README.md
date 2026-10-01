@@ -19,15 +19,22 @@ Other skills remain identical between baseline and candidate.
 
 ## Run
 
-'python3 evals/development-workflow/run_eval.py'
+'python3 evals/development-workflow/run_eval.py --mode skill-behavior'
 
 For one scenario:
 
-'python3 evals/development-workflow/run_eval.py --scenario bug-boundary'
+'python3 evals/development-workflow/run_eval.py --mode skill-behavior --scenario bug-boundary'
 
 For a quick candidate-only run:
 
-'python3 evals/development-workflow/run_eval.py --scenario feature-shout --version candidate'
+'python3 evals/development-workflow/run_eval.py --mode skill-behavior --scenario feature-shout --version candidate'
+
+The primary skill-behavior experiment explicitly passes the configured owner
+with Hermes CLI `--skills`. To audit autonomous skill routing separately, run
+`python3 evals/development-workflow/run_eval.py --mode natural-routing`; that
+mode does not force a skill and must not be treated as evidence of a particular
+skill's effect. The manifest pins the controlled owner to
+`spec-driven-development`.
 
 Run the deterministic evaluator checks with:
 
@@ -46,6 +53,10 @@ A scenario passes from observable evidence:
 
 A scenario does **not** pass because a particular skill was loaded, a particular
 file/function was used, or a particular internal implementation shape appeared.
+Trajectory evidence is assessed semantically from observed behavior and
+verification events: feature/bug scenarios require RED before production change
+and GREEN after; refactor requires GREEN before and after, with preserved
+behavior. Missing or ambiguous trace evidence is non-pass.
 
 The existing source-text GitHub contract tests are migration-era checks. Do not
 extend them with new wording/name assertions; replace their useful requirements
