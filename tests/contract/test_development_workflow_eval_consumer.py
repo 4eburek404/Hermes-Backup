@@ -194,6 +194,22 @@ def test_seed_specs_accept_behavior_equivalent_implementations() -> None:
                 equivalent.stderr,
             )
 
+            for probe in scenario["behavior_probes"]:
+                result = subprocess.run(
+                    list(probe["command"]),
+                    cwd=root,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                assert result.returncode == probe["exit_code"], (name, probe["name"])
+                assert result.stdout == probe["stdout"], (
+                    name,
+                    probe["name"],
+                    repr(probe["stdout"]),
+                    repr(result.stdout),
+                )
+
 
 def test_eval_setup_accepts_its_complete_fixture_fingerprint() -> None:
     import runpy

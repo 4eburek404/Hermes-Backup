@@ -60,7 +60,7 @@
             "Alice"
           ],
           "exit_code": 0,
-          "stdout": "Hello, Alice!\\n"
+          "stdout": "Hello, Alice!\n"
         },
         {
           "name": "shout-greeting",
@@ -71,7 +71,7 @@
             "--shout"
           ],
           "exit_code": 0,
-          "stdout": "HELLO, ALICE!\\n"
+          "stdout": "HELLO, ALICE!\n"
         }
       ],
       "equivalent_implementation_files": {
@@ -103,7 +103,7 @@
             "99.99"
           ],
           "exit_code": 0,
-          "stdout": "10\\n"
+          "stdout": "10\n"
         },
         {
           "name": "boundary",
@@ -113,7 +113,7 @@
             "100"
           ],
           "exit_code": 0,
-          "stdout": "0\\n"
+          "stdout": "0\n"
         },
         {
           "name": "above-boundary",
@@ -123,7 +123,7 @@
             "100.01"
           ],
           "exit_code": 0,
-          "stdout": "0\\n"
+          "stdout": "0\n"
         }
       ],
       "equivalent_implementation_files": {
@@ -157,7 +157,7 @@
             "50"
           ],
           "exit_code": 0,
-          "stdout": "50.00\\n"
+          "stdout": "50.00\n"
         },
         {
           "name": "regular-large",
@@ -168,7 +168,7 @@
             "150"
           ],
           "exit_code": 0,
-          "stdout": "142.50\\n"
+          "stdout": "142.50\n"
         },
         {
           "name": "member-small",
@@ -179,7 +179,7 @@
             "50"
           ],
           "exit_code": 0,
-          "stdout": "45.00\\n"
+          "stdout": "45.00\n"
         },
         {
           "name": "member-large",
@@ -190,7 +190,7 @@
             "150"
           ],
           "exit_code": 0,
-          "stdout": "127.50\\n"
+          "stdout": "127.50\n"
         }
       ],
       "equivalent_implementation_files": {
