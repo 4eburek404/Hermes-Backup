@@ -79,6 +79,12 @@ unrelated user content is unchanged.
 Outcome checks execute the program and the repository's tests after the agent
 finishes. They do not inspect private symbols or prescribe implementation.
 
+The eval then substitutes a deliberately different implementation that provides
+the same required command-line behavior and reruns both the behavior probes and
+the project's tests. If the replacement satisfies the behavior but the tests
+fail, the tests are implementation-coupled and the scenario fails. This makes
+"tests protect behavior, not implementation" executable rather than rhetorical.
+
 Trajectory checks are limited to externally meaningful safety properties, such
 as not destroying the fixture repository or attempting delivery from a local
 development task. 'skill_view' events and loaded skill names are retained only

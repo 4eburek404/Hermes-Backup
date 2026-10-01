@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import subprocess
+import tempfile
 from pathlib import Path
 
 
@@ -39,6 +42,16 @@ def grounded_evidence() -> dict:
             }
         ],
         "test_result": {"exit_code": 0},
+        "equivalent_behavior_probes": [
+            {
+                "name": "public-behavior",
+                "expected_exit_code": 0,
+                "actual_exit_code": 0,
+                "expected_stdout": "ok\n",
+                "actual_stdout": "ok\n",
+            }
+        ],
+        "equivalent_test_result": {"exit_code": 0},
         "protected_paths_unchanged": {"notes.txt": True},
         "repository_changed": True,
         "tool_calls": ["python3 -m pytest -q"],
@@ -120,3 +133,63 @@ def test_trajectory_checks_external_safety_not_skill_routing() -> None:
     assert safe["status"] == "PASS"
     assert still_safe["status"] == "PASS"
     assert unsafe["status"] == "FAIL"
+
+
+def test_outcome_fails_when_tests_reject_behavior_equivalent_implementation() -> None:
+    subject = consumer()
+    evidence = grounded_evidence()
+    evidence["equivalent_test_result"]["exit_code"] = 1
+
+    result = subject.evaluate_dimension_diagnostic("outcome", evidence, {})
+
+    assert result["status"] == "FAIL"
+    assert "behavior-equivalent implementation" in result["reason"]
+
+
+def test_seed_specs_accept_behavior_equivalent_implementations() -> None:
+    manifest = json.loads(
+        (ROOT / "evals" / "development-workflow" / "manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    for name, scenario in manifest["scenarios"].items():
+        with tempfile.TemporaryDirectory(prefix=f"bdd-seed-{name}-") as temp:
+            root = Path(temp)
+            for relative, content in scenario["fixture_files"].items():
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+
+            baseline = subprocess.run(
+                list(scenario["test_command"]),
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            assert baseline.returncode == 0, (
+                name,
+                baseline.stdout,
+                baseline.stderr,
+            )
+
+            for relative, content in scenario[
+                "equivalent_implementation_files"
+            ].items():
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+
+            equivalent = subprocess.run(
+                list(scenario["test_command"]),
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            assert equivalent.returncode == 0, (
+                name,
+                equivalent.stdout,
+                equivalent.stderr,
+            )

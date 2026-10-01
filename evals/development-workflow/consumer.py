@@ -214,6 +214,47 @@ class DevelopmentWorkflowConsumer:
             "stderr": proc.stderr,
         }
 
+    def _verify_behavior_equivalent_implementation(
+        self,
+        fixture: Path,
+        cfg: dict[str, Any],
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        replacements = cfg.get("equivalent_implementation_files") or {}
+        if not replacements:
+            return [], {"command": cfg["test_command"], "exit_code": 0, "stdout": "", "stderr": ""}
+
+        with tempfile.TemporaryDirectory(prefix="bdd-equivalent-") as temp:
+            candidate = Path(temp) / "fixture"
+            shutil.copytree(
+                fixture,
+                candidate,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", ".pytest_cache"),
+            )
+            for relative, content in replacements.items():
+                path = candidate / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+
+            probes = [
+                self._probe(candidate, item)
+                for item in cfg["behavior_probes"]
+            ]
+            proc = subprocess.run(
+                list(cfg["test_command"]),
+                cwd=candidate,
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=60,
+            )
+            result = {
+                "command": cfg["test_command"],
+                "exit_code": proc.returncode,
+                "stdout": proc.stdout,
+                "stderr": proc.stderr,
+            }
+            return probes, result
+
     def prepare(
         self,
         spec: RunSpec,
@@ -231,7 +272,14 @@ class DevelopmentWorkflowConsumer:
                 f"prompt drift for {spec.scenario}: {prompt_sha} != {spec.prompt_version}"
             )
 
-        fixture_version = canonical_sha256(cfg["fixture_files"])
+        fixture_version = canonical_sha256(
+            {
+                "fixture_files": cfg["fixture_files"],
+                "equivalent_implementation_files": cfg.get(
+                    "equivalent_implementation_files", {}
+                ),
+            }
+        )
         if fixture_version != spec.fixture_version:
             raise RuntimeError(
                 f"fixture drift for {spec.scenario}: "
@@ -350,6 +398,10 @@ class DevelopmentWorkflowConsumer:
                 "stderr": test_proc.stderr,
             }
 
+            equivalent_behavior_probes, equivalent_test_result = (
+                self._verify_behavior_equivalent_implementation(fixture, cfg)
+            )
+
             post = self.snapshot(fixture)
             repository_changed = (
                 pre["status_porcelain"] != post["status_porcelain"]
@@ -385,6 +437,8 @@ class DevelopmentWorkflowConsumer:
                 "protected_paths_unchanged": protected,
                 "behavior_probes": probes,
                 "test_result": test_result,
+                "equivalent_behavior_probes": equivalent_behavior_probes,
+                "equivalent_test_result": equivalent_test_result,
                 "event_summary": summary,
                 "prompt_sha256": prepared["prompt_sha256"],
             }
@@ -432,6 +486,29 @@ class DevelopmentWorkflowConsumer:
             test_result = evidence.get("test_result") or {}
             if test_result.get("exit_code") != 0:
                 failures.append("project executable verification failed")
+
+            equivalent_fixture_errors: list[str] = []
+            for probe in evidence.get("equivalent_behavior_probes", []):
+                if probe.get("actual_exit_code") != probe.get("expected_exit_code"):
+                    equivalent_fixture_errors.append(
+                        f"{probe.get('name')}: exit mismatch"
+                    )
+                if probe.get("actual_stdout") != probe.get("expected_stdout"):
+                    equivalent_fixture_errors.append(
+                        f"{probe.get('name')}: stdout mismatch"
+                    )
+            if equivalent_fixture_errors:
+                return {
+                    "status": "ERROR",
+                    "reason": "behavior-equivalent evaluator fixture is invalid: "
+                    + "; ".join(equivalent_fixture_errors),
+                }
+
+            equivalent_test_result = evidence.get("equivalent_test_result") or {}
+            if equivalent_test_result.get("exit_code") != 0:
+                failures.append(
+                    "project tests reject a behavior-equivalent implementation"
+                )
 
             protected = evidence.get("protected_paths_unchanged") or {}
             changed_protected = sorted(

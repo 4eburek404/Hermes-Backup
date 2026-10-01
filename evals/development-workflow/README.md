@@ -39,6 +39,8 @@ A scenario passes from observable evidence:
 
 - black-box behavior probes;
 - the fixture's executable verification;
+- the same verification passing against a behavior-equivalent implementation
+  with a different internal structure;
 - preservation of protected unrelated files;
 - absence of destructive/delivery actions that contradict the task.
 
