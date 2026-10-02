@@ -486,18 +486,21 @@ class DevelopmentWorkflowConsumer:
 
     @staticmethod
     def event_summary(
-        stdout: str,
+        stdout: str | list[dict[str, Any]],
         cfg: dict[str, Any] | None = None,
         fixture: Path | None = None,
     ) -> dict[str, Any]:
-        events: list[dict[str, Any]] = []
-        for line in stdout.splitlines():
-            try:
-                value = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(value, dict) and value.get("type"):
-                events.append(value)
+        if isinstance(stdout, str):
+            events: list[dict[str, Any]] = []
+            for line in stdout.splitlines():
+                try:
+                    value = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(value, dict) and value.get("type"):
+                    events.append(value)
+        else:
+            events = [event for event in stdout if isinstance(event, dict) and event.get("type")]
 
         result = next(
             (event for event in reversed(events) if event.get("type") == "result"),
@@ -557,6 +560,272 @@ class DevelopmentWorkflowConsumer:
             "workflow_events": workflow_facts,
             "review_evidence": review_evidence,
             "mutation_events": mutation_events,
+        }
+
+    @staticmethod
+    def _session_events(session: dict[str, Any] | None) -> list[dict[str, Any]]:
+        events: list[dict[str, Any]] = []
+        if not session:
+            return events
+        names_by_call_id: dict[str, str] = {}
+        for message in session.get("messages", []):
+            role = message.get("role")
+            if role == "assistant":
+                calls = message.get("tool_calls") or []
+                for call in calls:
+                    function = call.get("function") or {}
+                    name = str(function.get("name") or call.get("name") or "")
+                    raw_args = function.get("arguments", call.get("input", {}))
+                    if isinstance(raw_args, str):
+                        try:
+                            raw_args = json.loads(raw_args)
+                        except json.JSONDecodeError:
+                            raw_args = {}
+                    args = raw_args if isinstance(raw_args, dict) else {}
+                    call_id = str(call.get("id") or "")
+                    if call_id:
+                        names_by_call_id[call_id] = name
+                    events.append({"type": "tool_use", "name": name, "input": args})
+                if not calls and message.get("content") is not None:
+                    events.append({"type": "result", "text": message.get("content")})
+            elif role == "tool":
+                name = str(message.get("tool_name") or message.get("name") or "")
+                name = name or names_by_call_id.get(str(message.get("tool_call_id") or ""), "")
+                events.append({
+                    "type": "tool_result",
+                    "name": name,
+                    "output": message.get("content"),
+                })
+        return events
+
+    @staticmethod
+    def _session_completed(session: dict[str, Any] | None, prompt_text: str) -> bool:
+        if not session:
+            return False
+        messages = session.get("messages") or []
+        last_user = next((message for message in reversed(messages) if message.get("role") == "user"), None)
+        last = next((message for message in reversed(messages) if message.get("role") != "system"), None)
+        return bool(
+            last_user
+            and last_user.get("content") == prompt_text
+            and last
+            and last.get("role") == "assistant"
+            and not last.get("tool_calls")
+        )
+
+    @staticmethod
+    def _session_for_prompt(db, prompt_text: str) -> dict[str, Any] | None:
+        for row in db.search_sessions(source="eval", limit=50):
+            session_id = str(row.get("id") or "")
+            if not session_id:
+                continue
+            session = db.export_session_lineage(session_id) or db.export_session(session_id)
+            if session and any(
+                message.get("role") == "user" and message.get("content") == prompt_text
+                for message in session.get("messages", [])
+            ):
+                return session
+        return None
+
+    @staticmethod
+    def _run_ordinary_interactive(
+        command: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        timeout_seconds: float,
+        prompt_text: str,
+    ) -> dict[str, Any]:
+        if os.name != "posix":
+            raise RuntimeError("ordinary interactive capture requires a POSIX pseudo-terminal")
+        import select
+        import signal
+
+        from hermes_state import SessionDB
+        from ptyprocess import PtyProcess
+
+        process = None
+        session_db = None
+        session_export = None
+        session_id = None
+        session_capture_error = None
+        orphan_process_group_found = False
+        terminal_output = bytearray()
+        timed_out = False
+        shutdown_failed = False
+        completion_observed = False
+        completion_status = "turn_incomplete"
+        stable_signature = None
+        stable_reads = 0
+        deadline = time.monotonic() + timeout_seconds
+        shutdown_deadline = None
+
+        try:
+            process = PtyProcess.spawn(
+                command, cwd=str(cwd), env=dict(env), echo=False, dimensions=(40, 120)
+            )
+            db_path = Path(env["HERMES_HOME"]) / "state.db"
+
+            def observe_session():
+                nonlocal session_db
+                if session_db is None:
+                    if not db_path.is_file():
+                        return None, None
+                    session_db = SessionDB(db_path=db_path, read_only=True)
+                found = DevelopmentWorkflowConsumer._session_for_prompt(session_db, prompt_text)
+                if not found:
+                    return None, None
+                ids = found.get("lineage_session_ids") or [found.get("id")]
+                return found, str(ids[0] or "") or None
+
+            def drain_output(wait: float) -> None:
+                if process.flag_eof:
+                    if wait:
+                        time.sleep(wait)
+                    return
+                if not select.select([process.fd], [], [], wait)[0]:
+                    return
+                try:
+                    terminal_output.extend(process.read(65536))
+                except EOFError:
+                    pass
+
+            while process.isalive():
+                now = time.monotonic()
+                if not completion_observed and now >= deadline:
+                    try:
+                        current_session, current_id = observe_session()
+                        session_capture_error = None
+                        if current_session:
+                            session_export, session_id = current_session, current_id
+                        if DevelopmentWorkflowConsumer._session_completed(current_session, prompt_text):
+                            completion_observed = True
+                            completion_status = "turn_completed"
+                            shutdown_deadline = time.monotonic() + 5.0
+                            try:
+                                process.write(b"\x04")
+                            except OSError:
+                                pass
+                            continue
+                    except Exception as exc:
+                        session_capture_error = f"{type(exc).__name__}: {exc}"
+                    timed_out = True
+                    completion_status = "eval_timeout_before_turn_completion"
+                    break
+                if completion_observed and shutdown_deadline is not None and now >= shutdown_deadline:
+                    shutdown_failed = True
+                    completion_status = "turn_completed_but_cli_did_not_exit"
+                    break
+
+                drain_output(0.1)
+                if not completion_observed:
+                    try:
+                        current_session, current_id = observe_session()
+                        session_capture_error = None
+                    except Exception as exc:
+                        session_capture_error = f"{type(exc).__name__}: {exc}"
+                        current_session, current_id = None, None
+                    if current_session:
+                        session_export, session_id = current_session, current_id
+                        if DevelopmentWorkflowConsumer._session_completed(current_session, prompt_text):
+                            messages = current_session.get("messages") or []
+                            signature = canonical_sha256({"count": len(messages), "last": messages[-1]})
+                            stable_reads = stable_reads + 1 if signature == stable_signature else 1
+                            stable_signature = signature
+                            if stable_reads >= 3:
+                                completion_observed = True
+                                completion_status = "turn_completed"
+                                shutdown_deadline = time.monotonic() + 5.0
+                                try:
+                                    process.write(b"\x04")
+                                except OSError:
+                                    pass
+                        else:
+                            stable_signature, stable_reads = None, 0
+
+            if not completion_observed:
+                try:
+                    current_session, current_id = observe_session()
+                    if current_session:
+                        session_export, session_id = current_session, current_id
+                except Exception as exc:
+                    session_capture_error = f"{type(exc).__name__}: {exc}"
+
+            if process.isalive():
+                try:
+                    os.killpg(process.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                grace = time.monotonic() + 0.25
+                while process.isalive() and time.monotonic() < grace:
+                    drain_output(0.02)
+                if process.isalive():
+                    try:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    while process.isalive():
+                        time.sleep(0.01)
+
+            while not process.flag_eof and select.select([process.fd], [], [], 0)[0]:
+                drain_output(0)
+            try:
+                os.killpg(process.pid, 0)
+                orphan_process_group_found = True
+                os.killpg(process.pid, signal.SIGTERM)
+                time.sleep(0.25)
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            except ProcessLookupError:
+                orphan_process_group_found = False
+            try:
+                current_session, current_id = observe_session()
+                session_capture_error = None
+                if current_session:
+                    session_export, session_id = current_session, current_id
+                    if not timed_out and DevelopmentWorkflowConsumer._session_completed(current_session, prompt_text):
+                        completion_observed = True
+                        if not shutdown_failed:
+                            completion_status = "turn_completed"
+            except Exception as exc:
+                session_capture_error = f"{type(exc).__name__}: {exc}"
+
+            return_code = process.exitstatus if process.exitstatus is not None else -(process.signalstatus or signal.SIGKILL)
+            if completion_observed and return_code != 0 and not shutdown_failed:
+                completion_status = "turn_completed_but_cli_failed"
+            process.close(force=False)
+        finally:
+            if process is not None:
+                if process.isalive():
+                    try:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    while process.isalive():
+                        time.sleep(0.01)
+                if not process.closed:
+                    process.close(force=False)
+            if session_db is not None:
+                session_db.close()
+
+        completed = subprocess.CompletedProcess(
+            command,
+            return_code,
+            terminal_output.decode("utf-8", errors="replace"),
+            "",
+        )
+        return {
+            "process": completed,
+            "timed_out": timed_out,
+            "shutdown_failed": shutdown_failed,
+            "completion_observed": completion_observed,
+            "completion_status": completion_status,
+            "session_id": session_id,
+            "session": session_export,
+            "session_capture_error": session_capture_error,
+            "orphan_process_group_found": orphan_process_group_found,
         }
 
     @staticmethod
@@ -693,27 +962,44 @@ class DevelopmentWorkflowConsumer:
             )
 
             execution = self.manifest["execution"]
+            mode = spec.mode.split(":", 1)[0]
             command = [
                 *self.hermes_command,
                 "chat",
                 "--query-file",
                 str(prompt),
-                "--oneshot",
-                "--quiet",
-                "--format",
-                "stream-json",
-                "--model",
-                spec.model,
-                "--provider",
-                spec.provider,
-                "--toolsets",
-                ",".join(execution["toolsets"]),
-                "--max-turns",
-                str(execution["max_turns"]),
-                "--run-budget",
-                str(execution["run_budget"]),
             ]
-            mode = spec.mode.split(":", 1)[0]
+            if mode == "natural-routing":
+                command.extend([
+                    "--cli",
+                    "--model",
+                    spec.model,
+                    "--provider",
+                    spec.provider,
+                    "--toolsets",
+                    ",".join(execution["toolsets"]),
+                    "--max-turns",
+                    str(execution["max_turns"]),
+                    "--run-budget",
+                    str(execution["run_budget"]),
+                ])
+            else:
+                command.extend([
+                    "--oneshot",
+                    "--quiet",
+                    "--format",
+                    "stream-json",
+                    "--model",
+                    spec.model,
+                    "--provider",
+                    spec.provider,
+                    "--toolsets",
+                    ",".join(execution["toolsets"]),
+                    "--max-turns",
+                    str(execution["max_turns"]),
+                    "--run-budget",
+                    str(execution["run_budget"]),
+                ])
             if mode == "skill-behavior" and execution["skill_behavior"].get("force_owner_skill"):
                 command.extend([
                     "--skills",
@@ -726,30 +1012,62 @@ class DevelopmentWorkflowConsumer:
 
             started = datetime.now(timezone.utc)
             started_mono = time.monotonic()
-            proc, timed_out = run_with_timeout(
-                command,
-                cwd=fixture,
-                env=env,
-                timeout_seconds=float(execution["eval_timeout_seconds"]),
-            )
+            normal_capture = None
+            if mode == "natural-routing":
+                normal_capture = self._run_ordinary_interactive(
+                    command,
+                    cwd=fixture,
+                    env=env,
+                    timeout_seconds=float(execution["eval_timeout_seconds"]),
+                    prompt_text=prompt.read_text(encoding="utf-8"),
+                )
+                proc = normal_capture["process"]
+                timed_out = normal_capture["timed_out"]
+                events = self._session_events(normal_capture["session"])
+                summary = self.event_summary(events, cfg, fixture)
+                completion_observed = normal_capture["completion_observed"]
+                completion_status = normal_capture["completion_status"]
+                raw_session = run_dir / "raw_session.json"
+                if normal_capture["session"] is not None:
+                    raw_session.write_text(
+                        json.dumps(normal_capture["session"], indent=2, sort_keys=True) + "\n",
+                        encoding="utf-8",
+                    )
+                raw_terminal = run_dir / "raw_terminal_output.txt"
+                raw_terminal.write_text(proc.stdout, encoding="utf-8")
+                raw_stream = raw_stderr = None
+                if timed_out or normal_capture["shutdown_failed"]:
+                    execution_status = "RUNTIME_FAILURE"
+                elif completion_observed and proc.returncode == 0:
+                    execution_status = "COMPLETED"
+                else:
+                    execution_status = "AGENT_FAILURE"
+            else:
+                proc, timed_out = run_with_timeout(
+                    command,
+                    cwd=fixture,
+                    env=env,
+                    timeout_seconds=float(execution["eval_timeout_seconds"]),
+                )
+                summary = self.event_summary(proc.stdout, cfg, fixture)
+                completion_observed = bool(summary["terminal_result"])
+                completion_status = "result_observed" if completion_observed else "process_exited_without_result"
+                raw_stream = run_dir / "raw_stream.jsonl"
+                raw_stderr = run_dir / "raw_stderr.txt"
+                raw_stream.write_text(proc.stdout, encoding="utf-8")
+                raw_stderr.write_text(proc.stderr, encoding="utf-8")
+                raw_session = raw_terminal = None
+                if timed_out:
+                    execution_status = "RUNTIME_FAILURE"
+                elif proc.returncode == 0:
+                    execution_status = "COMPLETED"
+                else:
+                    execution_status = "AGENT_FAILURE"
+
             ended = datetime.now(timezone.utc)
             elapsed = time.monotonic() - started_mono
-
-            if timed_out:
-                execution_status = "RUNTIME_FAILURE"
-            elif proc.returncode == 0:
-                execution_status = "COMPLETED"
-            else:
-                execution_status = "AGENT_FAILURE"
-
-            raw_stream = run_dir / "raw_stream.jsonl"
-            raw_stderr = run_dir / "raw_stderr.txt"
-            raw_final = run_dir / "raw_final_answer.txt"
-            raw_stream.write_text(proc.stdout, encoding="utf-8")
-            raw_stderr.write_text(proc.stderr, encoding="utf-8")
-
-            summary = self.event_summary(proc.stdout, cfg, fixture)
             final_text = str(summary.get("terminal_result", {}).get("text", ""))
+            raw_final = run_dir / "raw_final_answer.txt"
             raw_final.write_text(final_text, encoding="utf-8")
 
             probes = [self._probe(fixture, item) for item in cfg["behavior_probes"]]
@@ -804,6 +1122,17 @@ class DevelopmentWorkflowConsumer:
                 "model": spec.model,
                 "provider": spec.provider,
                 "command": command,
+                "execution_policy": "ordinary-interactive" if mode == "natural-routing" else "one-shot",
+                "completion_observed": completion_observed,
+                "completion_status": completion_status,
+                "session_id": normal_capture["session_id"] if normal_capture else None,
+                "session_capture_error": normal_capture["session_capture_error"] if normal_capture else None,
+                "orphan_process_group_found": normal_capture["orphan_process_group_found"] if normal_capture else None,
+                "raw_session_path": str(raw_session) if raw_session and raw_session.is_file() else None,
+                "raw_terminal_output_path": str(raw_terminal) if raw_terminal else None,
+                "raw_stream_path": str(raw_stream) if raw_stream else None,
+                "raw_stderr_path": str(raw_stderr) if raw_stderr else None,
+                "prompt_path": str(prompt),
                 "started_at": started.isoformat(),
                 "ended_at": ended.isoformat(),
                 "elapsed_seconds": elapsed,
@@ -835,8 +1164,6 @@ class DevelopmentWorkflowConsumer:
                 "tool_names": summary["tool_names"],
                 "skill_views": summary["skill_views"],
                 "skill_reads": summary["skill_reads"],
-                "raw_stream_path": str(raw_stream),
-                "raw_stderr_path": str(raw_stderr),
                 "raw_final_answer_path": str(raw_final),
                 "metadata_path": str(run_dir / "metadata.json"),
             }

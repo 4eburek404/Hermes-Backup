@@ -31,6 +31,63 @@ def consumer():
     )
 
 
+def write_fake_hermes(path: Path) -> Path:
+    path.write_text(
+        """#!/usr/bin/env python3
+import json
+import os
+import sys
+import uuid
+
+if "--oneshot" in sys.argv:
+    print(json.dumps({"type": "result", "text": "done"}), flush=True)
+    raise SystemExit(0)
+
+if not (sys.stdin.isatty() and sys.stdout.isatty()):
+    raise SystemExit("ordinary chat did not receive a TTY")
+
+prompt_path = sys.argv[sys.argv.index("--query-file") + 1]
+prompt = open(prompt_path, encoding="utf-8").read()
+from hermes_state import SessionDB
+db = SessionDB()
+session_id = uuid.uuid4().hex
+db.create_session(session_id, "eval", model="test-model", cwd=os.getcwd())
+call_id = "read-skill"
+db.append_message(session_id, "user", content=prompt)
+db.append_message(
+    session_id,
+    "assistant",
+    content="",
+    tool_calls=[{
+        "id": call_id,
+        "type": "function",
+        "function": {
+            "name": "read_file",
+            "arguments": json.dumps({
+                "path": "/tmp/hermes-home/skills/development/spec-driven-development/SKILL.md"
+            }),
+        },
+    }],
+)
+db.append_message(
+    session_id,
+    "tool",
+    content=json.dumps({"content": "# Spec-driven development"}),
+    tool_name="read_file",
+    tool_call_id=call_id,
+)
+db.append_message(session_id, "assistant", content="done")
+print("normal session ready", flush=True)
+os.read(0, 1)
+db.end_session(session_id, "cli_close")
+db.close()
+""",
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
+    return path
+
+
 def grounded_evidence() -> dict:
     return {
         "execution_status": "COMPLETED",
@@ -253,18 +310,19 @@ def test_hermes_invocation_forces_owner_only_in_skill_behavior_mode(monkeypatch,
     module = load_consumer_module()
     manifest = json.loads(
         (ROOT / "evals" / "development-workflow" / "manifest.json").read_text(
-            encoding="utf-8"
-        )
+            encoding="utf-8")
     )
+    manifest["execution"]["eval_timeout_seconds"] = 3
     scenario = manifest["scenarios"]["feature-shout"]
     scratch = tmp_path / "scratch"
     scratch.mkdir()
     monkeypatch.setenv("TMPDIR", str(scratch))
+    fake_hermes = write_fake_hermes(tmp_path / "fake-hermes")
 
     def invoke(mode: str):
         captured: dict[str, Any] = {}
         subject = module.DevelopmentWorkflowConsumer(
-            ROOT / "evals" / "development-workflow", ROOT, manifest, ["hermes"]
+            ROOT / "evals" / "development-workflow", ROOT, manifest, [str(fake_hermes)]
         )
 
         def fake_skill_root(version, root):
@@ -291,6 +349,7 @@ def test_hermes_invocation_forces_owner_only_in_skill_behavior_mode(monkeypatch,
         prepared = subject.prepare(spec, run_dir, {})
         subject.execute(spec, run_dir, prepared, {})
         captured["metadata"] = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
+        captured.setdefault("command", captured["metadata"]["command"])
         return captured
 
     controlled = invoke("skill-behavior")
@@ -918,17 +977,17 @@ def test_natural_run_evidence_preserves_observed_skill_reads(
             encoding="utf-8"
         )
     )
+    manifest["execution"]["eval_timeout_seconds"] = 3
     scenario = manifest["scenarios"]["feature-shout"]
     scratch = tmp_path / "scratch"
     scratch.mkdir()
     monkeypatch.setenv("TMPDIR", str(scratch))
-    captured: dict[str, Any] = {}
 
     subject = module.DevelopmentWorkflowConsumer(
         ROOT / "evals" / "development-workflow",
         ROOT,
         manifest,
-        ["hermes"],
+        [str(write_fake_hermes(tmp_path / "fake-hermes"))],
     )
 
     def fake_skill_root(version, root):
@@ -936,37 +995,7 @@ def test_natural_run_evidence_preserves_observed_skill_reads(
         skills.mkdir(parents=True)
         return skills, [{"resolved_commit": "test-source"}]
 
-    raw_events = [
-        {
-            "type": "tool_use",
-            "name": "read_file",
-            "input": {
-                "path": "/tmp/hermes-home/skills/development/spec-driven-development/SKILL.md"
-            },
-        },
-        {
-            "type": "tool_result",
-            "name": "read_file",
-            "output": json.dumps({"content": "# Spec-driven development"}),
-        },
-        {"type": "result", "text": "done"},
-    ]
-
-    def fake_run(command, **kwargs):
-        captured["command"] = command
-        return (
-            subprocess.CompletedProcess(
-                command,
-                0,
-                chr(10).join(json.dumps(event) for event in raw_events) + chr(10),
-                "",
-            ),
-            False,
-        )
-
     subject._build_skill_root = fake_skill_root
-    monkeypatch.setattr(module, "run_with_timeout", fake_run)
-
     fixture_version = module.canonical_sha256(
         {
             "fixture_files": scenario["fixture_files"],
@@ -992,7 +1021,12 @@ def test_natural_run_evidence_preserves_observed_skill_reads(
     prepared = subject.prepare(spec, run_dir, {})
     evidence = subject.execute(spec, run_dir, prepared, {})
 
-    assert "--skills" not in captured["command"]
+    assert "--skills" not in evidence["command"]
+    assert "--oneshot" not in evidence["command"]
+    assert "--quiet" not in evidence["command"]
+    assert "--format" not in evidence["command"]
+    assert evidence["execution_policy"] == "ordinary-interactive"
+    assert evidence["completion_observed"] is True
     assert evidence["skill_views"] == []
     assert evidence["skill_reads"] == [
         {
@@ -1001,4 +1035,6 @@ def test_natural_run_evidence_preserves_observed_skill_reads(
         }
     ]
     assert evidence["event_summary"]["skill_reads"] == evidence["skill_reads"]
+    assert Path(evidence["raw_session_path"]).is_file()
+    assert not (run_dir / "raw_stream.jsonl").exists()
 
