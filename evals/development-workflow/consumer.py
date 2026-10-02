@@ -36,6 +36,38 @@ def _decode_tool_output(value: Any) -> dict[str, Any]:
     return {}
 
 
+def _skill_id_from_path(path: str) -> str | None:
+    normalized = str(path).replace("\\", "/")
+    match = re.search(r"(?:^|/)skills/(.+?)/SKILL\.md$", normalized, re.IGNORECASE)
+    return match.group(1) if match else None
+
+
+def _terminal_skill_reads(command: str) -> list[str]:
+    read_command = re.compile(
+        r"(?:^|[;&|]\s*)(?:cat|head|tail|less|more|sed|grep)\b([^;&|]*)",
+        re.IGNORECASE,
+    )
+    skill_path = re.compile(
+        r"['\"]?((?:[^'\"\s;&|]+/)?skills/(?:[^'\"\s;&|]+/)+SKILL\.md)['\"]?",
+        re.IGNORECASE,
+    )
+    found: list[str] = []
+    for command_match in read_command.finditer(command):
+        for path_match in skill_path.finditer(command_match.group(1)):
+            skill = _skill_id_from_path(path_match.group(1))
+            if skill and skill not in found:
+                found.append(skill)
+    return found
+
+
+def _tool_result_has_content(result: dict[str, Any]) -> bool:
+    return (
+        result.get("success") is not False
+        and not result.get("error")
+        and bool(str(result.get("output", "")))
+    )
+
+
 def _is_verification_file(path: str) -> bool:
     parts = [part.lower() for part in Path(path).parts]
     name = parts[-1] if parts else ""
@@ -474,17 +506,41 @@ class DevelopmentWorkflowConsumer:
         commands: list[str] = []
         tool_names: list[str] = []
         skill_views: list[Any] = []
+        skill_reads: list[dict[str, str]] = []
+        pending: dict[str, deque[dict[str, Any]]] = defaultdict(deque)
         for event in events:
-            if event.get("type") != "tool_use":
-                continue
             name = str(event.get("name", ""))
-            if name:
-                tool_names.append(name)
-            args = event.get("input") or {}
-            if name == "terminal" and isinstance(args, dict) and args.get("command"):
-                commands.append(str(args["command"]))
-            if name == "skill_view":
-                skill_views.append(args)
+            if event.get("type") == "tool_use":
+                raw_args = event.get("input") or {}
+                args = raw_args if isinstance(raw_args, dict) else {}
+                pending[name].append(args)
+                if name:
+                    tool_names.append(name)
+                if name == "terminal" and args.get("command"):
+                    command = str(args["command"])
+                    commands.append(command)
+                if name == "skill_view":
+                    skill_views.append(raw_args)
+                continue
+
+            if event.get("type") != "tool_result" or not pending[name]:
+                continue
+            args = pending[name].popleft()
+            tool_result = _decode_tool_output(event.get("output"))
+            if name == "skill_view" and _tool_result_has_content(tool_result):
+                skill = str(args.get("name", "")).strip()
+                if skill:
+                    skill_reads.append({"skill": skill, "via": "skill_view"})
+            elif name in {"read_file", "file_read"} and _tool_result_has_content(tool_result):
+                skill = _skill_id_from_path(str(args.get("path", "")))
+                if skill:
+                    skill_reads.append({"skill": skill, "via": name})
+            elif name == "terminal" and tool_result.get("exit_code") == 0:
+                if _tool_result_has_content(tool_result):
+                    skill_reads.extend(
+                        {"skill": skill, "via": "terminal"}
+                        for skill in _terminal_skill_reads(str(args.get("command", "")))
+                    )
 
         workflow_facts = _workflow_events(events, cfg or {}, fixture) if fixture else []
         if cfg and cfg.get("review_only") and fixture:
@@ -496,6 +552,7 @@ class DevelopmentWorkflowConsumer:
             "tool_calls": commands,
             "tool_names": tool_names,
             "skill_views": skill_views,
+            "skill_reads": skill_reads,
             "terminal_result": result,
             "workflow_events": workflow_facts,
             "review_evidence": review_evidence,
@@ -762,6 +819,7 @@ class DevelopmentWorkflowConsumer:
                 "equivalent_behavior_probes": equivalent_behavior_probes,
                 "equivalent_test_result": equivalent_test_result,
                 "event_summary": summary,
+                "skill_reads": summary["skill_reads"],
                 "review_evidence": summary.get("review_evidence", []),
                 "mutation_events": summary.get("mutation_events", []),
                 "prompt_sha256": prepared["prompt_sha256"],
@@ -776,6 +834,7 @@ class DevelopmentWorkflowConsumer:
                 "tool_calls": summary["tool_calls"],
                 "tool_names": summary["tool_names"],
                 "skill_views": summary["skill_views"],
+                "skill_reads": summary["skill_reads"],
                 "raw_stream_path": str(raw_stream),
                 "raw_stderr_path": str(raw_stderr),
                 "raw_final_answer_path": str(raw_final),
