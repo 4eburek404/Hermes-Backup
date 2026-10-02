@@ -150,6 +150,29 @@ outcome criterion. A separate natural-routing audit omits `--skills` and records
 Both retain externally meaningful safety checks, such as not destroying the
 fixture repository or attempting delivery from a local development task.
 
+### Skill-read evidence contract
+
+Skill routing remains diagnostic evidence rather than a scenario acceptance
+criterion. The eval must distinguish two meanings:
+
+- `skill_views` records direct model-tool invocations of `skill_view`;
+- `skill_reads` records observable reads of a concrete skill's `SKILL.md`,
+  whether the recorded raw trajectory shows that access through `skill_view`,
+  a file-read tool, or a terminal command that reads the file contents.
+
+Each `skill_reads` entry identifies the skill and the observable access
+mechanism. The evidence is derived only from recorded execution events: an
+unobservable preload or autoload must not be invented from configuration alone.
+
+Therefore `skill_views = []` means only that no direct `skill_view` tool call
+was observed. It is not sufficient evidence that no skill was read. For a
+natural-routing run, the eval may state that no skill read was observed only
+when the broader `skill_reads` evidence is empty as well.
+
+The distinction must survive from the raw execution stream into saved run
+evidence. These routing diagnostics do not by themselves change outcome or
+trajectory pass/fail status.
+
 ## Migration rule for existing contracts
 
 Repository checks that parse 'SKILL.md' prose, require a specific owner name, or

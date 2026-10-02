@@ -821,3 +821,167 @@ def test_review_trajectory_fails_on_delivery_or_destructive_action() -> None:
             "trajectory", evidence, {"review_only": True}
         )
         assert result["status"] == "FAIL", (command, result)
+
+def test_event_summary_distinguishes_skill_view_calls_from_observed_skill_reads() -> None:
+    subject = consumer()
+    events = [
+        {
+            "type": "tool_use",
+            "name": "skill_view",
+            "input": {"name": "github/github-code-review"},
+        },
+        {
+            "type": "tool_result",
+            "name": "skill_view",
+            "output": json.dumps({"content": "# Code review skill"}),
+        },
+        {
+            "type": "tool_use",
+            "name": "read_file",
+            "input": {
+                "path": "/tmp/hermes-home/skills/development/spec-driven-development/SKILL.md"
+            },
+        },
+        {
+            "type": "tool_result",
+            "name": "read_file",
+            "output": json.dumps({"content": "# Spec-driven development"}),
+        },
+        {
+            "type": "tool_use",
+            "name": "terminal",
+            "input": {
+                "command": (
+                    "sed -n '1,80p' "
+                    "/tmp/hermes-home/skills/development/test-driven-development/SKILL.md"
+                )
+            },
+        },
+        {
+            "type": "tool_result",
+            "name": "terminal",
+            "output": json.dumps({"output": "# Test-driven development\n", "exit_code": 0}),
+        },
+        {
+            "type": "tool_use",
+            "name": "read_file",
+            "input": {"path": "/tmp/project/README.md"},
+        },
+        {
+            "type": "tool_result",
+            "name": "read_file",
+            "output": json.dumps({"content": "ordinary project file"}),
+        },
+    ]
+
+    summary = subject.event_summary(
+        chr(10).join(json.dumps(event) for event in events)
+    )
+
+    assert summary["skill_views"] == [{"name": "github/github-code-review"}]
+    assert summary["skill_reads"] == [
+        {"skill": "github/github-code-review", "via": "skill_view"},
+        {
+            "skill": "development/spec-driven-development",
+            "via": "read_file",
+        },
+        {
+            "skill": "development/test-driven-development",
+            "via": "terminal",
+        },
+    ]
+
+
+def test_natural_run_evidence_preserves_observed_skill_reads(
+    monkeypatch, tmp_path
+) -> None:
+    module = load_consumer_module()
+    manifest = json.loads(
+        (ROOT / "evals" / "development-workflow" / "manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    scenario = manifest["scenarios"]["feature-shout"]
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.setenv("TMPDIR", str(scratch))
+    captured: dict[str, Any] = {}
+
+    subject = module.DevelopmentWorkflowConsumer(
+        ROOT / "evals" / "development-workflow",
+        ROOT,
+        manifest,
+        ["hermes"],
+    )
+
+    def fake_skill_root(version, root):
+        skills = root / "skills"
+        skills.mkdir(parents=True)
+        return skills, [{"resolved_commit": "test-source"}]
+
+    raw_events = [
+        {
+            "type": "tool_use",
+            "name": "read_file",
+            "input": {
+                "path": "/tmp/hermes-home/skills/development/spec-driven-development/SKILL.md"
+            },
+        },
+        {
+            "type": "tool_result",
+            "name": "read_file",
+            "output": json.dumps({"content": "# Spec-driven development"}),
+        },
+        {"type": "result", "text": "done"},
+    ]
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        return (
+            subprocess.CompletedProcess(
+                command,
+                0,
+                chr(10).join(json.dumps(event) for event in raw_events) + chr(10),
+                "",
+            ),
+            False,
+        )
+
+    subject._build_skill_root = fake_skill_root
+    monkeypatch.setattr(module, "run_with_timeout", fake_run)
+
+    fixture_version = module.canonical_sha256(
+        {
+            "fixture_files": scenario["fixture_files"],
+            "equivalent_implementation_files": scenario.get(
+                "equivalent_implementation_files", {}
+            ),
+        }
+    )
+    spec = module.RunSpec(
+        "feature-shout",
+        "test-model",
+        "test-provider",
+        "baseline",
+        1,
+        fixture_version,
+        module.canonical_sha256(scenario["prompt"]),
+        "test-runtime",
+        "natural-routing",
+    )
+    run_dir = tmp_path / "natural-routing"
+    run_dir.mkdir()
+
+    prepared = subject.prepare(spec, run_dir, {})
+    evidence = subject.execute(spec, run_dir, prepared, {})
+
+    assert "--skills" not in captured["command"]
+    assert evidence["skill_views"] == []
+    assert evidence["skill_reads"] == [
+        {
+            "skill": "development/spec-driven-development",
+            "via": "read_file",
+        }
+    ]
+    assert evidence["event_summary"]["skill_reads"] == evidence["skill_reads"]
+
