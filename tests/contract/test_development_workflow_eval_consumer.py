@@ -490,6 +490,18 @@ def test_seed_specs_accept_behavior_equivalent_implementations() -> None:
                 )
 
 
+def test_development_workflow_defaults_to_gpt_6_luna() -> None:
+    manifest = json.loads(
+        (ROOT / "evals" / "development-workflow" / "manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert manifest["models"] == [
+        {"model": "gpt-6-luna", "provider": "openai-codex"}
+    ]
+
+
 def test_eval_setup_accepts_its_complete_fixture_fingerprint() -> None:
     import runpy
 
