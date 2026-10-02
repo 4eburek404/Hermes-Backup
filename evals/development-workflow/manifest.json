@@ -249,7 +249,7 @@
     "review-only": {
       "review_only": true,
       "owner_skill": "github-code-review",
-      "prompt": "Проведи review текущего изменения в этом небольшом Python-проекте. Найди существенные проблемы, если они есть, и сообщи findings с подтверждением из diff, кода, тестов или проверок. Сохрани файл `notes.txt` без изменений.\n",
+      "prompt": "Проведи review текущего изменения в этом небольшом Python-проекте. Найди существенные проблемы, если они есть, и сообщи findings с подтверждением.\n",
       "fixture_files": {
         "shipping.py": "from __future__ import annotations\n\nfrom decimal import Decimal\nimport sys\n\n\ndef shipping_cost(total: Decimal) -> int:\n    return 10 if total <= Decimal(\"100\") else 0\n\n\ndef main(argv: list[str]) -> int:\n    print(shipping_cost(Decimal(argv[0])))\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main(sys.argv[1:]))\n",
         "README.md": "Shipping contract: orders below 100 cost 10 to ship; orders of 100 or more ship free.\n",
