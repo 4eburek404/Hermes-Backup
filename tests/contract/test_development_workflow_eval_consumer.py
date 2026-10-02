@@ -298,6 +298,9 @@ def test_hermes_invocation_forces_owner_only_in_skill_behavior_mode(monkeypatch,
 
     assert controlled["command"][controlled["command"].index("--skills") + 1] == "spec-driven-development"
     assert "--skills" not in audit["command"]
+    assert "--oneshot" not in audit["command"]
+    assert "--quiet" not in audit["command"]
+    assert "--format" not in audit["command"]
     assert controlled["metadata"]["evaluation_mode"] == "skill-behavior"
     assert controlled["metadata"]["forced_owner_skill"] == "spec-driven-development"
     assert controlled["metadata"]["fixture_sha256"] == module.canonical_sha256({

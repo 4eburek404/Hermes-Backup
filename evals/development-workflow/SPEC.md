@@ -173,6 +173,33 @@ The distinction must survive from the raw execution stream into saved run
 evidence. These routing diagnostics do not by themselves change outcome or
 trajectory pass/fail status.
 
+### Natural-routing execution contract
+
+A run labelled `natural-routing` must measure Hermes under its ordinary
+skill-routing policy. Omitting forced `--skills` is necessary but not
+sufficient: the capture mechanism must not switch Hermes into a special
+execution policy whose skill-selection instructions or available routing
+surface differ from the ordinary mode being evaluated.
+
+For the Hermes runtime used by this eval, one-shot execution has a distinct
+skill-routing policy. Therefore a `natural-routing` run must not use the
+one-shot execution path or one-shot-only capture flags merely to obtain an
+easier machine-readable stream.
+
+The evidence-capture transport is not prescribed. An interactive PTY/session
+path, database/session export, or another mechanism is acceptable if it
+preserves the evidence required by the harness, including tool calls/results,
+terminal outcome, timing/provenance, and observable skill reads.
+
+The execution policy used for a run must remain auditable from captured
+provenance. Historical one-shot runs remain valid evidence of one-shot behavior;
+they must not be silently relabelled or compared as if they had measured
+ordinary natural routing.
+
+This contract does not require Hermes to load any particular skill, nor does
+the presence or absence of a specific skill read by itself determine
+outcome/trajectory PASS or FAIL.
+
 ## Migration rule for existing contracts
 
 Repository checks that parse 'SKILL.md' prose, require a specific owner name, or
