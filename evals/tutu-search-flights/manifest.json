@@ -37,7 +37,7 @@
       "prompt": "prompt/search-results-reflect-tutu.txt",
       "fixture": "fixtures/baseline.json",
       "fixture_sha256": "77930a78b4d99bed72cdbd35310de6b297d3ea5edc5beaf1656c70008a74c58b",
-      "prompt_sha256": "97842c34e80523a649bfa9724a5561079784e89ca1d43fb581d942ca3912d14c",
+      "prompt_sha256": "2390f65fb1d21de98fd921b6d70f6b50a84c315b1e0a2db3bf58d449633173e6",
       "evaluation": {
         "outcome": {
           "fixture_id": "tutu-avia-baseline-2026-09-24",
@@ -66,7 +66,7 @@
       "prompt": "prompt/missing-cabin-baggage-weight.txt",
       "fixture": "fixtures/baseline.json",
       "fixture_sha256": "77930a78b4d99bed72cdbd35310de6b297d3ea5edc5beaf1656c70008a74c58b",
-      "prompt_sha256": "c47fe88f614e726d1c8495b12e27857eea456ddc90109877cdf2645b9f74b62d",
+      "prompt_sha256": "9da58bac37b4c781b805f9475d2321ddb88b82d3069ac1d7ad4ceab391c3d3b7",
       "evaluation": {
         "outcome": {
           "fixture_id": "tutu-avia-baseline-2026-09-24",
@@ -96,7 +96,7 @@
       "fixture": "fixtures/party-pricing.json",
       "candidate_fixture": "fixtures/avia/party-2a-1c.json",
       "fixture_sha256": "7666c93ea19389389264f0f87098dcfa7b4bcdb71014ae465009b156d4eee5d2",
-      "prompt_sha256": "4ca9c6329e2204007f86f13576417517f07b26c6cdf8b02b4a2e33a74973beeb",
+      "prompt_sha256": "e9735f39e3e31db80727de4fb9558daec73ca5be3005ff071e77217b4f13418f",
       "evaluation": {
         "outcome": {
           "fixture_id": "tutu-avia-party-2a-1c-2026-09-24",
