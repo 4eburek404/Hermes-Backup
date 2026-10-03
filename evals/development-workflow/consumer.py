@@ -509,9 +509,9 @@ class DevelopmentWorkflowConsumer:
         commands: list[str] = []
         tool_names: list[str] = []
         skill_views: list[Any] = []
-        skill_reads: list[dict[str, str]] = []
+        skill_reads: list[dict[str, Any]] = []
         pending: dict[str, deque[dict[str, Any]]] = defaultdict(deque)
-        for event in events:
+        for event_index, event in enumerate(events):
             name = str(event.get("name", ""))
             if event.get("type") == "tool_use":
                 raw_args = event.get("input") or {}
@@ -533,15 +533,15 @@ class DevelopmentWorkflowConsumer:
             if name == "skill_view" and _tool_result_has_content(tool_result):
                 skill = str(args.get("name", "")).strip()
                 if skill:
-                    skill_reads.append({"skill": skill, "via": "skill_view"})
+                    skill_reads.append({"skill": skill, "via": "skill_view", "index": event_index})
             elif name in {"read_file", "file_read"} and _tool_result_has_content(tool_result):
                 skill = _skill_id_from_path(str(args.get("path", "")))
                 if skill:
-                    skill_reads.append({"skill": skill, "via": name})
+                    skill_reads.append({"skill": skill, "via": name, "index": event_index})
             elif name == "terminal" and tool_result.get("exit_code") == 0:
                 if _tool_result_has_content(tool_result):
                     skill_reads.extend(
-                        {"skill": skill, "via": "terminal"}
+                        {"skill": skill, "via": "terminal", "index": event_index}
                         for skill in _terminal_skill_reads(str(args.get("command", "")))
                     )
 
@@ -1420,3 +1420,26 @@ class DevelopmentWorkflowConsumer:
                 rules,
             )["status"]
         )
+
+    @staticmethod
+    def evaluate_routing(evidence: dict[str, Any], rules: dict[str, Any]) -> dict[str, Any]:
+        """Check owner-skill routing independently of the BDD trajectory verdict."""
+        owner = str(rules.get("owner_skill", "spec-driven-development")).lower()
+        reads = [item for item in evidence.get("skill_reads", [])
+                 if owner in str(item.get("skill", "")).lower()]
+        workflow_events = evidence.get("workflow_events")
+        if workflow_events is None:
+            workflow_events = (evidence.get("event_summary") or {}).get("workflow_events", [])
+        first_production = min(
+            (int(item["index"]) for item in workflow_events
+             if item.get("kind") == "production_changed" and item.get("index") is not None),
+            default=None,
+        )
+        if not reads:
+            return {"status": "FAIL", "reason": f"{owner} was not read"}
+        if first_production is None:
+            return {"status": "UNDEFINED", "reason": "no production modification was observed"}
+        if not any(item.get("index") is not None and int(item["index"]) < first_production
+                   for item in reads):
+            return {"status": "FAIL", "reason": f"{owner} was not read before production modification"}
+        return {"status": "PASS", "reason": None}

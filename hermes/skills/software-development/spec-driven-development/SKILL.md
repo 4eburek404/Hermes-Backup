@@ -1,6 +1,6 @@
 ---
 name: spec-driven-development
-description: Use for features, bug fixes, contract changes, or refactors.
+description: Primary workflow for features, bug fixes, behavior/contract changes, and behavior-sensitive refactors; define observable behavior and verification before implementation.
 version: 1.0.0
 author: Konstantin Orlov + Hermes Agent
 license: MIT

@@ -956,14 +956,16 @@ def test_event_summary_distinguishes_skill_view_calls_from_observed_skill_reads(
 
     assert summary["skill_views"] == [{"name": "github/github-code-review"}]
     assert summary["skill_reads"] == [
-        {"skill": "github/github-code-review", "via": "skill_view"},
+        {"skill": "github/github-code-review", "via": "skill_view", "index": 1},
         {
             "skill": "development/spec-driven-development",
             "via": "read_file",
+            "index": 3,
         },
         {
             "skill": "development/test-driven-development",
             "via": "terminal",
+            "index": 5,
         },
     ]
 
@@ -1032,9 +1034,36 @@ def test_natural_run_evidence_preserves_observed_skill_reads(
         {
             "skill": "development/spec-driven-development",
             "via": "read_file",
+            "index": 1,
         }
     ]
     assert evidence["event_summary"]["skill_reads"] == evidence["skill_reads"]
     assert Path(evidence["raw_session_path"]).is_file()
     assert not (run_dir / "raw_stream.jsonl").exists()
+
+
+def test_feature_routing_requires_sdd_read_before_first_production_change() -> None:
+    evidence = {
+        "skill_reads": [
+            {"skill": "ponytail", "index": 2},
+            {"skill": "spec-driven-development", "index": 5},
+        ],
+        "event_summary": {
+            "workflow_events": [
+                {"kind": "production_changed", "index": 8},
+            ],
+        },
+    }
+    result = consumer().evaluate_routing(evidence, {"owner_skill": "spec-driven-development"})
+    assert result == {"status": "PASS", "reason": None}
+
+    late_sdd = {
+        **evidence,
+        "skill_reads": [
+            {"skill": "ponytail", "index": 2},
+            {"skill": "spec-driven-development", "index": 9},
+        ],
+    }
+    result = consumer().evaluate_routing(late_sdd, {"owner_skill": "spec-driven-development"})
+    assert result["status"] == "FAIL"
 
