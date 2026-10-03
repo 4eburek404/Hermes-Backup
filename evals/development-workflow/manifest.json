@@ -48,8 +48,14 @@
   },
   "scenarios": {
     "feature-shout": {
-      "current_behavior_probes": [{"exit_code": 0, "stdout": "Hello, Alice!\n", "input_signals": ["Alice"]}],
-      "preserved_behavior_probes": [{"exit_code": 0, "stdout": "Hello, Alice!\n", "input_signals": ["Alice"]}],
+      "current_behavior_probes": [
+        {"exit_code": 0, "stdout": "Hello, Alice!\n", "input_signals": ["Alice"]},
+        {"exit_code": 0, "stdout": "Hello, World!\n", "input_signals": ["app.py"]}
+      ],
+      "preserved_behavior_probes": [
+        {"exit_code": 0, "stdout": "Hello, Alice!\n", "input_signals": ["Alice"]},
+        {"exit_code": 0, "stdout": "Hello, World!\n", "input_signals": ["app.py"]}
+      ],
       "target_check_signals": ["HELLO, ALICE!", "--shout"],
       "prompt": "Добавь в этот небольшой Python-проект необязательный режим `--shout`, чтобы `python3 app.py Alice --shout` печатал `HELLO, ALICE!`. Существующее поведение без `--shout` должно сохраниться.\n",
       "fixture_files": {
@@ -78,6 +84,15 @@
           "stdout": "Hello, Alice!\n"
         },
         {
+          "name": "default-greeting",
+          "command": [
+            "python3",
+            "app.py"
+          ],
+          "exit_code": 0,
+          "stdout": "Hello, World!\n"
+        },
+        {
           "name": "shout-greeting",
           "command": [
             "python3",
@@ -90,7 +105,7 @@
         }
       ],
       "equivalent_implementation_files": {
-        "app.py": "from __future__ import annotations\n\nimport argparse\nimport sys\n\n\ndef main(argv: list[str]) -> int:\n    parser = argparse.ArgumentParser()\n    parser.add_argument(\"name\")\n    parser.add_argument(\"--shout\", action=\"store_true\")\n    args = parser.parse_args(argv)\n\n    message = \"Hello, %s!\" % args.name\n    if args.shout:\n        message = message.upper()\n    print(message)\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main(sys.argv[1:]))\n"
+        "app.py": "from __future__ import annotations\n\nimport argparse\nimport sys\n\n\ndef main(argv: list[str]) -> int:\n    parser = argparse.ArgumentParser()\n    parser.add_argument(\"name\", nargs=\"?\", default=\"World\")\n    parser.add_argument(\"--shout\", action=\"store_true\")\n    args = parser.parse_args(argv)\n\n    message = \"Hello, %s!\" % args.name\n    if args.shout:\n        message = message.upper()\n    print(message)\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main(sys.argv[1:]))\n"
       }
     },
     "bug-boundary": {
