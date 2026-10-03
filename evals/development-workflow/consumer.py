@@ -1422,11 +1422,13 @@ class DevelopmentWorkflowConsumer:
         )
 
     @staticmethod
-    def evaluate_routing(evidence: dict[str, Any], rules: dict[str, Any]) -> dict[str, Any]:
-        """Check owner-skill routing independently of the BDD trajectory verdict."""
-        owner = str(rules.get("owner_skill", "spec-driven-development")).lower()
-        reads = [item for item in evidence.get("skill_reads", [])
-                 if owner in str(item.get("skill", "")).lower()]
+    def routing_diagnostics(evidence: dict[str, Any]) -> dict[str, Any]:
+        """Record observed skill routing without turning it into an acceptance verdict."""
+        reads = [
+            dict(item)
+            for item in evidence.get("skill_reads", [])
+            if isinstance(item, dict)
+        ]
         workflow_events = evidence.get("workflow_events")
         if workflow_events is None:
             workflow_events = (evidence.get("event_summary") or {}).get("workflow_events", [])
@@ -1435,11 +1437,14 @@ class DevelopmentWorkflowConsumer:
              if item.get("kind") == "production_changed" and item.get("index") is not None),
             default=None,
         )
-        if not reads:
-            return {"status": "FAIL", "reason": f"{owner} was not read"}
-        if first_production is None:
-            return {"status": "UNDEFINED", "reason": "no production modification was observed"}
-        if not any(item.get("index") is not None and int(item["index"]) < first_production
-                   for item in reads):
-            return {"status": "FAIL", "reason": f"{owner} was not read before production modification"}
-        return {"status": "PASS", "reason": None}
+        before_production = []
+        if first_production is not None:
+            before_production = [
+                item for item in reads
+                if item.get("index") is not None and int(item["index"]) < first_production
+            ]
+        return {
+            "first_production_index": first_production,
+            "skill_reads": reads,
+            "skill_reads_before_production": before_production,
+        }

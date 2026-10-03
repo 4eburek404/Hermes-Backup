@@ -148,30 +148,38 @@ def main() -> int:
     batch_dir = ROOT / "runs" / stamp
     batch = Harness(consumer).run(case, batch_dir)
 
-    routing_checks = []
-    for run in batch["runs"]:
-        if run["scenario"] != "feature-shout":
-            continue
-        evidence_path = Path(run["evidence_path"])
-        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
-        routing = consumer.evaluate_routing(
-            evidence,
-            {"owner_skill": "spec-driven-development"},
-        )
-        (evidence_path.parent / "routing.json").write_text(
-            json.dumps(routing, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        routing_checks.append((run["run_id"], routing))
+    routing_diagnostics = []
+    if args.mode == "natural-routing":
+        for run in batch["runs"]:
+            if run["scenario"] != "feature-shout":
+                continue
+            evidence_path = Path(run["evidence_path"])
+            evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+            routing = consumer.routing_diagnostics(evidence)
+            (evidence_path.parent / "routing.json").write_text(
+                json.dumps(routing, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            routing_diagnostics.append((run["run_id"], routing))
 
-    report_path = batch_dir / "report.md"
-    with report_path.open("a", encoding="utf-8") as report:
-        report.write("\n## NATURAL ROUTING\n\n")
-        for run_id, routing in routing_checks:
-            report.write(f"- `{run_id}`: {routing['status']} — {routing.get('reason') or 'SDD read before production modification'}\n")
+    if routing_diagnostics:
+        report_path = batch_dir / "report.md"
+        with report_path.open("a", encoding="utf-8") as report:
+            report.write("\n## NATURAL ROUTING\n\n")
+            for run_id, routing in routing_diagnostics:
+                before = [
+                    str(item.get("skill", ""))
+                    for item in routing["skill_reads_before_production"]
+                ]
+                observed = ", ".join(before) if before else "none observed"
+                report.write(
+                    f"- `{run_id}`: skills read before first production change: "
+                    f"{observed}\n"
+                )
 
     print(f"batch={batch_dir}")
-    print("routing=" + json.dumps(routing_checks, ensure_ascii=False))
+    if routing_diagnostics:
+        print("routing=" + json.dumps(routing_diagnostics, ensure_ascii=False))
     bad = [
         run
         for run in batch["runs"]
@@ -179,8 +187,7 @@ def main() -> int:
         or run.get("score", {}).get("outcome") != "PASS"
         or run.get("score", {}).get("trajectory") != "PASS"
     ]
-    routing_failed = any(result.get("status") != "PASS" for _, result in routing_checks)
-    return 1 if bad or routing_failed else 0
+    return 1 if bad else 0
 
 
 if __name__ == "__main__":

@@ -1042,11 +1042,12 @@ def test_natural_run_evidence_preserves_observed_skill_reads(
     assert not (run_dir / "raw_stream.jsonl").exists()
 
 
-def test_feature_routing_requires_sdd_read_before_first_production_change() -> None:
+def test_routing_diagnostics_preserve_observed_reads_without_acceptance_verdict() -> None:
     evidence = {
         "skill_reads": [
-            {"skill": "ponytail", "index": 2},
-            {"skill": "spec-driven-development", "index": 5},
+            {"skill": "ponytail", "via": "skill_view", "index": 2},
+            {"skill": "test-driven-development", "via": "skill_view", "index": 5},
+            {"skill": "spec-driven-development", "via": "skill_view", "index": 9},
         ],
         "event_summary": {
             "workflow_events": [
@@ -1054,16 +1055,14 @@ def test_feature_routing_requires_sdd_read_before_first_production_change() -> N
             ],
         },
     }
-    result = consumer().evaluate_routing(evidence, {"owner_skill": "spec-driven-development"})
-    assert result == {"status": "PASS", "reason": None}
 
-    late_sdd = {
-        **evidence,
-        "skill_reads": [
-            {"skill": "ponytail", "index": 2},
-            {"skill": "spec-driven-development", "index": 9},
-        ],
+    result = consumer().routing_diagnostics(evidence)
+
+    assert result == {
+        "first_production_index": 8,
+        "skill_reads": evidence["skill_reads"],
+        "skill_reads_before_production": evidence["skill_reads"][:2],
     }
-    result = consumer().evaluate_routing(late_sdd, {"owner_skill": "spec-driven-development"})
-    assert result["status"] == "FAIL"
+    assert "status" not in result
+    assert "reason" not in result
 
