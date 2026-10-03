@@ -1,7 +1,7 @@
 ---
 name: behavior-driven-development
 description: Primary development workflow for features, bug fixes, behavior/contract changes, and behavior-sensitive refactors; define observable examples and acceptance evidence before implementation.
-version: 1.0.0
+version: 1.0.1
 author: Konstantin Orlov + Hermes Agent
 license: MIT
 platforms: [linux, macos, windows]
@@ -53,6 +53,15 @@ existing mechanisms.
 Establish the relevant current behavior by executing the system or a suitable
 existing check at an observable boundary when practical. Source inspection alone
 is not proof of runtime behavior.
+
+When existing behavior must remain unchanged, derive the smallest preservation
+set from the affected public or observable path before changing production code.
+Include materially distinct defaults, branches, boundaries, compatibility, and
+error modes that the planned change could affect, even when existing tests do
+not cover them. Do not enumerate every possible input; select only cases that
+exercise meaningfully different observable behavior. Observe each selected case
+at the public or observable boundary when practical, and carry the same cases
+into post-change verification.
 
 ### 2. Separate observed, required, and unknown
 
@@ -177,6 +186,8 @@ uses one, the task is complex enough to need one, or the user requests it.
 Before claiming completion, confirm:
 
 - relevant current behavior was established before production changes;
+- preserved behavior covers the materially distinct observable cases on the
+  affected path that the change could alter;
 - observed and required behavior were kept distinct;
 - target behavior was expressed through concrete observable examples;
 - significant examples have executable or explicitly named manual evidence;
