@@ -1,7 +1,8 @@
 # BDD review — software-development
 
-Status: review completed against the mandatory BDD rule. Production skills are
-not changed by this document.
+Status: review completed against the mandatory BDD rule. The
+software-development owner migration to BDD is implemented; remaining reviewed
+cleanups are tracked below.
 
 ## Review rule
 
@@ -11,11 +12,11 @@ contract. Skill names, private symbols, file layout, internal call order, and
 wording inside SKILL.md are not acceptance criteria unless a public contract
 explicitly exposes them.
 
-## spec-driven-development
+## behavior-driven-development
 
-**Status: incompatible with the target model.**
+**Status: owner migration implemented.**
 
-Current useful behavior to retain:
+The new owner retains the useful behavior identified by this review:
 
 - inspect the existing system before changing it;
 - separate observed state, required state, and unknowns;
@@ -25,25 +26,24 @@ Current useful behavior to retain:
 - distinguish current behavior from desired behavior;
 - avoid treating existing green tests as automatically authoritative.
 
-Required change:
+The migration also establishes the target model:
 
-- BDD becomes mandatory, not optional;
-- target behavior is expressed through concrete examples/scenarios before
+- BDD is mandatory for behavior-changing development work;
+- target behavior is expressed through concrete observable examples before
   implementation;
-- executable specifications must exercise the closest useful observable/public
+- executable specifications exercise the closest useful public/observable
   boundary;
-- checks must accept different internal implementations that satisfy the same
+- checks accept different internal implementations that satisfy the same
   behavior;
-- BDD owns behavior/examples/acceptance evidence, not implementation structure;
-- the current statement "BDD is not required" must disappear;
-- references to the currently absent executable-spec-review owner must not be a
-  required route.
+- BDD owns behavior, examples, preserved behavior, and acceptance evidence, not
+  implementation structure;
+- the absent executable-spec-review owner is not a required route.
 
-Expected owner after migration: behavior-driven-development.
-
+The historical `spec-driven-development` skill remains only as a temporary
+compatibility alias until dependent GitHub workflows are migrated.
 ## test-driven-development
 
-**Status: mostly compatible, requires boundary cleanup.**
+**Status: BDD ownership handoff clarified; broader heuristic cleanup remains.**
 
 Keep:
 
@@ -72,7 +72,7 @@ refactor -> scenario still GREEN.
 
 ## systematic-debugging
 
-**Status: compatible in purpose, requires BDD handoff update.**
+**Status: compatible; BDD handoff updated.**
 
 Keep:
 
@@ -93,7 +93,7 @@ Change:
 
 ## ponytail
 
-**Status: structurally compatible.**
+**Status: structurally compatible; BDD target source updated.**
 
 Keep:
 

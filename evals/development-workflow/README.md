@@ -34,7 +34,7 @@ with Hermes CLI `--skills`. To audit autonomous skill routing separately, run
 `python3 evals/development-workflow/run_eval.py --mode natural-routing`; that
 mode does not force a skill and must not be treated as evidence of a particular
 skill's effect. The manifest pins the controlled owner to
-`spec-driven-development`.
+`behavior-driven-development`.
 
 Run the deterministic evaluator checks with:
 

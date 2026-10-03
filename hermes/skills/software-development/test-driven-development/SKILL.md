@@ -19,6 +19,10 @@ first, watch it fail, then write the minimal code to pass. When the target
 changes, you **update the spec** — edit, merge, or delete tests — you do **not**
 pile new tests on top of stale ones.
 
+Target behavior, examples, preserved behavior, and acceptance evidence come from
+`behavior-driven-development`. TDD consumes that handoff; it does not define the
+requirement or narrow the observable contract.
+
 TDD owns regression protection, not exploratory debugging. `systematic-debugging`
 owns diagnostic reproduction, boundary/data-flow investigation, hypotheses, and
 root-cause confirmation.

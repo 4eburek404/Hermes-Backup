@@ -35,7 +35,7 @@
     "source": "eval",
     "skill_behavior": {
       "force_owner_skill": true,
-      "owner_skill": "spec-driven-development"
+      "owner_skill": "behavior-driven-development"
     },
     "natural_routing": {
       "force_owner_skill": false

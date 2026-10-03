@@ -27,21 +27,21 @@ Such details may be fixture/setup mechanics or diagnostic evidence. They become
 acceptance criteria only when they are genuinely part of a public/user-visible
 contract.
 
-## Ownership model under review
+## Ownership model
 
-The existing skills remain usable while the BDD migration is performed, but
-their boundaries are being revalidated from behavior first:
-
-- behavior/specification owner — defines target observable behavior and examples;
+- 'behavior-driven-development' — owns target observable behavior, concrete
+  examples, acceptance evidence, and preserved behavior;
 - 'systematic-debugging' — establishes root cause when diagnosis is required;
-- 'test-driven-development' — implements changed behavior through a
-  regression-capable RED/GREEN/REFACTOR loop where appropriate;
-- 'ponytail' — constrains implementation to the smallest complete shape;
+- 'test-driven-development' — consumes the BDD handoff and owns
+  regression-capable RED/GREEN/REFACTOR where appropriate;
+- 'ponytail' — constrains implementation to the smallest complete shape after
+  target behavior is known;
 - 'plan' — creates a planning artifact when planning is actually requested.
 
-The existing 'spec-driven-development' wording is legacy during this migration
-because it explicitly states that BDD is optional. Do not treat that statement
-as the target architecture.
+'spec-driven-development' is now only a temporary compatibility alias for
+workflows that still reference the historical owner name. It is not a second
+development methodology and can be removed after dependent GitHub workflows
+migrate to BDD.
 
 ## Verification
 

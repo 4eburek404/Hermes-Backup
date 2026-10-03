@@ -64,7 +64,7 @@ db.append_message(
         "function": {
             "name": "read_file",
             "arguments": json.dumps({
-                "path": "/tmp/hermes-home/skills/development/spec-driven-development/SKILL.md"
+                "path": "/tmp/hermes-home/skills/development/behavior-driven-development/SKILL.md"
             }),
         },
     }],
@@ -72,7 +72,7 @@ db.append_message(
 db.append_message(
     session_id,
     "tool",
-    content=json.dumps({"content": "# Spec-driven development"}),
+    content=json.dumps({"content": "# Behavior-driven development"}),
     tool_name="read_file",
     tool_call_id=call_id,
 )
@@ -298,7 +298,7 @@ def test_controlled_owner_command_is_recorded_but_routing_is_not_outcome() -> No
         )
     )
 
-    assert manifest["execution"]["skill_behavior"]["owner_skill"] == "spec-driven-development"
+    assert manifest["execution"]["skill_behavior"]["owner_skill"] == "behavior-driven-development"
     assert manifest["execution"]["skill_behavior"]["force_owner_skill"] is True
     assert manifest["execution"]["natural_routing"]["force_owner_skill"] is False
     evidence = grounded_evidence()
@@ -355,13 +355,13 @@ def test_hermes_invocation_forces_owner_only_in_skill_behavior_mode(monkeypatch,
     controlled = invoke("skill-behavior")
     audit = invoke("natural-routing")
 
-    assert controlled["command"][controlled["command"].index("--skills") + 1] == "spec-driven-development"
+    assert controlled["command"][controlled["command"].index("--skills") + 1] == "behavior-driven-development"
     assert "--skills" not in audit["command"]
     assert "--oneshot" not in audit["command"]
     assert "--quiet" not in audit["command"]
     assert "--format" not in audit["command"]
     assert controlled["metadata"]["evaluation_mode"] == "skill-behavior"
-    assert controlled["metadata"]["forced_owner_skill"] == "spec-driven-development"
+    assert controlled["metadata"]["forced_owner_skill"] == "behavior-driven-development"
     assert controlled["metadata"]["fixture_sha256"] == module.canonical_sha256({
         "fixture_files": scenario["fixture_files"],
         "equivalent_implementation_files": scenario.get("equivalent_implementation_files", {}),
@@ -798,7 +798,7 @@ def test_review_scenario_isolation_does_not_change_existing_owner_default() -> N
     manifest = json.loads(
         (ROOT / "evals" / "development-workflow" / "manifest.json").read_text(encoding="utf-8")
     )
-    assert manifest["execution"]["skill_behavior"]["owner_skill"] == "spec-driven-development"
+    assert manifest["execution"]["skill_behavior"]["owner_skill"] == "behavior-driven-development"
 
 
 def test_review_only_correct_finding_without_mutation_passes() -> None:
@@ -915,13 +915,13 @@ def test_event_summary_distinguishes_skill_view_calls_from_observed_skill_reads(
             "type": "tool_use",
             "name": "read_file",
             "input": {
-                "path": "/tmp/hermes-home/skills/development/spec-driven-development/SKILL.md"
+                "path": "/tmp/hermes-home/skills/development/behavior-driven-development/SKILL.md"
             },
         },
         {
             "type": "tool_result",
             "name": "read_file",
-            "output": json.dumps({"content": "# Spec-driven development"}),
+            "output": json.dumps({"content": "# Behavior-driven development"}),
         },
         {
             "type": "tool_use",
@@ -958,7 +958,7 @@ def test_event_summary_distinguishes_skill_view_calls_from_observed_skill_reads(
     assert summary["skill_reads"] == [
         {"skill": "github/github-code-review", "via": "skill_view", "index": 1},
         {
-            "skill": "development/spec-driven-development",
+            "skill": "development/behavior-driven-development",
             "via": "read_file",
             "index": 3,
         },
@@ -1032,7 +1032,7 @@ def test_natural_run_evidence_preserves_observed_skill_reads(
     assert evidence["skill_views"] == []
     assert evidence["skill_reads"] == [
         {
-            "skill": "development/spec-driven-development",
+            "skill": "development/behavior-driven-development",
             "via": "read_file",
             "index": 1,
         }
@@ -1047,7 +1047,7 @@ def test_routing_diagnostics_preserve_observed_reads_without_acceptance_verdict(
         "skill_reads": [
             {"skill": "ponytail", "via": "skill_view", "index": 2},
             {"skill": "test-driven-development", "via": "skill_view", "index": 5},
-            {"skill": "spec-driven-development", "via": "skill_view", "index": 9},
+            {"skill": "behavior-driven-development", "via": "skill_view", "index": 9},
         ],
         "event_summary": {
             "workflow_events": [

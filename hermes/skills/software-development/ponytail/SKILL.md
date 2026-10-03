@@ -23,7 +23,7 @@ policy, review code, or deliver/report work.
 
 Before using the ladder, confirm that:
 
-- SDD or another authoritative handoff has defined the target behavior,
+- BDD or another authoritative handoff has defined the target behavior,
   including meaningful edge cases and non-goals;
 - mandatory constraints and safeguards are known;
 - when a bug fix needs diagnosis, systematic-debugging has supplied a sufficient
@@ -88,7 +88,7 @@ explicitly required behavior. When a correct safeguard requires a larger diff,
 the larger complete diff is the minimal valid implementation; minimize only the
 remaining implementation complexity.
 
-Non-goals may remain unimplemented only when the user or SDD has actually
+Non-goals may remain unimplemented only when the user or BDD has actually
 defined them as non-goals.
 
 ## Boundaries
@@ -112,5 +112,5 @@ Ponytail does not own:
 - PR, CI, or delivery/reporting.
 
 Those responsibilities remain with the applicable requirements, debugging, TDD,
-and review/delivery workflows. Ponytail must not weaken SDD or TDD safeguards
+and review/delivery workflows. Ponytail must not weaken BDD or TDD safeguards
 in the name of implementation minimality.

@@ -297,7 +297,7 @@ Complete diagnosis with a handoff containing:
 Then hand off to `test-driven-development`. TDD must choose or adopt a
 regression-capable executable check, observe RED, and own production
 implementation, GREEN, REFACTOR, and revert-to-red. Use the proportional
-verification selected by SDD/TDD; a full suite is appropriate only when its scope
+verification selected by BDD/TDD; a full suite is appropriate only when its scope
 or risk justifies it.
 
 If new evidence contradicts the handoff, stop and return to Phase 1. Do not stack
@@ -383,11 +383,11 @@ delegate_task(
 
 Compose the skills in this order:
 
-1. SDD defines the target behavior.
+1. `behavior-driven-development` defines the target observable behavior and examples.
 2. Create or identify a diagnostic reproducer.
 3. Investigate the root cause with this skill, with depth proportional to uncertainty.
-4. Hand off the confirmed root cause and evidence to TDD.
-5. TDD creates or adopts a regression-capable check and observes RED.
+4. Hand off the confirmed root cause and evidence without redefining the target.
+5. TDD creates or adopts a regression-capable check for the BDD behavior and observes RED.
 6. TDD owns production implementation, GREEN, REFACTOR, and revert-to-red.
 
 If the diagnostic reproducer already is a suitable regression check, TDD reuses
