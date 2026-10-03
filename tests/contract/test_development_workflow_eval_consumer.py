@@ -298,7 +298,7 @@ def test_controlled_owner_command_is_recorded_but_routing_is_not_outcome() -> No
         )
     )
 
-    assert manifest["execution"]["skill_behavior"]["owner_skill"] == "behavior-driven-development"
+    assert manifest["execution"]["skill_behavior"]["owner_skills"]["candidate"] == "behavior-driven-development"
     assert manifest["execution"]["skill_behavior"]["force_owner_skill"] is True
     assert manifest["execution"]["natural_routing"]["force_owner_skill"] is False
     evidence = grounded_evidence()
@@ -341,7 +341,7 @@ def test_hermes_invocation_forces_owner_only_in_skill_behavior_mode(monkeypatch,
             "equivalent_implementation_files": scenario.get("equivalent_implementation_files", {}),
         })
         spec = module.RunSpec(
-            "feature-shout", "test-model", "test-provider", "baseline", 1,
+            "feature-shout", "test-model", "test-provider", "candidate", 1,
             fixture_version, module.canonical_sha256(scenario["prompt"]), "test-runtime", mode,
         )
         run_dir = tmp_path / mode
@@ -370,6 +370,172 @@ def test_hermes_invocation_forces_owner_only_in_skill_behavior_mode(monkeypatch,
     assert list(scratch.iterdir()) == []
     assert not (tmp_path / "skill-behavior" / "fixture-repo").exists()
     assert (tmp_path / "skill-behavior" / "final.diff").exists()
+
+
+def test_versioned_skill_behavior_uses_each_owner_under_identical_conditions(
+    monkeypatch, tmp_path
+) -> None:
+    module = load_consumer_module()
+    manifest = json.loads(
+        (ROOT / "evals" / "development-workflow" / "manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    manifest["execution"]["skill_behavior"]["owner_skills"] = {
+        "baseline": "spec-driven-development",
+        "candidate": "behavior-driven-development",
+    }
+    scenario = manifest["scenarios"]["feature-shout"]
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.setenv("TMPDIR", str(scratch))
+    subject = module.DevelopmentWorkflowConsumer(
+        ROOT / "evals" / "development-workflow",
+        ROOT,
+        manifest,
+        ["fake-hermes"],
+    )
+    identities = {
+        "baseline": "baseline-source-ref",
+        "candidate": "candidate-working-tree",
+    }
+
+    def materialize(version, root):
+        skills = root / "skills"
+        skills.mkdir()
+        return skills, [{"resolved_source": identities[version]}]
+
+    subject._build_skill_root = materialize
+
+    def run_agent(command, **kwargs):
+        result = {"type": "result", "text": "done"}
+        output = json.dumps(result) + "\n"
+        return subprocess.CompletedProcess(command, 0, output, ""), False
+
+    monkeypatch.setattr(module, "run_with_timeout", run_agent)
+    fixture_version = module.canonical_sha256(
+        {
+            "fixture_files": scenario["fixture_files"],
+            "equivalent_implementation_files": scenario.get(
+                "equivalent_implementation_files", {}
+            ),
+        }
+    )
+    prompt_version = module.canonical_sha256(scenario["prompt"])
+    runs = {}
+    for version in ("baseline", "candidate"):
+        spec = module.RunSpec(
+            "feature-shout",
+            "gpt-6-luna",
+            "openai-codex",
+            version,
+            1,
+            fixture_version,
+            prompt_version,
+            "same-hermes-runtime",
+            "skill-behavior",
+        )
+        run_dir = tmp_path / version
+        run_dir.mkdir()
+        prepared = subject.prepare(spec, run_dir, {})
+        runs[version] = subject.execute(spec, run_dir, prepared, {})
+
+    baseline, candidate = runs["baseline"], runs["candidate"]
+    def selected_owner(run):
+        command = run["command"]
+        return command[command.index("--skills") + 1]
+
+    assert selected_owner(baseline) == "spec-driven-development"
+    assert selected_owner(candidate) == "behavior-driven-development"
+    assert baseline["forced_owner_skill"] == "spec-driven-development"
+    assert candidate["forced_owner_skill"] == "behavior-driven-development"
+    assert baseline["skill_sources"] == [{"resolved_source": identities["baseline"]}]
+    assert candidate["skill_sources"] == [{"resolved_source": identities["candidate"]}]
+    for field in (
+        "evaluation_mode",
+        "model",
+        "provider",
+        "fixture_sha256",
+        "prompt_sha256",
+    ):
+        assert baseline[field] == candidate[field]
+
+    evidence = grounded_evidence()
+    evidence["scenario"] = "feature-shout"
+    evidence["workflow_events"] = [
+        {"kind": "current_behavior_observed", "index": 1},
+        {"kind": "target_check_changed", "index": 2},
+        {"kind": "target_check_failed", "index": 3},
+        {"kind": "production_changed", "index": 4},
+        {"kind": "target_check_passed", "index": 5},
+        {"kind": "preserved_behavior_observed", "index": 6},
+    ]
+    verdicts = []
+    for owner in ("spec-driven-development", "behavior-driven-development"):
+        owner_evidence = {**evidence, "forced_owner_skill": owner}
+        verdicts.append(
+            (
+                subject.evaluate_dimension_diagnostic("outcome", owner_evidence, {}),
+                subject.evaluate_dimension_diagnostic("trajectory", owner_evidence, {}),
+            )
+        )
+    assert verdicts[0] == verdicts[1]
+    assert verdicts[0][0]["status"] == "PASS"
+    assert verdicts[0][1]["status"] == "PASS"
+
+
+def test_versioned_owner_sources_leave_all_non_owner_skills_identical(tmp_path) -> None:
+    module = load_consumer_module()
+    manifest = json.loads(
+        (ROOT / "evals" / "development-workflow" / "manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    owner_paths = {
+        "baseline": "hermes/skills/software-development/spec-driven-development",
+        "candidate": "hermes/skills/software-development/behavior-driven-development",
+    }
+    for version in owner_paths:
+        manifest["skill_versions"][version]["skill_paths"] = [owner_paths[version]]
+    subject = module.DevelopmentWorkflowConsumer(
+        ROOT / "evals" / "development-workflow", ROOT, manifest
+    )
+
+    skill_roots = {}
+    identities = {}
+    for version in owner_paths:
+        build_root = tmp_path / version
+        build_root.mkdir()
+        skill_roots[version], identities[version] = subject._build_skill_root(
+            version, build_root
+        )
+
+    def files(root):
+        return {
+            path.relative_to(root).as_posix(): path.read_bytes()
+            for path in root.rglob("*")
+            if path.is_file()
+        }
+
+    baseline_files = files(skill_roots["baseline"])
+    candidate_files = files(skill_roots["candidate"])
+    changed_paths = {
+        path
+        for path in baseline_files.keys() | candidate_files.keys()
+        if baseline_files.get(path) != candidate_files.get(path)
+    }
+
+    assert changed_paths
+    assert all(
+        path.startswith("software-development/spec-driven-development/")
+        for path in changed_paths
+    ), sorted(changed_paths)
+    assert identities["baseline"][0]["resolved_commit"] == (
+        "ddab90073d5b00e44c0b2987217eef6ae14f67fb"
+    )
+    assert identities["baseline"][0]["skill_path"] == owner_paths["baseline"]
+    assert identities["candidate"][0]["source"] == "working_tree"
+    assert identities["candidate"][0]["skill_path"] == owner_paths["candidate"]
 
 
 def test_fixture_setup_failure_removes_only_its_temporary_repository(monkeypatch, tmp_path) -> None:
@@ -798,7 +964,7 @@ def test_review_scenario_isolation_does_not_change_existing_owner_default() -> N
     manifest = json.loads(
         (ROOT / "evals" / "development-workflow" / "manifest.json").read_text(encoding="utf-8")
     )
-    assert manifest["execution"]["skill_behavior"]["owner_skill"] == "behavior-driven-development"
+    assert manifest["execution"]["skill_behavior"]["owner_skills"]["candidate"] == "behavior-driven-development"
 
 
 def test_review_only_correct_finding_without_mutation_passes() -> None:

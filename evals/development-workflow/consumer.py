@@ -454,7 +454,8 @@ class DevelopmentWorkflowConsumer:
         identities: list[dict[str, Any]] = []
         prefix = Path("hermes") / "skills"
 
-        for raw_path in self.manifest["skill_paths"]:
+        skill_paths = source_cfg.get("skill_paths", self.manifest["skill_paths"])
+        for raw_path in skill_paths:
             repo_path = Path(raw_path)
             destination = target / repo_path.relative_to(prefix)
             if destination.exists() or destination.is_symlink():
@@ -963,6 +964,13 @@ class DevelopmentWorkflowConsumer:
 
             execution = self.manifest["execution"]
             mode = spec.mode.split(":", 1)[0]
+            skill_behavior = execution["skill_behavior"]
+            forced_owner_skill = cfg.get("owner_skill")
+            if forced_owner_skill is None:
+                forced_owner_skill = skill_behavior.get("owner_skills", {}).get(
+                    spec.skill_version,
+                    skill_behavior.get("owner_skill"),
+                )
             command = [
                 *self.hermes_command,
                 "chat",
@@ -1003,7 +1011,7 @@ class DevelopmentWorkflowConsumer:
             if mode == "skill-behavior" and execution["skill_behavior"].get("force_owner_skill"):
                 command.extend([
                     "--skills",
-                    str(cfg.get("owner_skill", execution["skill_behavior"]["owner_skill"])),
+                    str(forced_owner_skill),
                 ])
             if execution.get("yolo"):
                 command.append("--yolo")
@@ -1110,7 +1118,7 @@ class DevelopmentWorkflowConsumer:
                 "scenario": spec.scenario,
                 "evaluation_mode": mode,
                 "forced_owner_skill": (
-                    str(cfg.get("owner_skill", execution["skill_behavior"]["owner_skill"]))
+                    str(forced_owner_skill)
                     if mode == "skill-behavior"
                     and execution["skill_behavior"].get("force_owner_skill")
                     else None

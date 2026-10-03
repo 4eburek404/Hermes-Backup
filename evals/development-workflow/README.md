@@ -9,13 +9,12 @@ used as an acceptance oracle.
 
 ## Baseline
 
-The baseline is pinned to branch state 'ddab90073d5b00e44c0b2987217eef6ae14f67fb',
-before the BDD migration. The candidate uses the working-tree versions of:
-
-- 'hermes/skills/software-development/'
-- 'hermes/skills/github/'
-
-Other skills remain identical between baseline and candidate.
+The baseline owner is pinned to branch state `ddab90073d5b00e44c0b2987217eef6ae14f67fb`,
+before the BDD migration. The controlled skill-behavior matrix selects
+`spec-driven-development` for baseline and `behavior-driven-development` for
+candidate. Only the selected owner skill is materialized from that version; all
+other skills are shared from the working tree so the owner remains the only
+source-level experimental variable.
 
 ## Run
 

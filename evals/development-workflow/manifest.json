@@ -9,10 +9,12 @@
   "skill_versions": {
     "baseline": {
       "source": "git",
-      "ref": "ddab90073d5b00e44c0b2987217eef6ae14f67fb"
+      "ref": "ddab90073d5b00e44c0b2987217eef6ae14f67fb",
+      "skill_paths": ["hermes/skills/software-development/spec-driven-development"]
     },
     "candidate": {
-      "source": "working_tree"
+      "source": "working_tree",
+      "skill_paths": ["hermes/skills/software-development/behavior-driven-development"]
     }
   },
   "models": [
@@ -35,7 +37,10 @@
     "source": "eval",
     "skill_behavior": {
       "force_owner_skill": true,
-      "owner_skill": "behavior-driven-development"
+      "owner_skills": {
+        "baseline": "spec-driven-development",
+        "candidate": "behavior-driven-development"
+      }
     },
     "natural_routing": {
       "force_owner_skill": false
