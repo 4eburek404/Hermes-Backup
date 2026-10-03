@@ -37,16 +37,18 @@ is satisfied.
 ### Scenario A — new behavior while preserving existing behavior
 
 **Given**
-a small command-line program prints 'Hello, <name>!' and its existing executable
-check protects that behavior.
+a small command-line program prints 'Hello, <name>!' when a name is supplied and
+prints 'Hello, World!' when no name is supplied. Both are existing observable
+command-line behavior, even if the seed test suite covers only the named case.
 
 **When**
 the user requests an optional shout mode.
 
 **Then**
-normal mode still prints the original greeting, shout mode prints the requested
-uppercase greeting, the project verification passes, and unrelated user content
-is unchanged.
+normal named mode still prints the original greeting, no-argument invocation
+still exits successfully and prints 'Hello, World!', shout mode prints the
+requested uppercase greeting, the project verification passes, and unrelated
+user content is unchanged.
 
 ### Scenario B — boundary bug
 
@@ -117,9 +119,13 @@ finishes. They do not inspect private symbols or prescribe implementation.
 
 The eval then substitutes a deliberately different implementation that provides
 the same required command-line behavior and reruns both the behavior probes and
-the project's tests. If the replacement satisfies the behavior but the tests
-fail, the tests are implementation-coupled and the scenario fails. This makes
-"tests protect behavior, not implementation" executable rather than rhetorical.
+the project's tests. The replacement must preserve every observable behavior the
+scenario says is unchanged, not only behavior already covered by the seed tests.
+For Scenario A this includes no-argument invocation exiting successfully and
+printing 'Hello, World!'. If the replacement satisfies the required and preserved
+behavior but the tests fail, the tests are implementation-coupled and the
+scenario fails. This makes "tests protect behavior, not implementation"
+executable rather than rhetorical.
 
 Trajectory checks use tool-call/result events to confirm the observable order
 of work. Feature and bug-fix scenarios require current behavior, a changed

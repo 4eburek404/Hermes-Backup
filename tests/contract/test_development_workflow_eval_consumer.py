@@ -653,6 +653,49 @@ def test_outcome_fails_when_tests_reject_behavior_equivalent_implementation() ->
     assert "behavior-equivalent implementation" in result["reason"]
 
 
+def test_feature_shout_equivalent_implementation_preserves_no_argument_behavior() -> None:
+    manifest = json.loads(
+        (ROOT / "evals" / "development-workflow" / "manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    scenario = manifest["scenarios"]["feature-shout"]
+
+    with tempfile.TemporaryDirectory(prefix="bdd-feature-no-arg-") as temp:
+        root = Path(temp)
+        for relative, content in scenario["fixture_files"].items():
+            path = root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+
+        current = subprocess.run(
+            ["python3", "app.py"],
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert current.returncode == 0, current.stderr
+        assert current.stdout == "Hello, World!\n"
+
+        for relative, content in scenario.get(
+            "equivalent_implementation_files", {}
+        ).items():
+            path = root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+
+        equivalent = subprocess.run(
+            ["python3", "app.py"],
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert equivalent.returncode == 0, equivalent.stderr
+        assert equivalent.stdout == current.stdout == "Hello, World!\n"
+
+
 def test_seed_specs_accept_behavior_equivalent_implementations() -> None:
     manifest = json.loads(
         (ROOT / "evals" / "development-workflow" / "manifest.json").read_text(
