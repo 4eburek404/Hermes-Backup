@@ -21,7 +21,21 @@ def load_run_eval():
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
+    prior_consumer = sys.modules.get("consumer")
+    consumer_spec = importlib.util.spec_from_file_location(
+        "flight_calendar_replay_consumer", EVAL / "consumer.py"
+    )
+    assert consumer_spec and consumer_spec.loader
+    consumer_module = importlib.util.module_from_spec(consumer_spec)
+    consumer_spec.loader.exec_module(consumer_module)
+    sys.modules["consumer"] = consumer_module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        if prior_consumer is None:
+            sys.modules.pop("consumer", None)
+        else:
+            sys.modules["consumer"] = prior_consumer
     return module
 
 

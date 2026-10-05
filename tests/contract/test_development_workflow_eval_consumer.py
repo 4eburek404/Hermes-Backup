@@ -792,6 +792,7 @@ def test_eval_setup_accepts_its_complete_fixture_fingerprint() -> None:
 
     sys.path.insert(0, str(runner_path))
     prior_consumer = sys.modules.get("consumer")
+    sys.modules["consumer"] = load_consumer_module()
     try:
         runner = runpy.run_path(
             str(runner_path / "run_eval.py"),

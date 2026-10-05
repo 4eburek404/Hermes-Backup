@@ -33,7 +33,15 @@ def load_run_eval_module():
     spec = importlib.util.spec_from_file_location("flight_calendar_eval_runner", path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    prior_consumer = sys.modules.get("consumer")
+    sys.modules["consumer"] = load_consumer_module()
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        if prior_consumer is None:
+            sys.modules.pop("consumer", None)
+        else:
+            sys.modules["consumer"] = prior_consumer
     return module
 
 

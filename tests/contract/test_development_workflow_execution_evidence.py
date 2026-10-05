@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 CONSUMER_PATH = ROOT / "evals/development-workflow/consumer.py"
@@ -32,11 +33,11 @@ def probes():
     ]
 
 
-def observed(events, tmp_path):
+def observed(events, tmp_path, cfg=None):
     (tmp_path / "app.py").write_text("print('fixture')\n", encoding="utf-8")
     (tmp_path / "tests").mkdir(exist_ok=True)
     (tmp_path / "tests/test_app.py").write_text("assert True\n", encoding="utf-8")
-    cfg = {
+    cfg = cfg or {
         "current_behavior_probes": probes(),
         "preserved_behavior_probes": [],
         "behavior_probes": [
@@ -69,6 +70,45 @@ def test_default_invocation_is_distinct_from_explicit_world(tmp_path):
     explicit = observed(tool_events("python3 app.py World", "Hello, World!\n"), tmp_path)
     assert 2 in ids(default) and 3 not in ids(default)
     assert 3 in ids(explicit) and 2 not in ids(explicit)
+
+
+def test_real_manifest_recognizes_no_argument_probe_and_rejects_extra_inputs(tmp_path):
+    manifest = json.loads((ROOT / "evals/development-workflow/manifest.json").read_text())
+    cfg = manifest["scenarios"]["feature-shout"]
+    default = observed(tool_events("python3 app.py", "Hello, World!\n"), tmp_path, cfg)
+    explicit = observed(tool_events("python3 app.py World", "Hello, World!\n"), tmp_path, cfg)
+    extra = observed(tool_events("python3 app.py Alice World", "Hello, Alice!\n"), tmp_path, cfg)
+    assert 1 in ids(default)
+    assert 1 not in ids(explicit)
+    assert 0 not in ids(extra)
+
+
+def test_real_manifest_accepts_the_three_observed_app_calls(tmp_path):
+    manifest = json.loads((ROOT / "evals/development-workflow/manifest.json").read_text())
+    cfg = manifest["scenarios"]["feature-shout"]
+    command = "python3 app.py Alice --shout && python3 app.py Alice && python3 app.py"
+    output = "HELLO, ALICE!\nHello, Alice!\nHello, World!\n"
+    separate = tool_events(command, output)
+    events = separate + [
+        {"type": "tool_use", "name": "write_file", "input": {"path": str(tmp_path / "app.py"), "content": "changed\\n"}},
+        {"type": "tool_result", "name": "write_file", "output": json.dumps({"success": True})},
+    ] + tool_events(command, output)
+    facts = observed(events, tmp_path, cfg)
+    assert ids(facts) == {0, 1}
+    assert {item["probe_index"] for item in facts if item["kind"] == "preserved_behavior_observed"} == {0, 1}
+
+
+def test_other_command_cannot_supply_the_app_output(tmp_path):
+    import subprocess
+
+    (tmp_path / "app.py").write_text("pass\n", encoding="utf-8")
+    command = "python3 app.py Alice && echo 'Hello, Alice!'"
+    result = subprocess.run(command, cwd=tmp_path, shell=True, text=True, capture_output=True, check=False)
+    assert result.returncode == 0
+    assert result.stdout == "Hello, Alice!\n"
+    manifest = json.loads((ROOT / "evals/development-workflow/manifest.json").read_text())
+    cfg = manifest["scenarios"]["feature-shout"]
+    assert ids(observed(tool_events(command, result.stdout, result.returncode), tmp_path, cfg)) == set()
 
 
 def test_text_echoed_or_read_or_claimed_is_not_execution_evidence(tmp_path):
@@ -119,16 +159,22 @@ def test_harness_reevaluate_reextracts_raw_trace_without_mutating_saved_evidence
     }
     source.write_text(json.dumps(original), encoding="utf-8")
     events = [
-        {"type": "tool_use", "name": "write_file", "input": {"path": str(tmp_path / "app.py"), "content": "changed"}},
+        {"type": "tool_use", "name": "write_file", "input": {"path": str(tmp_path / "tests/test_app.py"), "content": "HELLO, ALICE! --shout\n"}},
         {"type": "tool_result", "name": "write_file", "output": json.dumps({"success": True})},
-    ] + tool_events("python3 -m pytest -q", "2 passed\\n", 0)
+        {"type": "tool_use", "name": "write_file", "input": {"path": str(tmp_path / "app.py"), "content": "changed\n"}},
+        {"type": "tool_result", "name": "write_file", "output": json.dumps({"success": True})},
+    ] + tool_events("python3 -m pytest -q", "2 passed\n", 0)
+    events += tool_events("python3 -m pytest -q", "2 passed\n", 0)
+    events += tool_events("python3 app.py Alice", "Hello, Alice!\n", 0)
     trace = tmp_path / "raw.jsonl"
-    trace.write_text("\\n".join(json.dumps(event) for event in events) + "\\n", encoding="utf-8")
+    trace.write_text("\n".join(json.dumps(event) for event in events) + "\n", encoding="utf-8")
+    trace_before = trace.read_bytes()
+    evidence_before = source.read_bytes()
     cfg = {
         "current_behavior_probes": [probes()[1]],
         "preserved_behavior_probes": [probes()[1]],
         "behavior_probes": [{"command": ["python3", "app.py", "Alice"],
-                             "exit_code": 0, "stdout": "Hello, Alice!\\n"}],
+                             "exit_code": 0, "stdout": "Hello, Alice!\n"}],
     }
     trajectory_rules = {"requires_red": True, "current_probe_count": 1,
                         "preserved_probe_count": 1, "target_failure_signal": "expected failure"}
@@ -137,12 +183,34 @@ def test_harness_reevaluate_reextracts_raw_trace_without_mutating_saved_evidence
         scenario_cfg=cfg, fixture_path=tmp_path
     )
     assert reevaluated["reevaluated_from_raw_trace"] is True
-    assert not any(item["kind"] == "preserved_behavior_observed"
-                   for item in reevaluated["workflow_events"])
+    kinds = [item["kind"] for item in reevaluated["workflow_events"]]
+    assert kinds.index("target_check_changed") < kinds.index("production_changed")
+    assert "target_check_passed" in kinds
+    assert "preserved_behavior_observed" in kinds
+    assert [item["index"] for item in reevaluated["workflow_events"]] == sorted(
+        item["index"] for item in reevaluated["workflow_events"]
+    )
     trajectory = reevaluated["diagnostics"]["trajectory"]
     assert trajectory["status"] == "FAIL"
+    assert "current observable behavior is UNCONFIRMED" in trajectory["reason"]
     assert "RED before production change is UNCONFIRMED" in trajectory["reason"]
     assert json.loads(source.read_text(encoding="utf-8")) == original
+    assert source.read_bytes() == evidence_before
+    assert trace.read_bytes() == trace_before
+
+
+def test_malformed_raw_jsonl_is_rejected_with_line_diagnostic(tmp_path):
+    from evals.harness.core import Harness
+
+    trace = tmp_path / "broken.jsonl"
+    trace.write_text('{"type":"result"}\\n{"type":', encoding="utf-8")
+    evidence = tmp_path / "evidence.json"
+    evidence.write_text(json.dumps({"execution_status": "COMPLETED", "scenario": "feature-shout"}))
+    with pytest.raises(ValueError, match="line 1"):
+        Harness(consumer()).reevaluate(
+            evidence, {"trajectory": {}}, raw_trace_path=trace,
+            scenario_cfg={}, fixture_path=tmp_path,
+        )
 
 
 def test_trajectory_does_not_reuse_post_change_check_as_pre_change_red(tmp_path):
