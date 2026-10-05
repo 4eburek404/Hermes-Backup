@@ -570,14 +570,14 @@ def test_fixture_setup_failure_removes_only_its_temporary_repository(monkeypatch
     assert list(scratch.iterdir()) == []
 
 
-def test_equivalent_tool_trace_extracts_behavior_red_change_green_without_command_names(tmp_path) -> None:
+def test_unidentified_commands_do_not_prove_probe_inputs_from_matching_output(tmp_path) -> None:
     subject = consumer()
     fixture = tmp_path / "project"
     fixture.mkdir()
     source = fixture / "src" / "shipping.py"
     check = fixture / "checks" / "boundary.spec"
     events = [
-        {"type": "tool_use", "name": "terminal", "input": {"command": "./observe-edge"}},
+        {"type": "tool_use", "name": "terminal", "input": {"command": "python3 shipping.py 100"}},
         {"type": "tool_result", "name": "terminal", "output": json.dumps({"output": "10\n", "exit_code": 0})},
         {"type": "tool_use", "name": "patch", "input": {"patch": "- expect(100, 10)\n+ expect(100, 0)"}},
         {"type": "tool_result", "name": "patch", "output": json.dumps({"files_modified": [str(check)]})},
@@ -587,9 +587,9 @@ def test_equivalent_tool_trace_extracts_behavior_red_change_green_without_comman
         {"type": "tool_result", "name": "patch", "output": json.dumps({"files_modified": [str(source)]})},
         {"type": "tool_use", "name": "terminal", "input": {"command": "./verify-contract"}},
         {"type": "tool_result", "name": "terminal", "output": json.dumps({"output": "2 passed", "exit_code": 0})},
-        {"type": "tool_use", "name": "terminal", "input": {"command": "./check-neighbor-a"}},
+        {"type": "tool_use", "name": "terminal", "input": {"command": "python3 shipping.py 99.99"}},
         {"type": "tool_result", "name": "terminal", "output": json.dumps({"output": "10\n", "exit_code": 0})},
-        {"type": "tool_use", "name": "terminal", "input": {"command": "./check-neighbor-b"}},
+        {"type": "tool_use", "name": "terminal", "input": {"command": "python3 shipping.py 100.01"}},
         {"type": "tool_result", "name": "terminal", "output": json.dumps({"output": "0\n", "exit_code": 0})},
     ]
     cfg = {
@@ -608,10 +608,11 @@ def test_equivalent_tool_trace_extracts_behavior_red_change_green_without_comman
         "trajectory", evidence, {"requires_red": True, "target_failure_signal": "100", "preserved_probe_count": 2}
     )
 
-    assert result["status"] == "PASS", result
+    assert result["status"] == "FAIL", result
+    assert "current observable behavior is UNCONFIRMED" in result["reason"]
 
 
-def test_trace_uses_passing_executable_contracts_for_pre_and_post_behavior() -> None:
+def test_matching_file_text_does_not_confirm_program_execution_or_arguments() -> None:
     subject = consumer()
     import tempfile
 
@@ -638,8 +639,9 @@ def test_trace_uses_passing_executable_contracts_for_pre_and_post_behavior() -> 
         summary = subject.event_summary(chr(10).join(json.dumps(event) for event in events), cfg, fixture)
 
     observed = {item["kind"] for item in summary["workflow_events"]}
-    assert "current_behavior_observed" in observed
-    assert "preserved_behavior_observed" in observed
+    assert "current_behavior_observed" not in observed
+    assert "preserved_behavior_observed" not in observed
+
 
 
 def test_outcome_fails_when_tests_reject_behavior_equivalent_implementation() -> None:
