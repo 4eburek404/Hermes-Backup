@@ -1,0 +1,32 @@
+{
+  "batch_manifest_sha256": "e996a9aac846a261a4cc235014277ac213548e170b43c2b4fa9e8a4ba54930cd",
+  "completion_status": "turn_completed",
+  "ended_at": "2026-10-03T03:55:49.185714+00:00",
+  "evaluation_mode": "natural-routing",
+  "event_count": 21,
+  "execution_policy": "ordinary-interactive",
+  "execution_status": "COMPLETED",
+  "fixture_sha256": "9e3df3f6578af55f5a43077aea91b51f85581f8d13256437e4b01ab65db4d472",
+  "historical_trajectory_reason_before_compound-fix": "current observable behavior is UNCONFIRMED; target check RED before production change is UNCONFIRMED",
+  "model": "gpt-6-luna",
+  "original_evidence_path_in_source": "evals/development-workflow/runs/20261003T035457Z/feature-shout--gpt-6-luna--openai-codex--baseline--r1/evidence.json",
+  "original_evidence_sha256": "65f0ab3b082b1037ac70822da682db7c5018df00578aef579d1870c9d544c7e2",
+  "original_raw_session_path_in_source": "evals/development-workflow/runs/20261003T035457Z/feature-shout--gpt-6-luna--openai-codex--baseline--r1/raw_session.json",
+  "original_raw_session_sha256": "5b8d9a92bb591ebadfa54745b3cc1acd877e16afaa30ef4d5f5227adc0616272",
+  "original_score_path_in_source": "evals/development-workflow/runs/20261003T035457Z/feature-shout--gpt-6-luna--openai-codex--baseline--r1/score.json",
+  "original_score_sha256": "2864cc0f1a9b1b7f5888448c092c4331ea9853da81d64fa5d4c0368b65c461f3",
+  "previous_evaluator_version": "development-workflow-raw-evidence-v4",
+  "previous_trajectory_reason": "current observable behavior is UNCONFIRMED; target check RED before production change is UNCONFIRMED",
+  "prompt_sha256": "368ef8b6c84e14164cf4ea25df042371242b8ad57f8f0d0e06b16a7359d5b1c5",
+  "provider": "openai-codex",
+  "published_events_sha256": "d805bd8fda959f433fc051764a087ffb2bde3b66bd065b61ef5dc3ada9b8920b",
+  "redactions": [
+    "home/repository/scratch absolute paths mapped to $HOME/$REPO/$SCRATCH/$FIXTURE; no events or outputs removed"
+  ],
+  "repeat": 1,
+  "scenario": "feature-shout",
+  "skill_version": "baseline",
+  "source_batch": "20261003T035457Z",
+  "source_run_id": "feature-shout--gpt-6-luna--openai-codex--baseline--r1",
+  "started_at": "2026-10-03T03:54:58.211587+00:00"
+}

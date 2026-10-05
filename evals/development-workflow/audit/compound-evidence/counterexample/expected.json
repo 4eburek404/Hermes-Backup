@@ -1,0 +1,28 @@
+{
+  "program": "app.py",
+  "composite_command": "python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+  "expected_processes": [
+    {
+      "argv": ["Alice", "--shout"],
+      "exit_code": 0,
+      "stdout": "HELLO, ALICE!\nHello, Alice!\nHello, World!\n"
+    },
+    {
+      "argv": ["Alice"],
+      "exit_code": 0,
+      "stdout": ""
+    },
+    {
+      "argv": [],
+      "exit_code": 0,
+      "stdout": ""
+    }
+  ],
+  "composite_exit_code": 0,
+  "composite_stdout": "HELLO, ALICE!\nHello, Alice!\nHello, World!\n",
+  "evaluator_expectation": {
+    "current_probe_observations": [],
+    "preserved_probe_observations": [],
+    "reason": "one aggregate stdout/status result cannot establish which invocation produced each line"
+  }
+}

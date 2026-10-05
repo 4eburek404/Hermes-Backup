@@ -1,0 +1,114 @@
+{
+  "application_invocations": [
+    {
+      "command": "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice",
+      "event_index": 18,
+      "invocations": [
+        {
+          "arguments_after_script": [
+            "Alice",
+            "--shout"
+          ],
+          "argv": [
+            "python3",
+            "app.py",
+            "Alice",
+            "--shout"
+          ],
+          "command": "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice",
+          "command_event_index": 18,
+          "event_index": 18,
+          "execution": "CONFIRMED_SUCCESS",
+          "ordinal": 1,
+          "stdout_attribution": "UNCONFIRMED",
+          "tool_exit_code": 0
+        },
+        {
+          "arguments_after_script": [
+            "Alice"
+          ],
+          "argv": [
+            "python3",
+            "app.py",
+            "Alice"
+          ],
+          "command": "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice",
+          "command_event_index": 18,
+          "event_index": 18,
+          "execution": "CONFIRMED_SUCCESS",
+          "ordinal": 2,
+          "stdout_attribution": "UNCONFIRMED",
+          "tool_exit_code": 0
+        }
+      ]
+    }
+  ],
+  "historical_probe_evidence": {
+    "post_change_preserved": [],
+    "pre_change_current": []
+  },
+  "historical_score": {
+    "outcome": "PASS",
+    "privacy": "UNDEFINED",
+    "trajectory": "FAIL"
+  },
+  "original_score": {
+    "outcome": "PASS",
+    "privacy": "UNDEFINED",
+    "trajectory": "FAIL"
+  },
+  "previous_trajectory_reason": "current observable behavior is UNCONFIRMED; target check RED before production change is UNCONFIRMED; required preserved behavior is UNCONFIRMED after production change",
+  "run_id": "feature-shout--gpt-6-luna--openai-codex--candidate--r2",
+  "source_batch": "20261003T063844Z",
+  "source_sha256": {
+    "original_evidence": "829e48a8c23b0182107e458246f12b12317de72d16a3f6924ce377376d34764e",
+    "original_raw_session": "ce4eb068f6497e07a5def1ee49a3f6e1f85603b6e50d2762c6cef724c9a7f287",
+    "original_score": "2864cc0f1a9b1b7f5888448c092c4331ea9853da81d64fa5d4c0368b65c461f3",
+    "published_events": "cc6d1a378f16cb7eb6e0e006f0e7a917869c92394aa49bf5b44e7952109e1574"
+  },
+  "supplemental_no_argument": {
+    "execution_confirmed": false,
+    "occurrences": [],
+    "post_change_observed": false,
+    "pre_change_observed": false,
+    "probe": {
+      "command": [
+        "python3",
+        "app.py"
+      ],
+      "exit_code": 0,
+      "input_signals": [
+        "app.py"
+      ],
+      "stdout": "Hello, World!\n"
+    },
+    "probe_command_present": false,
+    "requirement_is_historical": false,
+    "result_attributable": false
+  },
+  "trace_command_coverage": {
+    "absence_claim_supported": true,
+    "unparsed_terminal_commands": []
+  },
+  "trajectory_reason": "current observable behavior is UNCONFIRMED; target check RED before production change is UNCONFIRMED; required preserved behavior is UNCONFIRMED after production change",
+  "trajectory_reason_before_compound_fix": "current observable behavior is UNCONFIRMED; target check RED before production change is UNCONFIRMED; required preserved behavior is UNCONFIRMED after production change",
+  "workflow_events": [
+    {
+      "index": 16,
+      "kind": "target_check_changed"
+    },
+    {
+      "index": 16,
+      "kind": "verification_changed"
+    },
+    {
+      "index": 16,
+      "kind": "production_changed"
+    },
+    {
+      "index": 18,
+      "kind": "target_check_passed",
+      "output": "..                                                                       [100%]\n2 passed in 0.09s\nHELLO, ALICE!\nHello, Alice!"
+    }
+  ]
+}
