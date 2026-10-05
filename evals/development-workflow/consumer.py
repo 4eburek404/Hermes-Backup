@@ -265,7 +265,11 @@ def _invocation_probe(
     matched = []
     for index, probe in enumerate(probes):
         signals = [str(value) for value in probe.get("input_signals", [])]
-        if not (all(signal in args for signal in signals) and (signals or not args)):
+        observed_inputs = [Path(argv[1]).name, *args]
+        if signals:
+            if not all(signal in observed_inputs for signal in signals):
+                continue
+        elif args:
             continue
         expected_command = probe.get("command")
         if expected_command:
@@ -277,7 +281,8 @@ def _invocation_probe(
                 if len(item.get("command", [])) >= 2
                 and item.get("stdout") == probe.get("stdout")
                 and item.get("exit_code") == probe.get("exit_code")
-                and all(signal in item["command"][2:] for signal in signals)
+                and ((all(signal in item["command"][1:] for signal in signals))
+                     if signals else not item["command"][2:])
             ]
         else:
             expected = [(script, args)]
@@ -303,7 +308,9 @@ def _observed_invocations(command: str, output: str, exit_code: Any,
     app_calls = [(ordinal, argv) for ordinal, argv in enumerate(commands)
                  if len(argv) >= 2 and argv[0] in {"python", "python3"}
                  and Path(argv[1]).name in target_scripts]
-    if not app_calls:
+    # Aggregate stdout cannot be attributed to the program when another command
+    # in the same shell invocation could have produced any of it.
+    if not app_calls or len(app_calls) != len(commands):
         return []
     test_commands = [argv for argv in commands if (
         Path(argv[0]).name in {"pytest", "vitest", "jest", "phpunit"}
@@ -466,7 +473,7 @@ def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture:
         if matched:
             facts.append({"kind": "preserved_behavior_observed", "index": matched["index"],
                           "probe_index": probe_index})
-    return facts
+    return sorted(facts, key=lambda fact: int(fact.get("index", 0)))
 
 
 def canonical_sha256(value: Any) -> str:
@@ -1380,13 +1387,22 @@ class DevelopmentWorkflowConsumer:
         else:
             events = []
             trace_fixture = fixture
-            for line in text.splitlines():
+            for line_number, line in enumerate(text.splitlines(), start=1):
+                if not line.strip():
+                    continue
                 try:
                     event = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(event, dict) and event.get("type"):
-                    events.append(event)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        f"invalid raw JSONL at line {line_number}: {exc.msg}"
+                    ) from exc
+                if not isinstance(event, dict) or not event.get("type"):
+                    raise ValueError(
+                        f"invalid raw JSONL event at line {line_number}: expected an event object with type"
+                    )
+                events.append(event)
+        if not events:
+            raise ValueError("raw trace contains no readable events")
         summary = self.event_summary(events, scenario_cfg, trace_fixture)
         refreshed = dict(evidence)
         refreshed["event_summary"] = summary
