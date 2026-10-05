@@ -53,16 +53,46 @@ def ids(facts, kind="current_behavior_observed"):
     return {item["probe_index"] for item in facts if item["kind"] == kind}
 
 
-def test_separate_and_unambiguous_and_chains_prove_same_invocations(tmp_path):
+def test_standalone_runs_are_attributed_but_chain_stdout_is_not(tmp_path):
+    import subprocess
+
     separate = tool_events("python3 app.py Alice --shout", "HELLO, ALICE!\n")
     separate += tool_events("python3 app.py Alice", "Hello, Alice!\n")
     separate += tool_events("python3 app.py", "Hello, World!\n")
-    combined = tool_events(
-        "python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
-        "HELLO, ALICE!\nHello, Alice!\nHello, World!\n",
-    )
     assert ids(observed(separate, tmp_path)) == {0, 1, 2}
-    assert ids(observed(combined, tmp_path)) == {0, 1, 2}
+
+    # This implementation is deliberately adversarial: only the first process
+    # writes the three lines, while the later two successful processes are silent.
+    (tmp_path / "app.py").write_text(
+        "import sys\n"
+        "if sys.argv[1:] == ['Alice', '--shout']:\n"
+        "    print('HELLO, ALICE!\\nHello, Alice!\\nHello, World!')\n",
+        encoding="utf-8",
+    )
+    command = "python3 app.py Alice --shout && python3 app.py Alice && python3 app.py"
+    first = subprocess.run(
+        ["python3", "app.py", "Alice", "--shout"], cwd=tmp_path,
+        text=True, capture_output=True, check=False,
+    )
+    second = subprocess.run(
+        ["python3", "app.py", "Alice"], cwd=tmp_path,
+        text=True, capture_output=True, check=False,
+    )
+    third = subprocess.run(
+        ["python3", "app.py"], cwd=tmp_path,
+        text=True, capture_output=True, check=False,
+    )
+    assert [first.returncode, second.returncode, third.returncode] == [0, 0, 0]
+    assert first.stdout == "HELLO, ALICE!\nHello, Alice!\nHello, World!\n"
+    assert second.stdout == third.stdout == ""
+
+    composite = subprocess.run(
+        command, cwd=tmp_path, shell=True, text=True, capture_output=True, check=False,
+    )
+    assert composite.returncode == 0
+    assert composite.stdout == first.stdout
+    aggregated_trace = tool_events(command, composite.stdout, composite.returncode)
+    assert ids(observed(aggregated_trace, tmp_path)) == set()
 
 
 def test_default_invocation_is_distinct_from_explicit_world(tmp_path):
@@ -83,19 +113,23 @@ def test_real_manifest_recognizes_no_argument_probe_and_rejects_extra_inputs(tmp
     assert 0 not in ids(extra)
 
 
-def test_real_manifest_accepts_the_three_observed_app_calls(tmp_path):
+def test_real_manifest_does_not_assign_chain_stdout_to_expected_runs(tmp_path):
     manifest = json.loads((ROOT / "evals/development-workflow/manifest.json").read_text())
     cfg = manifest["scenarios"]["feature-shout"]
     command = "python3 app.py Alice --shout && python3 app.py Alice && python3 app.py"
     output = "HELLO, ALICE!\nHello, Alice!\nHello, World!\n"
-    separate = tool_events(command, output)
-    events = separate + [
+    events = tool_events(command, output) + [
         {"type": "tool_use", "name": "write_file", "input": {"path": str(tmp_path / "app.py"), "content": "changed\\n"}},
         {"type": "tool_result", "name": "write_file", "output": json.dumps({"success": True})},
     ] + tool_events(command, output)
     facts = observed(events, tmp_path, cfg)
-    assert ids(facts) == {0, 1}
-    assert {item["probe_index"] for item in facts if item["kind"] == "preserved_behavior_observed"} == {0, 1}
+    # The prior expectation treated output-line order as per-process boundaries.
+    # That assumption is not evidenced by a single shell result.
+    observations = [item for item in facts if item["kind"] in {
+        "current_behavior_observed", "preserved_behavior_observed"
+    }]
+    assert observations == []
+    assert any(item["kind"] == "production_changed" for item in facts)
 
 
 def test_other_command_cannot_supply_the_app_output(tmp_path):

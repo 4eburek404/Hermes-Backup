@@ -298,6 +298,10 @@ def _observed_invocations(command: str, output: str, exit_code: Any,
     if not parsed or not isinstance(exit_code, int):
         return []
     commands, operators = parsed
+    # A shell result bundles stdout/status for every part. `&&` proves successful
+    # execution, not which process produced each output line.
+    if len(commands) != 1:
+        return []
     if "||" in operators:
         return []
     target_scripts = {
