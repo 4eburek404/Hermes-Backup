@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -79,21 +80,36 @@ def _is_verification_file(path: str) -> bool:
     )
 
 
-def _is_test_result(command: str, output: str) -> tuple[bool, bool]:
-    text = f"{command}\n{output}"
-    failure = bool(re.search(
+def _is_test_result(command: str, output: str, exit_code: Any) -> tuple[bool, bool]:
+    parsed = _shell_invocations(command)
+    if not parsed or not isinstance(exit_code, int):
+        return False, False
+    commands, operators = parsed
+    runners = [argv for argv in commands if (
+        Path(argv[0]).name in {"pytest", "vitest", "jest", "phpunit"}
+        or (len(argv) >= 3 and argv[0] in {"python", "python3"}
+            and argv[1] == "-m" and argv[2] in {"pytest", "unittest"})
+    )]
+    if len(runners) != 1:
+        return False, False
+    failed = bool(re.search(
         r"(?:\bFAILED\b|\bFAILURES\b|\bAssertionError\b|\bassertion failed\b|"
-        r"\b[1-9][0-9]* failed\b|\bnot ok\b)", text, re.IGNORECASE
+        r"\b[1-9][0-9]* failed\b|\bnot ok\b)", output, re.IGNORECASE
     ))
-    success = bool(re.search(
-        r"(?:\b[0-9]+ passed\b|\btests? passed\b|\bOK\b|\bPASS\b|"
-        r"\ball tests passed\b|\btests? successful\b)", text, re.IGNORECASE
-    ))
-    recognized = failure or success or bool(re.search(
-        r"\b(?:pytest|unittest|vitest|jest|phpunit|cargo test|go test)\b", command,
-        re.IGNORECASE
-    ))
-    return recognized, failure
+    runner_index = commands.index(runners[0])
+    if operators and any(operator in {"||", "|", "&"} for operator in operators):
+        return False, False
+    chained_and = bool(operators) and all(operator == "&&" for operator in operators)
+    runner_is_last = runner_index == len(commands) - 1
+    if exit_code == 0:
+        if runner_is_last or chained_and:
+            return True, False
+        return False, False
+    if len(commands) == 1 and failed:
+        return True, True
+    if runner_is_last and not operators and failed:
+        return True, True
+    return False, False
 
 
 def _contract_covers_probe(fixture: Path, probe: dict[str, Any]) -> bool:
@@ -208,6 +224,146 @@ def _review_trace(
     return evidence, mutations
 
 
+def _shell_invocations(command: str) -> tuple[list[list[str]], list[str]] | None:
+    """Tokenize simple command lists; do not interpret redirects or nested shell syntax."""
+    if "\n" in command or "\r" in command:
+        return None
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|<>")
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        tokens = list(lexer)
+    except ValueError:
+        return None
+    if not tokens or any(token in {"<", ">", ">>", "<>", "<<<", "<<"} for token in tokens):
+        return None
+    commands: list[list[str]] = []
+    operators: list[str] = []
+    current: list[str] = []
+    for token in tokens:
+        if token in {"&&", ";", "||", "|", "&"}:
+            if not current or token in {"||", "|", "&"}:
+                return None
+            commands.append(current)
+            operators.append(token)
+            current = []
+        elif any(char in token for char in ";&|<>"):
+            return None
+        else:
+            current.append(token)
+    if not current:
+        return None
+    commands.append(current)
+    return commands, operators
+
+
+def _invocation_probe(
+    argv: list[str], probes: list[dict[str, Any]], behavior_probes: list[dict[str, Any]]
+) -> list[int]:
+    script = Path(argv[1]).name
+    args = argv[2:]
+    matched = []
+    for index, probe in enumerate(probes):
+        signals = [str(value) for value in probe.get("input_signals", [])]
+        if not (all(signal in args for signal in signals) and (signals or not args)):
+            continue
+        expected_command = probe.get("command")
+        if expected_command:
+            expected = [(Path(str(expected_command[1])).name, list(expected_command[2:]))]
+        elif behavior_probes:
+            expected = [
+                (Path(str(item["command"][1])).name, list(item["command"][2:]))
+                for item in behavior_probes
+                if len(item.get("command", [])) >= 2
+                and item.get("stdout") == probe.get("stdout")
+                and item.get("exit_code") == probe.get("exit_code")
+                and all(signal in item["command"][2:] for signal in signals)
+            ]
+        else:
+            expected = [(script, args)]
+        if (script, args) in expected:
+            matched.append(index)
+    return matched
+
+
+def _observed_invocations(command: str, output: str, exit_code: Any,
+                          probes: list[dict[str, Any]],
+                          behavior_probes: list[dict[str, Any]]) -> list[tuple[int, int]]:
+    parsed = _shell_invocations(command)
+    if not parsed or not isinstance(exit_code, int):
+        return []
+    commands, operators = parsed
+    if "||" in operators:
+        return []
+    target_scripts = {
+        Path(str(item["command"][1])).name
+        for item in behavior_probes
+        if len(item.get("command", [])) >= 2
+    }
+    app_calls = [(ordinal, argv) for ordinal, argv in enumerate(commands)
+                 if len(argv) >= 2 and argv[0] in {"python", "python3"}
+                 and Path(argv[1]).name in target_scripts]
+    if not app_calls:
+        return []
+    test_commands = [argv for argv in commands if (
+        Path(argv[0]).name in {"pytest", "vitest", "jest", "phpunit"}
+        or (len(argv) >= 3 and argv[0] in {"python", "python3"}
+            and argv[1] == "-m" and argv[2] in {"pytest", "unittest"})
+    )]
+    lines = output.splitlines(keepends=True)
+    if test_commands:
+        retained = []
+        skipping_progress = False
+        for line in lines:
+            bare = line.strip()
+            if re.search(r"\b[0-9]+ passed(?:,| in )", bare):
+                skipping_progress = False
+                continue
+            if re.fullmatch(r"[.FEsxX]+\s*\[100%\]", bare):
+                skipping_progress = True
+                continue
+            if skipping_progress and not bare:
+                continue
+            skipping_progress = False
+            retained.append(line)
+        lines = retained
+    if len(lines) != len(app_calls):
+        return []
+    assignments: list[tuple[int, int]] = []
+    for position, ((ordinal, argv), line) in enumerate(zip(app_calls, lines)):
+        output_matches = lambda expected: line == expected or (
+            position == len(app_calls) - 1
+            and not output.endswith("\n")
+            and expected.endswith("\n")
+            and line == expected[:-1]
+        )
+        exact = [index for index in _invocation_probe(argv, probes, behavior_probes)
+                 if output_matches(str(probes[index].get("stdout", "")))
+                 and probes[index].get("exit_code") == 0]
+        if len(exact) == 1:
+            if operators and all(operator == "&&" for operator in operators):
+                if exit_code != 0:
+                    return []
+            elif ordinal != len(commands) - 1 or exit_code != 0:
+                continue
+            assignments.append((ordinal, exact[0]))
+            continue
+        known_other = [item for item in behavior_probes
+                       if len(item.get("command", [])) >= 2
+                       and Path(str(item["command"][1])).name == Path(argv[1]).name
+                       and list(item["command"][2:]) == argv[2:]
+                       and item.get("exit_code") == 0
+                       and output_matches(str(item.get("stdout", "")))]
+        if len(known_other) != 1:
+            return []
+        if operators and all(operator == "&&" for operator in operators):
+            if exit_code != 0:
+                return []
+        elif ordinal == len(commands) - 1 and exit_code != 0:
+            return []
+    return assignments
+
+
 def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture: Path) -> list[dict[str, Any]]:
     pending: dict[str, deque[dict[str, Any]]] = defaultdict(deque)
     records: list[dict[str, Any]] = []
@@ -227,7 +383,13 @@ def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture:
         record = {"index": call["index"], "tool": name, "output": output, "command": command}
         if name == "terminal":
             record["exit_code"] = result.get("exit_code")
-            recognized, failed = _is_test_result(command, output)
+            for behavior_kind, probe_key in (("current", "current_behavior_probes"),
+                                             ("preserved", "preserved_behavior_probes")):
+                record[behavior_kind + "_observations"] = _observed_invocations(
+                    command, output, result.get("exit_code"), cfg.get(probe_key, []),
+                    cfg.get("behavior_probes", []),
+                )
+            recognized, failed = _is_test_result(command, output, result.get("exit_code"))
             if recognized:
                 record["check_result"] = "failed" if failed or result.get("exit_code", 0) else "passed"
         elif name in {"read_file", "file_read"}:
@@ -265,28 +427,17 @@ def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture:
         rec for rec in records
         if any(change["verification_file"] for change in rec.get("file_changes", []))
     ]
-    for probe_index, probe in enumerate(cfg.get("current_behavior_probes", [])):
+    source_change_indices = [rec["index"] for rec in records
+                             if any(not change["verification_file"]
+                                    for change in rec.get("file_changes", []))]
+    first_source_change = min(source_change_indices) if source_change_indices else None
+    current_probes = cfg.get("current_behavior_probes", [])
+    for probe_index, _probe in enumerate(current_probes):
         matched = next((rec for rec in records if rec["tool"] == "terminal"
-                        and rec.get("exit_code") == probe.get("exit_code")
-                        and rec["output"] == probe.get("stdout")
-                        and all(str(signal) in rec["command"]
-                                for signal in probe.get("input_signals", []))), None)
+                        and (first_source_change is None or rec["index"] < first_source_change)
+                        and any(index == probe_index for _, index in rec.get("current_observations", []))), None)
         if matched:
             facts.append({"kind": "current_behavior_observed", "index": matched["index"],
-                          "probe_index": probe_index})
-            continue
-        first_change = min(
-            [rec["index"] for rec in verification_changes]
-            + [rec["index"] for rec in records if any(
-                not change["verification_file"] for change in rec.get("file_changes", [])
-            )],
-            default=None,
-        )
-        covered = _contract_covers_probe(fixture, probe)
-        pre_change_pass = next((rec for rec in records if rec.get("check_result") == "passed"
-                                and (first_change is None or rec["index"] < first_change)), None)
-        if covered and pre_change_pass:
-            facts.append({"kind": "current_behavior_observed", "index": pre_change_pass["index"],
                           "probe_index": probe_index})
     signals = [str(item) for item in cfg.get("target_check_signals", [])]
     matching_check_change = next((rec for rec in verification_changes
@@ -307,25 +458,14 @@ def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture:
                              if any(not change["verification_file"]
                                     for change in rec.get("file_changes", []))]
     first_source_change = min(source_change_indices) if source_change_indices else None
-    for probe_index, probe in enumerate(cfg.get("preserved_behavior_probes", [])):
+    for probe_index, _probe in enumerate(cfg.get("preserved_behavior_probes", [])):
         matched = next((rec for rec in records if rec["tool"] == "terminal"
-                        and rec.get("exit_code") == probe.get("exit_code")
-                        and rec["output"] == probe.get("stdout")
-                        and all(str(signal) in rec["command"]
-                                for signal in probe.get("input_signals", []))
+                        and any(index == probe_index for _, index in rec.get("preserved_observations", []))
                         and first_source_change is not None
                         and rec["index"] > first_source_change), None)
         if matched:
             facts.append({"kind": "preserved_behavior_observed", "index": matched["index"],
                           "probe_index": probe_index})
-            continue
-        if _contract_covers_probe(fixture, probe):
-            post_change_pass = next((rec for rec in records if rec.get("check_result") == "passed"
-                                     and first_source_change is not None
-                                     and rec["index"] > first_source_change), None)
-            if post_change_pass:
-                facts.append({"kind": "preserved_behavior_observed", "index": post_change_pass["index"],
-                              "probe_index": probe_index})
     return facts
 
 
@@ -1179,6 +1319,83 @@ class DevelopmentWorkflowConsumer:
             shutil.rmtree(home, ignore_errors=True)
             shutil.rmtree(skill_home, ignore_errors=True)
             shutil.rmtree(prepared.get("fixture_parent", fixture.parent), ignore_errors=True)
+
+    def reextract_workflow_evidence(
+        self,
+        evidence: dict[str, Any],
+        raw_trace_path: Path,
+        scenario_cfg: dict[str, Any],
+        fixture: Path,
+    ) -> dict[str, Any]:
+        """Rebuild trajectory evidence from an immutable captured raw trace."""
+        text = raw_trace_path.read_text(encoding="utf-8")
+        if raw_trace_path.suffix == ".json":
+            payload = json.loads(text)
+            events = self._session_events(payload)
+            captured_cwd = payload.get("cwd")
+            if not captured_cwd:
+                captured_cwd = next((
+                    (event.get("input") or {}).get("workdir")
+                    for event in events
+                    if event.get("type") == "tool_use"
+                    and event.get("name") == "terminal"
+                    and isinstance((event.get("input") or {}).get("workdir"), str)
+                    and Path((event.get("input") or {})["workdir"]).is_absolute()
+                ), None)
+            trace_fixture = fixture
+            if captured_cwd:
+                source_root = Path(str(captured_cwd))
+                for event in events:
+                    data = event.get("input")
+                    if isinstance(data, dict):
+                        for key in ("path", "workdir"):
+                            value = data.get(key)
+                            if isinstance(value, str):
+                                try:
+                                    relative = Path(value).relative_to(source_root)
+                                except ValueError:
+                                    continue
+                                data[key] = str(fixture / relative)
+                        patch_text = data.get("patch")
+                        if isinstance(patch_text, str):
+                            data["patch"] = patch_text.replace(str(source_root), str(fixture))
+                    if event.get("type") == "tool_result":
+                        result_text = event.get("output")
+                        if isinstance(result_text, str):
+                            try:
+                                result_data = json.loads(result_text)
+                            except json.JSONDecodeError:
+                                continue
+                            if isinstance(result_data, dict):
+                                paths = result_data.get("files_modified")
+                                if isinstance(paths, list):
+                                    mapped = []
+                                    for value in paths:
+                                        try:
+                                            mapped.append(str(fixture / Path(value).relative_to(source_root)))
+                                        except (TypeError, ValueError):
+                                            mapped.append(value)
+                                    result_data["files_modified"] = mapped
+                                event["output"] = json.dumps(result_data)
+        else:
+            events = []
+            trace_fixture = fixture
+            for line in text.splitlines():
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(event, dict) and event.get("type"):
+                    events.append(event)
+        summary = self.event_summary(events, scenario_cfg, trace_fixture)
+        refreshed = dict(evidence)
+        refreshed["event_summary"] = summary
+        refreshed["workflow_events"] = summary["workflow_events"]
+        refreshed["tool_calls"] = summary["tool_calls"]
+        refreshed["tool_names"] = summary["tool_names"]
+        refreshed["review_evidence"] = summary["review_evidence"]
+        refreshed["mutation_events"] = summary["mutation_events"]
+        return refreshed
 
     def evaluate_dimension_diagnostic(
         self,

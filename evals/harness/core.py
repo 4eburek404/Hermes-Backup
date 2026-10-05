@@ -366,14 +366,34 @@ class Harness:
             run_record["evaluator_provenance"] = evaluator_provenance
         return run_record
 
-    def reevaluate(self, evidence_path: Path, rules: dict[str, Any]) -> dict[str, Any]:
+    def reevaluate(
+        self,
+        evidence_path: Path,
+        rules: dict[str, Any],
+        *,
+        raw_trace_path: Path | None = None,
+        scenario_cfg: dict[str, Any] | None = None,
+        fixture_path: Path | None = None,
+    ) -> dict[str, Any]:
         evidence = _read_json(evidence_path)
+        if raw_trace_path is not None:
+            if scenario_cfg is None or fixture_path is None:
+                raise ValueError("raw-trace reevaluation requires historical scenario_cfg and fixture_path")
+            refresh = getattr(self.consumer, "reextract_workflow_evidence", None)
+            if refresh is None:
+                raise TypeError("consumer does not support raw-trace evidence extraction")
+            evidence = refresh(evidence, raw_trace_path, scenario_cfg, fixture_path)
         diagnostics = evaluate_dimension_details(self.consumer, evidence, rules)
         result = {
             "score": _score_from_details(diagnostics),
             "diagnostics": diagnostics,
+            "workflow_events": evidence.get("workflow_events"),
             "agent_execution_count": evidence.get("agent_execution_count", self.agent_execution_count),
         }
+        if raw_trace_path is not None:
+            result["raw_trace_path"] = str(raw_trace_path)
+            result["source_evidence_path"] = str(evidence_path)
+            result["reevaluated_from_raw_trace"] = True
         evaluator_provenance = _capture_evaluator_provenance(
             self.consumer, evidence, rules
         )
