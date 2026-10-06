@@ -1,0 +1,269 @@
+{
+  "behavior_probes": [
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "Hello, Alice!\n",
+      "command": [
+        "python3",
+        "app.py",
+        "Alice"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "Hello, Alice!\n",
+      "name": "normal-greeting",
+      "stderr": ""
+    },
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "Hello, World!\n",
+      "command": [
+        "python3",
+        "app.py"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "Hello, World!\n",
+      "name": "default-greeting",
+      "stderr": ""
+    },
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "HELLO, ALICE!\n",
+      "command": [
+        "python3",
+        "app.py",
+        "Alice",
+        "--shout"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "HELLO, ALICE!\n",
+      "name": "shout-greeting",
+      "stderr": ""
+    }
+  ],
+  "command": [
+    "$HERMES_BIN",
+    "chat",
+    "--query-file",
+    "$REPO/evals/development-workflow/runs/20261006T073541Z/feature-shout--gpt-6-luna--openai-codex--candidate--r2/prompt.txt",
+    "--oneshot",
+    "--quiet",
+    "--format",
+    "stream-json",
+    "--model",
+    "gpt-6-luna",
+    "--provider",
+    "openai-codex",
+    "--toolsets",
+    "terminal,file,skills",
+    "--max-turns",
+    "36",
+    "--run-budget",
+    "240",
+    "--skills",
+    "behavior-driven-development",
+    "--yolo",
+    "--source",
+    "eval"
+  ],
+  "completion_observed": true,
+  "completion_status": "result_observed",
+  "elapsed_seconds": 52.487328538205475,
+  "ended_at": "2026-10-06T07:37:58.262964+00:00",
+  "equivalent_behavior_probes": [
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "Hello, Alice!\n",
+      "command": [
+        "python3",
+        "app.py",
+        "Alice"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "Hello, Alice!\n",
+      "name": "normal-greeting",
+      "stderr": ""
+    },
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "Hello, World!\n",
+      "command": [
+        "python3",
+        "app.py"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "Hello, World!\n",
+      "name": "default-greeting",
+      "stderr": ""
+    },
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "HELLO, ALICE!\n",
+      "command": [
+        "python3",
+        "app.py",
+        "Alice",
+        "--shout"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "HELLO, ALICE!\n",
+      "name": "shout-greeting",
+      "stderr": ""
+    }
+  ],
+  "equivalent_test_result": {
+    "command": [
+      "python3",
+      "-m",
+      "pytest",
+      "-q"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "...                                                                      [100%]\n3 passed in 0.17s\n"
+  },
+  "evaluation_mode": "skill-behavior",
+  "event_summary": {
+    "event_count": 101,
+    "mutation_events": [],
+    "review_evidence": [],
+    "skill_reads": [],
+    "skill_views": [],
+    "terminal_result": {
+      "duration_ms": 49155,
+      "exit_code": 0,
+      "session_id": "$SESSION_R3",
+      "text": "\u0414\u043e\u0431\u0430\u0432\u0438\u043b \u043d\u0435\u043e\u0431\u044f\u0437\u0430\u0442\u0435\u043b\u044c\u043d\u044b\u0439 `--shout`: `python3 app.py Alice --shout` \u043f\u0435\u0447\u0430\u0442\u0430\u0435\u0442 `HELLO, ALICE!`. \u041e\u0431\u044b\u0447\u043d\u043e\u0435 \u043f\u0440\u0438\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u0438 \u043f\u0440\u0438\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043f\u043e \u0443\u043c\u043e\u043b\u0447\u0430\u043d\u0438\u044e (`Hello, World!`) \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u044b.\n\n\u041f\u0440\u043e\u0432\u0435\u0440\u043a\u0430: \u0432\u0441\u0435 3 \u0442\u0435\u0441\u0442\u0430 \u043f\u0440\u043e\u0448\u043b\u0438; `git diff --check` \u0431\u0435\u0437 \u043e\u0448\u0438\u0431\u043e\u043a.",
+      "timestamp": 1791272276653,
+      "tokens": {
+        "cache_read": 56320,
+        "cache_write": 0,
+        "input": 26596,
+        "output": 1340,
+        "total": 84256
+      },
+      "type": "result"
+    },
+    "tool_calls": [
+      "git status --short --branch && git log -1 --oneline",
+      "python3 app.py Alice && python3 app.py",
+      "python3 -m pytest -q",
+      "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+      "git diff --check && git status --short"
+    ],
+    "tool_names": [
+      "search_files",
+      "search_files",
+      "terminal",
+      "read_file",
+      "read_file",
+      "search_files",
+      "terminal",
+      "patch",
+      "terminal",
+      "patch",
+      "patch",
+      "terminal",
+      "terminal"
+    ],
+    "workflow_events": [
+      {
+        "index": 15,
+        "kind": "target_check_changed"
+      },
+      {
+        "index": 15,
+        "kind": "verification_changed"
+      },
+      {
+        "index": 17,
+        "kind": "target_check_failed",
+        "output": ".F                                                                       [100%]\n=================================== FAILURES ===================================\n_________________________ test_shout_greeting_behavior _________________________\n\n    def test_shout_greeting_behavior() -> None:\n        result = run_app(\"Alice\", \"--shout\")\n        assert result.returncode == 0\n>       assert result.stdout == \"HELLO, ALICE!\\n\"\nE       AssertionError: assert 'Hello, Alice!\\n' == 'HELLO, ALICE!\\n'\nE         \nE         - HELLO, ALICE!\nE         + Hello, Alice!\n\ntests/test_app.py:25: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_app.py::test_shout_greeting_behavior - AssertionError: asse...\n1 failed, 1 passed in 0.12s"
+      },
+      {
+        "index": 17,
+        "kind": "verification_failed"
+      },
+      {
+        "index": 19,
+        "kind": "production_changed"
+      },
+      {
+        "index": 21,
+        "kind": "verification_changed"
+      },
+      {
+        "index": 23,
+        "kind": "target_check_passed",
+        "output": "...                                                                      [100%]\n3 passed in 0.17s\nHELLO, ALICE!\nHello, Alice!\nHello, World!"
+      }
+    ]
+  },
+  "execution_policy": "one-shot",
+  "execution_status": "COMPLETED",
+  "exit_code": 0,
+  "fixture_baseline_head": "59f300ee5512b86d9530d197071ae2cf241030c4",
+  "fixture_sha256": "908f3a8245ab3943584f34fc8ce41bfe6c1a5d0154ea2c22ea5f018e77c79004",
+  "forced_owner_skill": "behavior-driven-development",
+  "model": "gpt-6-luna",
+  "mutation_events": [],
+  "orphan_process_group_found": null,
+  "post_snapshot": {
+    "file_sha256": {
+      "app.py": "0ac1a173bb4427db4fc2456b1c261db1b9a224200afd534d51ef355df582452d",
+      "notes.txt": "5cd635dc875b6cfb0171cd062d756f0bbfff06c0cb3a73c7fb193449eebd04d4",
+      "tests/__pycache__/test_app.cpython-311-pytest-9.1.1.pyc": "f20bf76fe53dafcd40a115af810c2dbbe0fa080d4890292de8a2e6abe45ef855",
+      "tests/test_app.py": "5bc1468916e3c2f948755f74f599cfd9348c00bb707d844f166070196175637c"
+    },
+    "head": "59f300ee5512b86d9530d197071ae2cf241030c4",
+    "status_porcelain": "M app.py\n M tests/test_app.py\n?? tests/__pycache__/"
+  },
+  "pre_snapshot": {
+    "file_sha256": {
+      "app.py": "607b12614693fa83efb672a5909d43c96f39a245bf41fcc76d998aaa9f51497f",
+      "notes.txt": "5cd635dc875b6cfb0171cd062d756f0bbfff06c0cb3a73c7fb193449eebd04d4",
+      "tests/test_app.py": "df162860553ff2816f237940a456863550cbb5111a2d57299010fe0b97d218e4"
+    },
+    "head": "59f300ee5512b86d9530d197071ae2cf241030c4",
+    "status_porcelain": ""
+  },
+  "prompt_path": "$REPO/evals/development-workflow/runs/20261006T073541Z/feature-shout--gpt-6-luna--openai-codex--candidate--r2/prompt.txt",
+  "prompt_sha256": "368ef8b6c84e14164cf4ea25df042371242b8ad57f8f0d0e06b16a7359d5b1c5",
+  "protected_paths_unchanged": {
+    "notes.txt": true
+  },
+  "provider": "openai-codex",
+  "raw_session_path": null,
+  "raw_stderr_path": "$REPO/evals/development-workflow/runs/20261006T073541Z/feature-shout--gpt-6-luna--openai-codex--candidate--r2/raw_stderr.txt",
+  "raw_stream_path": "$REPO/evals/development-workflow/runs/20261006T073541Z/feature-shout--gpt-6-luna--openai-codex--candidate--r2/raw_stream.jsonl",
+  "raw_terminal_output_path": null,
+  "repository_changed": true,
+  "review_evidence": [],
+  "scenario": "feature-shout",
+  "session_capture_error": null,
+  "session_id": null,
+  "skill_reads": [],
+  "skill_sources": [
+    {
+      "content_sha256": "64432fe89de2213715133e56870576795cd7a1615932b3533c9816f7b4354a55",
+      "requested_ref": null,
+      "resolved_commit": "68a62b3fd5864f9178c3ace44bc61b23fb8cfcaa",
+      "skill_path": "hermes/skills/software-development/behavior-driven-development",
+      "source": "working_tree",
+      "working_tree_dirty": false
+    }
+  ],
+  "skill_version": "candidate",
+  "started_at": "2026-10-06T07:37:05.775638+00:00",
+  "test_result": {
+    "command": [
+      "python3",
+      "-m",
+      "pytest",
+      "-q"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "...                                                                      [100%]\n3 passed in 0.13s\n"
+  },
+  "timed_out": false
+}
