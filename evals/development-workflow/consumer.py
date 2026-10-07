@@ -324,6 +324,47 @@ def _test_patch_blocks(patch_text: str) -> list[tuple[str, str]]:
     return result
 
 
+def _has_supported_run_app_helper(tree: ast.Module) -> bool:
+    """Recognize only the fixture's direct subprocess.run helper shape."""
+    imported = {
+        alias.name
+        for node in tree.body if isinstance(node, ast.Import)
+        for alias in node.names
+        if alias.asname is None
+    }
+    helpers = [node for node in tree.body
+               if isinstance(node, ast.FunctionDef) and node.name == "run_app"]
+    if not {"subprocess", "sys"} <= imported or len(helpers) != 1:
+        return False
+    helper = helpers[0]
+    if (helper.decorator_list or helper.args.args or helper.args.kwonlyargs
+            or helper.args.defaults or helper.args.kw_defaults
+            or not helper.args.vararg or helper.args.vararg.arg != "args"
+            or helper.args.kwarg or len(helper.body) != 1
+            or not isinstance(helper.body[0], ast.Return)):
+        return False
+    call = helper.body[0].value
+    if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+            and isinstance(call.func.value, ast.Name) and call.func.value.id == "subprocess"
+            and call.func.attr == "run" and len(call.args) == 1 and len(call.keywords) == 3):
+        return False
+    argv = call.args[0]
+    if not isinstance(argv, ast.List) or len(argv.elts) != 3:
+        return False
+    executable, script, arguments = argv.elts
+    if not (isinstance(executable, ast.Attribute) and isinstance(executable.value, ast.Name)
+            and executable.value.id == "sys" and executable.attr == "executable"
+            and isinstance(script, ast.Constant) and script.value == "app.py"
+            and isinstance(arguments, ast.Starred) and isinstance(arguments.value, ast.Name)
+            and arguments.value.id == "args"):
+        return False
+    keywords = {item.arg: item.value for item in call.keywords}
+    expected = {"text": True, "capture_output": True, "check": False}
+    return (len(keywords) == len(expected)
+            and all(isinstance(keywords.get(name), ast.Constant)
+                    and keywords[name].value is value for name, value in expected.items()))
+
+
 def _apply_test_patch(source: str, encoded_hunk: str) -> str | None:
     old_text, new_text, added_text = encoded_hunk.split("\0", 2)
     old = old_text.splitlines()
@@ -364,6 +405,8 @@ def _pytest_behavior_results(command: str, output: str, exit_code: Any,
         try:
             tree = ast.parse(source)
         except SyntaxError:
+            return []
+        if not _has_supported_run_app_helper(tree):
             return []
         funcs = [node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
                  and node.name.startswith("test_")]
@@ -420,6 +463,9 @@ def _pytest_behavior_results(command: str, output: str, exit_code: Any,
     if re.search(r"\b(?:skipped|deselected|xfailed)\b", output, re.IGNORECASE):
         return []
     if exit_code == 0:
+        passed_summary = re.search(r"(?m)^(\d+) passed(?:\s+in\s+[^\n]+)?$", output)
+        if not passed_summary or int(passed_summary.group(1)) != len(all_cases):
+            return []
         results = {item["test_name"]: "passed" for item in all_cases}
     elif len(commands) == 1:
         failures = set(re.findall(r"(?m)^FAILED\s+[^\n]*::(test_[A-Za-z0-9_]+)", output))
@@ -562,6 +608,24 @@ def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture:
         if _is_verification_file(relative) and Path(relative).name == "test_app.py"
     }
     test_source_ambiguous = False
+    test_source_ambiguous_index: int | None = None
+
+    def mark_test_source_ambiguous() -> None:
+        nonlocal test_source_ambiguous, test_source_ambiguous_index
+        test_source_ambiguous = True
+        if test_source_ambiguous_index is None:
+            test_source_ambiguous_index = call["index"]
+
+    def fixture_test_key(raw_path: str) -> str | None:
+        path = Path(raw_path)
+        if not path.is_absolute():
+            path = fixture / path
+        try:
+            relative = path.resolve().relative_to(fixture.resolve()).as_posix()
+        except (OSError, ValueError):
+            return None
+        return relative if relative in test_sources else None
+
     for index, event in enumerate(events):
         kind = event.get("type")
         name = str(event.get("name", ""))
@@ -575,20 +639,42 @@ def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture:
         result = _decode_tool_output(event.get("output"))
         output = str(result.get("output", ""))
         command = str(args.get("command", "")) if name == "terminal" else ""
-        if name == "patch" and result.get("success") is True and any(
-            "--shout" in item.get("command", []) for item in cfg.get("behavior_probes", [])
-        ):
-            for raw_path, hunk in _test_patch_blocks(str(args.get("patch", ""))):
-                matches = [key for key in test_sources if raw_path.replace("\\\\", "/").endswith(key.replace("\\\\", "/"))]
-                if len(matches) != 1:
-                    if Path(raw_path).name == "test_app.py":
-                        test_source_ambiguous = True
-                    continue
-                updated = _apply_test_patch(test_sources[matches[0]], hunk)
-                if updated is None:
-                    test_source_ambiguous = True
-                else:
-                    test_sources[matches[0]] = updated
+        if name == "patch":
+            patch_text = str(args.get("patch", ""))
+            blocks = _test_patch_blocks(patch_text)
+            attempted_keys = {key for raw_path, _ in blocks
+                              if (key := fixture_test_key(raw_path)) is not None}
+            modified_paths = result.get("files_modified", [])
+            modified_keys = {key for raw_path in modified_paths
+                             if (key := fixture_test_key(str(raw_path))) is not None}
+            replayed_keys: set[str] = set()
+            if result.get("success") is True:
+                for raw_path, hunk in blocks:
+                    key = fixture_test_key(raw_path)
+                    if key is None:
+                        if Path(raw_path).name == "test_app.py":
+                            mark_test_source_ambiguous()
+                        continue
+                    updated = _apply_test_patch(test_sources[key], hunk)
+                    if updated is None:
+                        mark_test_source_ambiguous()
+                    else:
+                        test_sources[key] = updated
+                        replayed_keys.add(key)
+            if ((attempted_keys | modified_keys) - replayed_keys
+                    or ("test_app.py" in patch_text and not replayed_keys)):
+                mark_test_source_ambiguous()
+        elif name in {"write_file", "edit_file"}:
+            raw_path = str(args.get("path", ""))
+            key = fixture_test_key(raw_path)
+            content = args.get("content")
+            if (name == "write_file" and key is not None
+                    and result.get("success") is True and isinstance(content, str)):
+                test_sources[key] = content
+            elif key is not None or (Path(raw_path).name == "test_app.py"
+                                     and (not Path(raw_path).is_absolute()
+                                          or str(Path(raw_path).resolve()).startswith(str(fixture.resolve()) + os.sep))):
+                mark_test_source_ambiguous()
         record = {"index": call["index"], "tool": name, "output": output, "command": command}
         if name == "terminal":
             record["exit_code"] = result.get("exit_code")
@@ -730,7 +816,9 @@ def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture:
             facts.append({"kind": "preserved_behavior_observed", "index": matched["index"],
                           "probe_index": probe_index})
     if test_source_ambiguous:
-        facts.append({"kind": "test_evidence_unconfirmed", "reason": "recorded test-source patch could not be replayed unambiguously"})
+        facts.append({"kind": "test_evidence_unconfirmed",
+                      "index": test_source_ambiguous_index,
+                      "reason": "recorded test-source patch could not be replayed unambiguously"})
     return sorted(facts, key=lambda fact: int(fact.get("index", 0)))
 
 

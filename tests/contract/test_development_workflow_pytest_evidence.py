@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -29,17 +30,17 @@ def cfg():
             "tests/test_app.py": "def test_regular():\n    result = run_app('Alice')\n    assert result.returncode == 0\n    assert result.stdout == 'Hello, Alice!'\n",
         },
         "behavior_probes": [
-            {"command": ["python3", "app.py", "Alice"], "stdout": "Hello, Alice!", "exit_code": 0},
-            {"command": ["python3", "app.py"], "stdout": "Hello, World!", "exit_code": 0},
-            {"command": ["python3", "app.py", "Alice", "--shout"], "stdout": "HELLO, ALICE!", "exit_code": 0},
+            {"command": ["python3", "app.py", "Alice"], "stdout": "Hello, Alice!\n", "exit_code": 0},
+            {"command": ["python3", "app.py"], "stdout": "Hello, World!\n", "exit_code": 0},
+            {"command": ["python3", "app.py", "Alice", "--shout"], "stdout": "HELLO, ALICE!\n", "exit_code": 0},
         ],
         "current_behavior_probes": [
-            {"stdout": "Hello, Alice!", "exit_code": 0, "input_signals": ["Alice"]},
-            {"stdout": "Hello, World!", "exit_code": 0, "input_signals": []},
+            {"stdout": "Hello, Alice!\n", "exit_code": 0, "input_signals": ["Alice"]},
+            {"stdout": "Hello, World!\n", "exit_code": 0, "input_signals": []},
         ],
         "preserved_behavior_probes": [
-            {"stdout": "Hello, Alice!", "exit_code": 0, "input_signals": ["Alice"]},
-            {"stdout": "Hello, World!", "exit_code": 0, "input_signals": []},
+            {"stdout": "Hello, Alice!\n", "exit_code": 0, "input_signals": ["Alice"]},
+            {"stdout": "Hello, World!\n", "exit_code": 0, "input_signals": []},
         ],
         "target_check_signals": ["HELLO, ALICE!", "--shout"],
     }
@@ -112,13 +113,8 @@ def test_reconstructs_test_snapshot_and_red_green_without_splitting_stdout(tmp_p
     events += tool("patch", {"mode": "patch", "patch": f"*** Begin Patch\n*** Update File: {prod}\n@@\n-def main(): pass\n+def main(): print('changed')\n*** End Patch"}, {"success": True, "files_modified": [str(prod)]})
     events += tool("terminal", {"command": "python3 -m pytest -q && python3 app.py"}, {"output": "3 passed\nHello, World!\n", "exit_code": 0})
     facts = consumer().event_summary(events, config, root)["workflow_events"]
-    got = {(f.get("kind"), f.get("probe_index"), f.get("result")) for f in facts}
-    assert ("current_behavior_test_result", 0, "passed") in got
-    assert ("current_behavior_test_result", 2, "failed") in got, facts
-    assert ("preserved_behavior_test_result", 0, "passed") in got
-    assert ("preserved_behavior_test_result", 1, "passed") in got
-    baseline_current = {f.get("probe_index") for f in facts if f.get("kind") == "current_behavior_observed"}
-    assert baseline_current == {0, 1}, facts
+    assert not any(f.get("kind", "").endswith("test_result") for f in facts), facts
+    assert any(f.get("kind") == "test_evidence_unconfirmed" for f in facts), facts
 
 
 def test_late_test_never_backdates_and_selected_or_skipped_tests_are_unconfirmed(tmp_path):
@@ -131,7 +127,8 @@ def test_late_test_never_backdates_and_selected_or_skipped_tests_are_unconfirmed
     facts = consumer().event_summary(events, config, root)["workflow_events"]
     prod_index = next(f["index"] for f in facts if f["kind"] == "production_changed")
     late = [f for f in facts if f.get("kind") == "current_behavior_test_result"]
-    assert late and all(f["index"] > prod_index for f in late)
+    assert not late
+    assert any(f.get("kind") == "test_evidence_unconfirmed" for f in facts), facts
     for command, output in (("python3 -m pytest -q -k shout", "1 passed\n"),
                             ("python3 -m pytest -q", "1 passed, 1 skipped\n"),
                             ("echo '1 passed'", "1 passed\n")):
@@ -150,3 +147,139 @@ def test_aggregate_program_output_is_not_attributed_by_expected_strings(tmp_path
     )["workflow_events"]
     assert not any(f.get("kind") in {"current_behavior_observed", "preserved_behavior_observed"} for f in facts)
     assert not any(f.get("kind", "").endswith("test_result") for f in facts)
+
+
+def _run_pytest(root: Path) -> dict:
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q"], cwd=root,
+        text=True, capture_output=True, check=False,
+    )
+    return {"output": result.stdout + result.stderr, "exit_code": result.returncode}
+
+
+def _executable_fixture(root: Path, helper: str) -> tuple[dict, Path]:
+    config = cfg()
+    (root / "tests").mkdir(parents=True)
+    (root / "app.py").write_text(
+        "import sys\n"
+        "def main(argv):\n"
+        "    name = argv[0] if argv else 'World'\n"
+        "    shout = '--shout' in argv\n"
+        "    if shout: name = name.upper()\n"
+        "    print(('HELLO, ' if shout else 'Hello, ') + name + '!')\n"
+        "if __name__ == '__main__': main(sys.argv[1:])\n",
+        encoding="utf-8",
+    )
+    test_path = root / "tests/test_app.py"
+    test_path.write_text(
+        "import subprocess\nimport sys\n\n" + helper + "\n\n"
+        "def test_regular():\n"
+        "    result = run_app('Alice')\n"
+        "    assert result.returncode == 0\n"
+        "    assert result.stdout == 'Hello, Alice!\\n'\n\n"
+        "def test_default():\n"
+        "    result = run_app()\n"
+        "    assert result.returncode == 0\n"
+        "    assert result.stdout == 'Hello, World!\\n'\n\n"
+        "def test_shout():\n"
+        "    result = run_app('Alice', '--shout')\n"
+        "    assert result.returncode == 0\n"
+        "    assert result.stdout == 'HELLO, ALICE!\\n'\n",
+        encoding="utf-8",
+    )
+    config["fixture_files"] = {
+        "app.py": (root / "app.py").read_text(encoding="utf-8"),
+        "tests/test_app.py": test_path.read_text(encoding="utf-8"),
+    }
+    return config, test_path
+
+
+def test_successful_write_file_replaces_pytest_snapshot_without_stale_evidence(tmp_path):
+    config, test_path = _executable_fixture(
+        tmp_path,
+        "def run_app(*args):\n"
+        "    return subprocess.run([sys.executable, 'app.py', *args], "
+        "text=True, capture_output=True, check=False)",
+    )
+    before = _run_pytest(tmp_path)
+    assert before["exit_code"] == 0
+    assert "3 passed" in before["output"]
+
+    replacement = "def test_placeholder():\n    assert True\n"
+    write_events = tool("write_file", {"path": str(test_path), "content": replacement},
+                        {"success": True, "path": str(test_path)})
+    test_path.write_text(replacement, encoding="utf-8")
+    after = _run_pytest(tmp_path)
+    assert after["exit_code"] == 0
+    assert "1 passed" in after["output"]
+    events = write_events + tool("terminal", {"command": "python3 -m pytest -q"}, after)
+
+    facts = consumer().event_summary(events, config, tmp_path)["workflow_events"]
+
+    assert not any(f.get("kind", "").endswith("test_result") for f in facts), facts
+    assert any(f.get("kind") == "test_evidence_unconfirmed" for f in facts), facts
+
+
+def test_edit_file_invalidates_old_test_snapshot_even_if_pytest_passes(tmp_path):
+    config, test_path = _executable_fixture(
+        tmp_path,
+        "def run_app(*args):\n"
+        "    return subprocess.run([sys.executable, 'app.py', *args], "
+        "text=True, capture_output=True, check=False)",
+    )
+    original = test_path.read_text(encoding="utf-8")
+    replacement = "def test_placeholder():\n    assert True\n"
+    edit = tool("edit_file", {"path": str(test_path), "old_string": original,
+                              "new_string": replacement}, {"success": True})
+    test_path.write_text(replacement, encoding="utf-8")
+    actual = _run_pytest(tmp_path)
+    assert actual["exit_code"] == 0
+    assert "1 passed" in actual["output"]
+    edit += tool("terminal", {"command": "python3 -m pytest -q"}, actual)
+
+    facts = consumer().event_summary(edit, config, tmp_path)["workflow_events"]
+
+    assert not any(f.get("kind", "").endswith("test_result") for f in facts), facts
+    assert any(f.get("kind") == "test_evidence_unconfirmed" for f in facts), facts
+
+
+def test_run_app_that_returns_prepared_result_does_not_confirm_application(tmp_path):
+    stub_values = repr({
+        (): "Hello, World!\n",
+        ("Alice",): "Hello, Alice!\n",
+        ("Alice", "--shout"): "HELLO, ALICE!\n",
+    })
+    config, _ = _executable_fixture(
+        tmp_path,
+        "from types import SimpleNamespace\n"
+        "def run_app(*args):\n"
+        "    return SimpleNamespace(returncode=0, stdout=" + stub_values + "[args])",
+    )
+    actual = _run_pytest(tmp_path)
+    assert actual["exit_code"] == 0
+    assert "3 passed" in actual["output"]
+    events = tool("terminal", {"command": "python3 -m pytest -q"}, actual)
+
+    facts = consumer().event_summary(events, config, tmp_path)["workflow_events"]
+
+    assert not any(f.get("kind", "").endswith("test_result") for f in facts), facts
+    assert any(f.get("kind") == "test_evidence_unconfirmed" for f in facts), facts
+
+
+def test_real_run_app_fixture_confirms_only_matching_probe(tmp_path):
+    config, _ = _executable_fixture(
+        tmp_path,
+        "def run_app(*args):\n"
+        "    return subprocess.run([sys.executable, 'app.py', *args], "
+        "text=True, capture_output=True, check=False)",
+    )
+    run_result = _run_pytest(tmp_path)
+    assert run_result["exit_code"] == 0, run_result
+    assert "3 passed" in run_result["output"], run_result
+    events = tool("terminal", {"command": "python3 -m pytest -q"}, run_result)
+
+    facts = consumer().event_summary(events, config, tmp_path)["workflow_events"]
+
+    confirmed = [f for f in facts if f.get("kind", "").endswith("test_result")]
+    assert {f["probe_index"] for f in confirmed if f["result"] == "passed"} == {0, 1, 2}, facts
+    assert all(f["result"] == "passed" for f in confirmed)
