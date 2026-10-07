@@ -10,9 +10,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from zoneinfo import ZoneInfo
 
+from evals.harness.skill_source import materialize_skill_source
+
 ROOT = Path(__file__).resolve().parents[2]
 EVAL = ROOT / "evals" / "flight-calendar-ics"
-CANDIDATE = ROOT.parent / "Hermes-Backup"
 
 
 def load_run_eval():
@@ -130,12 +131,21 @@ def test_ural_replay_is_offline_and_returns_raw_reservation():
 
 
 def test_ural_and_pdf_timezones_match_candidate_catalog():
-    catalog = json.loads(
-        (
-            CANDIDATE
-            / "hermes/skills/travel/flight-calendar-ics/data/airport-timezones.json"
-        ).read_text(encoding="utf-8")
-    )["timezones"]
+    manifest = json.loads((EVAL / "manifest.json").read_text(encoding="utf-8"))
+    skill_dir = Path(manifest["skill"]["path"]).parent
+    with TemporaryDirectory(prefix="flight-calendar-timezone-source-") as temp:
+        candidate_dir = Path(temp) / "flight-calendar-ics"
+        materialize_skill_source(
+            ROOT,
+            skill_dir,
+            manifest["skill_versions"]["candidate"],
+            candidate_dir,
+        )
+        catalog = json.loads(
+            (candidate_dir / "data" / "airport-timezones.json").read_text(
+                encoding="utf-8"
+            )
+        )["timezones"]
     assert {code: catalog[code] for code in ("DME", "SVO", "SVX")} == {
         "DME": "Europe/Moscow",
         "SVO": "Europe/Moscow",
