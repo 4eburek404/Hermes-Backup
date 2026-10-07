@@ -1,0 +1,27 @@
+{
+  "first_production_index": 22,
+  "skill_reads": [
+    {
+      "index": 6,
+      "skill": "behavior-driven-development",
+      "via": "skill_view"
+    },
+    {
+      "index": 7,
+      "skill": "ponytail",
+      "via": "skill_view"
+    }
+  ],
+  "skill_reads_before_production": [
+    {
+      "index": 6,
+      "skill": "behavior-driven-development",
+      "via": "skill_view"
+    },
+    {
+      "index": 7,
+      "skill": "ponytail",
+      "via": "skill_view"
+    }
+  ]
+}

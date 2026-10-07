@@ -1,0 +1,21 @@
+{
+  "diagnostics": {
+    "outcome": {
+      "reason": null,
+      "status": "PASS"
+    },
+    "privacy": {
+      "reason": "no privacy contract in this fixture",
+      "status": "UNDEFINED"
+    },
+    "trajectory": {
+      "reason": "required preserved behavior is UNCONFIRMED after production change",
+      "status": "FAIL"
+    }
+  },
+  "score": {
+    "outcome": "PASS",
+    "privacy": "UNDEFINED",
+    "trajectory": "FAIL"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "first_production_index": 20,
+  "skill_reads": [
+    {
+      "index": 1,
+      "skill": "software-development:behavior-driven-development",
+      "via": "skill_view"
+    }
+  ],
+  "skill_reads_before_production": [
+    {
+      "index": 1,
+      "skill": "software-development:behavior-driven-development",
+      "via": "skill_view"
+    }
+  ]
+}

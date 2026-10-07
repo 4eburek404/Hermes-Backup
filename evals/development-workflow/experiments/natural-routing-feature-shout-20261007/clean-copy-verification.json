@@ -1,0 +1,23 @@
+{
+  "clean_copy_path": "$TMPDIR/natural-routing-replay-clean-copy-4/natural-routing-feature-shout-20261007",
+  "hermes_or_llm_runs": 0,
+  "input_run_count": 3,
+  "output_directory_started_empty": true,
+  "output_file_count": 12,
+  "output_sha256": {
+    "r1/event-refs.json": "423382144a6321c0716f73e54549248e6f6e9ce993e550a9d1e392a96ebe0f8c",
+    "r1/evidence.json": "401bd342b07caa2ad599643116233d24db7810300f7972f431eb896a6ecde984",
+    "r1/score.json": "a69c6d31e4a3b3f0fc61baa63577dba58c49e6d2aa0f8ab629e45b48cb639204",
+    "r2/event-refs.json": "51c8bece1c6edacacc011259c4f32ec28c016d9342e760c49d012d26a4a7b19a",
+    "r2/evidence.json": "90861e227e9d7ae2a60f729e29950b78a5647fff564a93b7847a464c86b400b8",
+    "r2/score.json": "886c4d7f0f9fb9c6ab01d103a928b76c2ca1dbffa174ee5f7510615ecbf9067a",
+    "r3/event-refs.json": "cc4a24a095ce4293a1c95c2f2603f2b4fdd1fb01683cfaf9f3e2e329d5c70987",
+    "r3/evidence.json": "6d1a39f5c14d928ca35fd8636197c757c32fda370d4f462cdb4fedf3adb165cd",
+    "r3/score.json": "a69c6d31e4a3b3f0fc61baa63577dba58c49e6d2aa0f8ab629e45b48cb639204",
+    "reproduction.json": "e096f138a006ad3dc1638d9f9c85d91d5137b4e5ebacc1515a08e811c410471e",
+    "source-checksums.json": "a56b5ce54f81549fb124f03a90822d9272161338158dc7704b963a173e1189c8",
+    "summary.json": "39826bf34835276b76a4f68541f146cfc37855d3f9cda32ccd507832d7f7b730"
+  },
+  "replay_exit_code": 0,
+  "scores_match_recorded_live_evaluator": true
+}

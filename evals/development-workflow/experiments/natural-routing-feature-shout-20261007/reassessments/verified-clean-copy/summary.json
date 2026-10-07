@@ -1,0 +1,49 @@
+{
+  "runs": [
+    {
+      "reasons": {
+        "outcome": null,
+        "privacy": "no privacy contract in this fixture",
+        "trajectory": "current observable behavior is UNCONFIRMED; required preserved behavior is UNCONFIRMED after production change"
+      },
+      "run": "r1",
+      "scores": {
+        "outcome": "PASS",
+        "privacy": "UNDEFINED",
+        "trajectory": "FAIL"
+      },
+      "source_raw_session": "../../runs/r1/raw_session.json",
+      "workflow_event_count": 21
+    },
+    {
+      "reasons": {
+        "outcome": null,
+        "privacy": "no privacy contract in this fixture",
+        "trajectory": "required preserved behavior is UNCONFIRMED after production change"
+      },
+      "run": "r2",
+      "scores": {
+        "outcome": "PASS",
+        "privacy": "UNDEFINED",
+        "trajectory": "FAIL"
+      },
+      "source_raw_session": "../../runs/r2/raw_session.json",
+      "workflow_event_count": 22
+    },
+    {
+      "reasons": {
+        "outcome": null,
+        "privacy": "no privacy contract in this fixture",
+        "trajectory": "current observable behavior is UNCONFIRMED; required preserved behavior is UNCONFIRMED after production change"
+      },
+      "run": "r3",
+      "scores": {
+        "outcome": "PASS",
+        "privacy": "UNDEFINED",
+        "trajectory": "FAIL"
+      },
+      "source_raw_session": "../../runs/r3/raw_session.json",
+      "workflow_event_count": 16
+    }
+  ]
+}

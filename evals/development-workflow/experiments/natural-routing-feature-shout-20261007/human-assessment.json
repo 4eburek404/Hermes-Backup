@@ -1,0 +1,83 @@
+{
+  "method": "Human review of the sanitized captured traces; evaluator criteria and saved scores were not changed.",
+  "definitions": {
+    "bdd_read": "A successful skill_view result containing skill content, before the first production mutation.",
+    "manual_process_pass": "Named and default current behavior observed before change; expected new-behavior RED before production change; GREEN after; preserved cases GREEN before and after.",
+    "insufficient_evidence": "The trace does not establish a required step; this is not by itself proof the step was violated."
+  },
+  "runs": [
+    {
+      "run": "r1",
+      "trace": "runs/r1/raw_session.json",
+      "skills_read_in_order": ["behavior-driven-development"],
+      "bdd_access": "direct skill identifier",
+      "bdd_skill_view_call_result_events": [0, 1],
+      "first_production_change_event": 20,
+      "bdd_read_before_production": true,
+      "manual_outcome": "PASS",
+      "manual_trajectory": "INCOMPLETE",
+      "manual_process": "INSUFFICIENT_EVIDENCE",
+      "evidence": {
+        "named_baseline": "terminal call 14/result 15: python3 app.py Alice and pre-change pytest pass; stdout Hello, Alice!",
+        "target_red": "terminal call 18/result 19: new shout assertion fails; actual Hello, Alice! differs from expected HELLO, ALICE!",
+        "production_change": "patch call 20",
+        "green_and_preservation": "pytest call 22/result 25 passes; terminal call 23/result 26 prints HELLO, ALICE!, Hello, Alice!, Hello, World!",
+        "gap": "No-argument/default behavior was not directly observed before test/production changes. It was only directly observed after production change."
+      },
+      "evaluator_reason": "current observable behavior is UNCONFIRMED; required preserved behavior is UNCONFIRMED after production change",
+      "classification": "Evidence gap for baseline default behavior; not a confirmed process violation."
+    },
+    {
+      "run": "r2",
+      "trace": "runs/r2/raw_session.json",
+      "skills_read_in_order": ["software-development:behavior-driven-development"],
+      "bdd_access": "category-qualified BDD identifier; resolved content is behavior-driven-development, not the separate spec-driven-development entry",
+      "bdd_skill_view_call_result_events": [0, 1],
+      "first_production_change_event": 20,
+      "bdd_read_before_production": true,
+      "manual_outcome": "PASS",
+      "manual_trajectory": "PASS",
+      "manual_process": "PASS",
+      "evidence": {
+        "named_baseline": "terminal call 8/result 11 prints Hello, Alice!; this command also reports unittest discovered 0 tests, which is not counted as test evidence",
+        "default_baseline": "terminal call 12/result 14 prints Hello, World!; terminal call 13/result 15 confirms the pre-change existing pytest passes",
+        "target_red": "terminal call 18/result 19: new shout assertion fails with actual Hello, Alice! instead of HELLO, ALICE!",
+        "production_change": "patch call 20",
+        "green_and_preservation": "terminal call 22/result 24: pytest passes and direct outputs include Hello, Alice!, HELLO, ALICE!, and Hello, World!"
+      },
+      "evaluator_reason": "required preserved behavior is UNCONFIRMED after production change",
+      "classification": "The captured compound command result contains both preserved outputs after change; the evaluator did not attribute the no-argument output to the preserved probe."
+    },
+    {
+      "run": "r3",
+      "trace": "runs/r3/raw_session.json",
+      "skills_read_in_order": ["behavior-driven-development", "ponytail"],
+      "bdd_access": "direct skill identifier; Ponytail was read next",
+      "bdd_skill_view_call_result_events": [[2, 6], [3, 7]],
+      "first_production_change_event": 22,
+      "bdd_read_before_production": true,
+      "manual_outcome": "PASS",
+      "manual_trajectory": "PASS",
+      "manual_process": "PASS",
+      "evidence": {
+        "nonblocking_tool_error": "terminal call 5/result 9 reports that git status was initially run outside a git repository; agent continued",
+        "named_and_default_baseline": "terminal call 13/result 17, before acceptance-test edit: command output includes Hello, Alice! and Hello, World!",
+        "target_red": "terminal call 20/result 21: new shout assertion fails with actual Hello, Alice! instead of HELLO, ALICE!",
+        "production_change": "patch call 22",
+        "green_and_preservation": "pytest call 24/result 27 passes; terminal call 25/result 28 prints HELLO, ALICE!, Hello, Alice!, and Hello, World!"
+      },
+      "evaluator_reason": "current observable behavior is UNCONFIRMED; required preserved behavior is UNCONFIRMED after production change",
+      "classification": "Direct command outputs before and after change establish the probes manually; the evaluator did not map the compound command output to those probe events."
+    }
+  ],
+  "summary": {
+    "bdd_read_before_production": "3/3",
+    "correct_final_behavior": "3/3",
+    "manual_process_pass": "2/3",
+    "insufficient_evidence": "1/3",
+    "confirmed_process_violations": 0,
+    "evaluator_outcome_pass": "3/3",
+    "evaluator_trajectory_pass": "0/3",
+    "evaluator_missed_trace_attribution": "r2 and r3; r1 also has a real baseline-default evidence gap"
+  }
+}

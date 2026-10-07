@@ -1,0 +1,266 @@
+{
+  "agent_visible_local_skills": [
+    {
+      "name": "github-code-review",
+      "relative_path": "hermes/skills/github/github-code-review/SKILL.md",
+      "skill_md_sha256": "a2521736796960b574aa229d6b97c25eccdfea19099ad26faceb32e4e46ea809",
+      "version": "0.2.0"
+    },
+    {
+      "name": "github-issue-to-pr",
+      "relative_path": "hermes/skills/github/github-issue-to-pr/SKILL.md",
+      "skill_md_sha256": "af580a5a8033f93cfc332b55f032fffce5147a41aa9c46413a3cb04647db841d",
+      "version": "0.1.0"
+    },
+    {
+      "name": "web-content-acquisition",
+      "relative_path": "hermes/skills/research/web-content-acquisition/SKILL.md",
+      "skill_md_sha256": "d828f2a6b1022f2258dc87f39b73b948eaac47d1a6d1bf2ca601f34951a62cce",
+      "version": "1.0.0"
+    },
+    {
+      "name": "behavior-driven-development",
+      "relative_path": "hermes/skills/software-development/behavior-driven-development/SKILL.md",
+      "skill_md_sha256": "7ce03d921f3d673f47605a3913d7005c27037296a0f54b23ec96834de79bdc6c",
+      "version": "1.0.1"
+    },
+    {
+      "name": "plan",
+      "relative_path": "hermes/skills/software-development/plan/SKILL.md",
+      "skill_md_sha256": "dec8efd06404fea6cebe5659249605768cff809c2b55b961af5c6b6de7c3457c",
+      "version": "2.0.0"
+    },
+    {
+      "name": "ponytail",
+      "relative_path": "hermes/skills/software-development/ponytail/SKILL.md",
+      "skill_md_sha256": "daf28855ef049f7889faf0ec953b9688f3d394f5399d614d7f69cb49c172fae2",
+      "version": null
+    },
+    {
+      "name": "spec-driven-development",
+      "relative_path": "hermes/skills/software-development/spec-driven-development/SKILL.md",
+      "skill_md_sha256": "7d88411e6bafe6bc5c942d267c9149600b772147d308cdbe39e58ecc236e547b",
+      "version": "2.0.0"
+    },
+    {
+      "name": "systematic-debugging",
+      "relative_path": "hermes/skills/software-development/systematic-debugging/SKILL.md",
+      "skill_md_sha256": "c1b64cfb0beb75e3b1d879f78b904f1b16ea65ccc36032f4612f6ad9e83c5434",
+      "version": "1.1.0"
+    },
+    {
+      "name": "test-driven-development",
+      "relative_path": "hermes/skills/software-development/test-driven-development/SKILL.md",
+      "skill_md_sha256": "680d89075245ad249288565e0dd16912f4660555c4be32c3d0e38989e43b5d69",
+      "version": null
+    },
+    {
+      "name": "airport-direct-destinations",
+      "relative_path": "hermes/skills/travel/airport-direct-destinations/SKILL.md",
+      "skill_md_sha256": "5268b6e4d0188e3dd6514191d80f89b41451bde2edb5aeaa2f40659a45e042e0",
+      "version": "1.0.0"
+    },
+    {
+      "name": "flight-calendar-ics",
+      "relative_path": "hermes/skills/travel/flight-calendar-ics/SKILL.md",
+      "skill_md_sha256": "654923b85782647878ad5c0c5c0686d678a91f38b9f8ea5088edcd75681c02ae",
+      "version": "3.02"
+    },
+    {
+      "name": "flight-search",
+      "relative_path": "hermes/skills/travel/flight-search/SKILL.md",
+      "skill_md_sha256": "581fa05096fb9f8807f9f84454091621663616933aad796dfc9c39a3c7b00a4b",
+      "version": "0.13.0"
+    },
+    {
+      "name": "flight-status",
+      "relative_path": "hermes/skills/travel/flight-status/SKILL.md",
+      "skill_md_sha256": "91ceb739d15f55b99212c087722b2e1ae59b23f84f88db0bcd24697e014b5fdb",
+      "version": "1.2.0"
+    },
+    {
+      "name": "travel-expense-spreadsheet-summary",
+      "relative_path": "hermes/skills/travel/travel-expense-spreadsheet-summary/SKILL.md",
+      "skill_md_sha256": "e9141323ed90be67f906636919bc714cfd337be52c8b9a54b81f3acabad5f1bc",
+      "version": "2.2.0"
+    },
+    {
+      "name": "travel-news-digest",
+      "relative_path": "hermes/skills/travel/travel-news-digest/SKILL.md",
+      "skill_md_sha256": "cb8e4ab207dd885be88cd26d10461c4aed8b80caf38259685ce7bd985bfcb4e7",
+      "version": null
+    }
+  ],
+  "agent_visible_local_skills_count": 15,
+  "bdd": {
+    "materialized_source_commit": "4de4ffcf0d2f2b39f4b0995fcc9f3b37f7120389",
+    "materialized_source_content_sha256": "64432fe89de2213715133e56870576795cd7a1615932b3533c9816f7b4354a55",
+    "name": "behavior-driven-development",
+    "preflight": "Hermes standard skills list in isolated HERMES_HOME showed BDD enabled; description existed at skills/software-development/behavior-driven-development/SKILL.md",
+    "relative_path": "hermes/skills/software-development/behavior-driven-development/SKILL.md",
+    "skill_md_sha256": "7ce03d921f3d673f47605a3913d7005c27037296a0f54b23ec96834de79bdc6c",
+    "version": "1.0.1"
+  },
+  "branch": "SDD-skill",
+  "config_skill_controls": {
+    "disabled_skill_names": [
+      "airtable",
+      "audiocraft-audio-generation",
+      "baoyu-infographic",
+      "blogwatcher",
+      "claude-code",
+      "claude-design",
+      "comfyui",
+      "design-md",
+      "dogfood",
+      "gif-search",
+      "heartmula",
+      "manim-video",
+      "notion",
+      "openhue",
+      "p5js",
+      "petdex",
+      "polymarket",
+      "popular-web-designs",
+      "pretext",
+      "segment-anything-model",
+      "serving-llms-vllm",
+      "sketch",
+      "songsee",
+      "songwriting-and-ai-music",
+      "spike",
+      "teams-meeting-pipeline",
+      "touchdesigner-mcp",
+      "weights-and-biases",
+      "yuanbao"
+    ],
+    "external_dirs": [],
+    "no_development_skill_disabled": true
+  },
+  "evaluation_mode": "natural-routing",
+  "evaluator_fix_commit": "49ad491",
+  "execution_policy": "ordinary-interactive (--cli)",
+  "experiment": "natural-routing feature-shout",
+  "fixture_baseline_head": "59f300ee5512b86d9530d197071ae2cf241030c4",
+  "fixture_sha256": "908f3a8245ab3943584f34fc8ce41bfe6c1a5d0154ea2c22ea5f018e77c79004",
+  "hermes_arguments": [
+    "chat",
+    "--query-file",
+    "<run>/prompt.txt",
+    "--cli",
+    "--model",
+    "gpt-6-luna",
+    "--provider",
+    "openai-codex",
+    "--toolsets",
+    "terminal,file,skills",
+    "--max-turns",
+    "36",
+    "--run-budget",
+    "240",
+    "--yolo",
+    "--source",
+    "eval"
+  ],
+  "launch_controls": {
+    "cli": true,
+    "environment_hint": "empty",
+    "explicit_skill_preference": false,
+    "max_turns": 36,
+    "oneshot": false,
+    "prefill_messages_file": "empty",
+    "run_budget": 240,
+    "skills_argument": false,
+    "source": "eval",
+    "system_prompt_override": false,
+    "toolsets": [
+      "terminal",
+      "file",
+      "skills"
+    ],
+    "yolo": true
+  },
+  "model": "gpt-6-luna",
+  "offline_reassessment_commit": "4de4ffcf0d2f2b39f4b0995fcc9f3b37f7120389",
+  "preflight_result": {
+    "BDD_description_present": true,
+    "BDD_enabled": true,
+    "disabled_local_skills": 0,
+    "enabled_local_skills": 15,
+    "full_tree_materialized": true,
+    "isolated_HERMES_HOME": true,
+    "standard_skill_list_exit": 0,
+    "tree_hash_matches_source_copy": true,
+    "visible_local_skills": 15
+  },
+  "prepared_runtime_catalog_tree_sha256": "87fa6759e6900cee1de9a97b9cb3b85861bb4012b5db8acf10877b37607bd12b",
+  "prompt_sha256": "368ef8b6c84e14164cf4ea25df042371242b8ad57f8f0d0e06b16a7359d5b1c5",
+  "provider": "openai-codex",
+  "repository": "4eburek404/Hermes-Backup",
+  "runs": [
+    {
+      "actual_cost_usd": null,
+      "api_calls": 9,
+      "batch": "20261007T114200Z",
+      "cache_read_tokens": 74240,
+      "cache_write_tokens": 0,
+      "cost_status": "included",
+      "elapsed_seconds": 65.75067413016222,
+      "estimated_cost_usd": 0.0,
+      "execution_status": "COMPLETED",
+      "input_tokens": 30303,
+      "original_trace_sha256": "b2832033abb60baa9bd9103dc85169a1eef55750640f422ca20d0f6be24cd091",
+      "output_tokens": 1448,
+      "published_trace_sha256": "919eeb4e213e2816c2d6515777441653b6a07b3876fc14f129ccbcb2c62516b1",
+      "reasoning_tokens": 335,
+      "run": "r1",
+      "session_id": "20261007_134203_db938d",
+      "tool_invocations": 14
+    },
+    {
+      "actual_cost_usd": null,
+      "api_calls": 9,
+      "batch": "20261007T114333Z",
+      "cache_read_tokens": 84992,
+      "cache_write_tokens": 0,
+      "cost_status": "included",
+      "elapsed_seconds": 62.32358529488556,
+      "estimated_cost_usd": 0.0,
+      "execution_status": "COMPLETED",
+      "input_tokens": 19583,
+      "original_trace_sha256": "3c35511dd8edd33329d0c5f0e78a3340702ff3371848ebc1c5947d14c45ad0b1",
+      "output_tokens": 1355,
+      "published_trace_sha256": "851bc9e68d3a58ab529f169ccae8ed3c1f00256b340ea038d0a5da6535cc7486",
+      "reasoning_tokens": 261,
+      "run": "r2",
+      "session_id": "20261007_134336_9412ed",
+      "tool_invocations": 13
+    },
+    {
+      "actual_cost_usd": null,
+      "api_calls": 8,
+      "batch": "20261007T114445Z",
+      "cache_read_tokens": 81408,
+      "cache_write_tokens": 0,
+      "cost_status": "included",
+      "elapsed_seconds": 63.97384179290384,
+      "estimated_cost_usd": 0.0,
+      "execution_status": "COMPLETED",
+      "input_tokens": 20446,
+      "original_trace_sha256": "1285ee91c99ce5b417de144f186bf9dfdd799b1a8d93cdd2328581f5c6eb16b1",
+      "output_tokens": 1433,
+      "published_trace_sha256": "dbeb35b64bdfa9280eb25857758aa60232889e83c037dd67c3956605af6799e0",
+      "reasoning_tokens": 338,
+      "run": "r3",
+      "session_id": "20261007_134449_f99525",
+      "tool_invocations": 15
+    }
+  ],
+  "runtime_version": "Hermes Agent v0.21.4 (2026.9.21) · upstream d3b25b52",
+  "skill_catalog_file_count": 374,
+  "skill_catalog_source": "complete hermes/skills tree at source_head; consumer copies the full tree then materializes candidate BDD from the same committed source; no special shortened catalog",
+  "skill_catalog_source_tree_sha256": "22dceaecd17ee14e9c435c3fca345aab95ce56e9a7ff71b98d5b505ba404c0c5",
+  "skill_catalog_tree_sha256": "87fa6759e6900cee1de9a97b9cb3b85861bb4012b5db8acf10877b37607bd12b",
+  "skills_forced": false,
+  "source_head": "4de4ffcf0d2f2b39f4b0995fcc9f3b37f7120389"
+}

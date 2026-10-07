@@ -1,0 +1,29 @@
+{
+  "verification": "final published experiment bundle replayed from isolated clean copy",
+  "clean_copy": "$TMPDIR/final-nr-clean-package-verify-2/bundle",
+  "output_directory": "$TMPDIR/final-nr-clean-package-verify-2/fresh-results",
+  "output_directory_started_absent": true,
+  "replay_exit_code": 0,
+  "no_Hermes_or_LLM": true,
+  "input_runs": 3,
+  "output_files": 12,
+  "scores": {
+    "r1": {"outcome": "PASS", "trajectory": "FAIL"},
+    "r2": {"outcome": "PASS", "trajectory": "FAIL"},
+    "r3": {"outcome": "PASS", "trajectory": "FAIL"}
+  },
+  "output_sha256": {
+    "r1/event-refs.json": "fc3e38519802600472957aff0bb53607d6526f0b1208522f985d0ec758722158",
+    "r1/evidence.json": "3a61e0e62806ea3161436d63158027cff0038e0c0be944404eef30718a2bbddb",
+    "r1/score.json": "a69c6d31e4a3b3f0fc61baa63577dba58c49e6d2aa0f8ab629e45b48cb639204",
+    "r2/event-refs.json": "d9c6f4cf58f64e7cc9504609e70ab9926b1a212b134bc1b34d11e8343fdff7f9",
+    "r2/evidence.json": "c4bbad4db42d372fda98497c6afd9e172a6a8dcbfb1fbf40f33497c7500128ba",
+    "r2/score.json": "886c4d7f0f9fb9c6ab01d103a928b76c2ca1dbffa174ee5f7510615ecbf9067a",
+    "r3/event-refs.json": "8cce9b983f70ca1f8072b3f86ea52b767f6b7e2eacee25263d696e46b7966731",
+    "r3/evidence.json": "f7899b8f8adaf2038713c1653ed24828f40b1550f3cd25906a15a256e06ddc6d",
+    "r3/score.json": "a69c6d31e4a3b3f0fc61baa63577dba58c49e6d2aa0f8ab629e45b48cb639204",
+    "reproduction.json": "e096f138a006ad3dc1638d9f9c85d91d5137b4e5ebacc1515a08e811c410471e",
+    "source-checksums.json": "a56b5ce54f81549fb124f03a90822d9272161338158dc7704b963a173e1189c8",
+    "summary.json": "937cd2b5ab93422f2530b1ccf49c1abee84e2012c4b4339a5f1671ae34025181"
+  }
+}

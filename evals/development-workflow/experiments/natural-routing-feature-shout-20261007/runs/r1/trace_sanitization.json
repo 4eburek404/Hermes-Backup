@@ -1,0 +1,8 @@
+{
+  "home_repository_and_runtime_paths_replaced": true,
+  "local_fixture_paths_replaced_with": "/fixture",
+  "published_raw_session_sha256": "919eeb4e213e2816c2d6515777441653b6a07b3876fc14f129ccbcb2c62516b1",
+  "recognized_secret_patterns_redacted": true,
+  "source_raw_session_sha256": "b2832033abb60baa9bd9103dc85169a1eef55750640f422ca20d0f6be24cd091",
+  "system_prompt_and_hash_removed": true
+}

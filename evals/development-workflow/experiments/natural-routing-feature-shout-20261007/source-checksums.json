@@ -1,0 +1,9 @@
+{
+  "evals/development-workflow/consumer.py": "969b05a4d318d01fc1447ffa4c5a3e2778b9a6afd27bcade25af275385ca8ba2",
+  "evals/development-workflow/manifest.json": "f3e45ad04f0620fc0743681d217978ab066db59cb49db28a8fefa1899ab0c66c",
+  "evals/development-workflow/run_eval.py": "a4b15481274b52ace240bec0f563cb7bd99f04c207ff187ce8a8d44ff538953a",
+  "evals/harness/core.py": "3c66f5f2c4e46e917201b85b099e5cbd3fe543634728c60071e891ae03197e2e",
+  "evals/harness/process.py": "4f38249354f31b23dad103793623929da68d77bfe68d948acea1953042512ea6",
+  "evals/harness/report.py": "6359dce16a28e2f7bf3e6d75bf76c64c375cba71b4d435005c0bd8c2652f73ef",
+  "evals/harness/skill_source.py": "7b24c907b0a93cf3f28370a2164a12f5eb66df22a6c9d61c0b3243ef8db1ee01"
+}
