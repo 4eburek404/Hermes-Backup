@@ -224,24 +224,27 @@ def test_missing_red_evidence_does_not_pass_feature_trajectory() -> None:
 
 def test_saved_unforced_boundary_baseline_does_not_prove_red_before_fix() -> None:
     subject = consumer()
-    run = ROOT / "evals" / "development-workflow" / "runs" / "20261001T045300Z" / (
-        "bug-boundary--gpt-5.6-luna--openai-codex--baseline--r1"
+    fixture = json.loads(
+        (
+            ROOT
+            / "evals"
+            / "development-workflow"
+            / "fixtures"
+            / "regressions"
+            / "unforced-boundary-missing-red.json"
+        ).read_text(encoding="utf-8")
     )
-    evidence = json.loads((run / "evidence.json").read_text(encoding="utf-8"))
-    metadata = json.loads((run / "metadata.json").read_text(encoding="utf-8"))
-    score = json.loads((run / "score.json").read_text(encoding="utf-8"))["score"]
-    raw_events = [
-        json.loads(line)
-        for line in (run / "raw_stream.jsonl").read_text(encoding="utf-8").splitlines()
-        if line.lstrip().startswith("{")
-    ]
-    skill_views = [event for event in raw_events if event.get("type") == "tool_use" and event.get("name") == "skill_view"]
 
-    assert "--skills" not in metadata["command"]
-    assert skill_views == []
-    assert score["trajectory"] == "PASS"
-    assert subject.evaluate_dimension_diagnostic("trajectory", evidence, {})["status"] == "FAIL"
+    assert "--skills" not in fixture["metadata"]["command"]
+    assert fixture["raw_trace_summary"]["skill_views"] == []
+    assert fixture["historical_score"]["trajectory"] == "PASS"
 
+    result = subject.evaluate_dimension_diagnostic(
+        "trajectory", fixture["evidence"], {}
+    )
+
+    assert result["status"] == "FAIL"
+    assert "RED" in result["reason"]
 
 def test_equivalent_red_green_trajectory_is_not_bound_to_command_wording() -> None:
     subject = consumer()

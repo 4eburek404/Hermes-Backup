@@ -1,0 +1,47 @@
+{
+  "provenance": {
+    "source_run": "20261001T045300Z/bug-boundary--gpt-5.6-luna--openai-codex--baseline--r1",
+    "source_commit": "03bb6a1438841e4da6891df693c4590ab121f019",
+    "purpose": "Regression for a historical evaluator false positive: trajectory was PASS although the saved evidence did not prove RED before the production change."
+  },
+  "metadata": {
+    "command": [
+      "hermes",
+      "chat",
+      "--query-file",
+      "<historical-prompt>",
+      "--oneshot",
+      "--quiet",
+      "--format",
+      "stream-json",
+      "--model",
+      "gpt-5.6-luna",
+      "--provider",
+      "openai-codex",
+      "--toolsets",
+      "terminal,file,skills",
+      "--max-turns",
+      "36",
+      "--run-budget",
+      "240",
+      "--yolo",
+      "--source",
+      "eval"
+    ]
+  },
+  "raw_trace_summary": {
+    "skill_views": []
+  },
+  "historical_score": {
+    "trajectory": "PASS"
+  },
+  "evidence": {
+    "scenario": "bug-boundary",
+    "execution_status": "COMPLETED",
+    "tool_calls": [
+      "git status --short --branch && git diff -- shipping.py tests/test_shipping.py notes.txt",
+      "python3 -m pytest -q",
+      "git diff --check && git status --short && git diff --stat && git diff -- notes.txt"
+    ]
+  }
+}

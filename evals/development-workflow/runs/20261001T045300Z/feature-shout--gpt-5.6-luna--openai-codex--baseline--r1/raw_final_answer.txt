@@ -1,7 +1,0 @@
-Добавлен необязательный режим `--shout`:
-
-- `python3 app.py Alice` → `Hello, Alice!`
-- `python3 app.py Alice --shout` → `HELLO, ALICE!`
-- Поведение по умолчанию `python3 app.py` сохранено: `Hello, World!`
-
-Обновлены `app.py` и `tests/test_app.py`. Проверка: `2 passed`. `notes.txt` не изменён.

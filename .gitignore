@@ -86,3 +86,10 @@ cli/**/build/
 
 cli/**/*.pyc
 cli/**/*.pyo
+
+# Generated eval evidence is runtime output, not repository source.
+# Keep reusable deterministic cases under evals/**/fixtures/ instead.
+/evals/**/runs/
+/evals/**/experiments/
+/evals/**/reassessments/
+/evals/**/audit/
