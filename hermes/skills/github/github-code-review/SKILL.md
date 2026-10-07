@@ -136,7 +136,7 @@ local analysis may still be returned.
 
 ## Ownership boundaries
 
-This skill does not own SDD requirements or target-contract definition,
+This skill does not own BDD target behavior, examples, or acceptance evidence,
 `systematic-debugging` root-cause investigation, TDD RED/GREEN/REFACTOR,
 Ponytail implementation or refactoring, or fixes to the reviewed code. It also
 does not own GitHub authentication setup, branch creation, commit, push, PR
@@ -168,7 +168,7 @@ an implementation task.
 
 - `github-auth` — authentication setup, when publication requires it.
 - `github-pr-workflow` — branch, commit, PR, CI, merge, and delivery mechanics.
-- `spec-driven-development` — target behavior and requirement/check ownership.
+- `behavior-driven-development` — target behavior, examples, and acceptance evidence.
 - `systematic-debugging` — diagnosis and root-cause ownership.
 - `test-driven-development` — regression and RED/GREEN/REFACTOR ownership.
 - `ponytail` — implementation-shape and minimality constraints.

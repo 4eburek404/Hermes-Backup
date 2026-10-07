@@ -195,7 +195,7 @@ def build_checks(repo: Path) -> list[Check]:
     # with their established owners.  Mentioning an owner is not duplication;
     # each boundary must express non-ownership or handoff semantics.
     boundary_domains = {
-        "SDD": (r"spec[- ]driven[- ]development|requirements|target specification|target contract",),
+        "BDD": (r"behavior[- ]driven[- ]development|target behavior|examples|acceptance evidence",),
         "debugging": (r"systematic[- ]debugging|root[- ]cause|diagnos",),
         "TDD": (r"test[- ]driven[- ]development|red|green|refactor",),
         "Ponytail": (r"ponytail|implementation shape|refactor",),
@@ -212,7 +212,7 @@ def build_checks(repo: Path) -> list[Check]:
         "B", "delivery ownership boundaries",
         "PASS" if not missing_boundaries and not local_ci_fix_loop(target) else "FAIL",
         f"missing_boundaries={missing_boundaries or 'none'}; legacy_ci_fix_loop={local_ci_fix_loop(target)}",
-        "delivery mechanics only; hand off SDD, debugging, implementation, review, auth, and release",
+        "delivery mechanics only; hand off BDD, debugging, implementation, review, auth, and release",
     ))
 
     # C: discovery and state inspection precede any mutation.

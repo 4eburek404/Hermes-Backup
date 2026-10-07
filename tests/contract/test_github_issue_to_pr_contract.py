@@ -220,18 +220,18 @@ def build_checks(repo: Path) -> list[Check]:
               "preserve stale/resolved/duplicate disposition for downstream scope"),
     ]
 
-    # B. SDD owns the target specification; issue-to-PR only hands off.
+    # B. BDD owns target behavior; issue-to-PR supplies facts and hands off.
     checks += [
-        check("B", "SDD owns target specification",
-              owner_relation(text, r"spec[- ]driven[- ]development",
-                             (r"target", r"acceptance", r"specification", r"contract"),
+        check("B", "BDD owns target behavior",
+              owner_relation(text, r"behavior[- ]driven[- ]development",
+                             (r"target", r"acceptance", r"behavior", r"example"),
                              (r"own", r"owner", r"delegat", r"hand[- ]?off", r"route", r"belong", r"define", r"determin")),
-              "requires SDD and target-spec role/action in one bounded evidence block",
-              "handoff target specification to SDD"),
+              "requires BDD and target-behavior role/action in one bounded evidence block",
+              "handoff target behavior to BDD"),
         check("B", "no alternative acceptance procedure",
               not has_local_acceptance_procedure(text),
-              "rejects local acceptance-definition procedure unless explicitly assigned to SDD",
-              "route acceptance contract to SDD"),
+              "rejects local acceptance-definition procedure unless explicitly assigned to BDD",
+              "route acceptance contract to BDD"),
     ]
 
     # C. Debugging may receive an observed mismatch, but owns diagnosis.
@@ -306,13 +306,13 @@ def build_checks(repo: Path) -> list[Check]:
               "apply Ponytail constraints to implementation shape"),
         check("E", "engaged-TDD composition order",
               ordered_transition(text, [
-                  (r"spec[- ]driven[- ]development",),
+                  (r"behavior[- ]driven[- ]development",),
                   (r"systematic[- ]debugging",),
                   (r"test[- ]driven[- ]development",),
                   (r"ponytail",),
                   (r"test[- ]driven[- ]development",),
               ]),
-              "requires explicit SDD -> debugging -> TDD -> Ponytail -> TDD chain",
+              "requires explicit BDD -> debugging -> TDD -> Ponytail -> TDD chain",
               "preserve existing owner boundaries"),
         check("E", "TDD skip still applies Ponytail constraints",
               has_block(text, (r"skip",), (r"ponytail",),
@@ -327,12 +327,12 @@ def build_checks(repo: Path) -> list[Check]:
         check("F", "no unconditional whole-class fix",
               not has_unqualified_class_fix(text),
               "rejects unqualified imperative class-level scope",
-              "derive sibling/class scope from debugging and SDD/Ponytail"),
+              "derive sibling/class scope from debugging and BDD/Ponytail"),
         check("F", "sibling findings feed scoped completion",
               has_block(text, (r"sibling",), (r"systematic[- ]debugging",),
                         (r"\bscope\b|scope of|complete scope|scope decision|bounded scope",)),
               "requires sibling findings plus debugging and scope evidence",
-              "allow SDD/Ponytail to define complete scope"),
+              "allow BDD/Ponytail to define complete scope"),
     ]
 
     # G. Review is owned by the existing runtime review skill.
@@ -385,14 +385,14 @@ def build_checks(repo: Path) -> list[Check]:
               "keep infrastructure/baseline failures in delivery state"),
     ]
 
-    # J. Mechanical/trivial issues use proportional SDD and may skip TDD.
+    # J. Mechanical/trivial issues use proportional BDD and may skip TDD.
     checks += [
-        check("J", "proportional SDD for mechanical/trivial work",
-              owner_relation(text, r"spec[- ]driven[- ]development",
+        check("J", "proportional BDD for mechanical/trivial work",
+              owner_relation(text, r"behavior[- ]driven[- ]development",
                              (r"proportional", r"mechanical", r"trivial"),
                              (r"route", r"choose", r"use", r"contract", r"may", r"own")),
-              "requires proportional mechanical/trivial branch assigned to SDD",
-              "use proportional SDD for mechanical/trivial issues"),
+              "requires proportional mechanical/trivial branch assigned to BDD",
+              "use proportional BDD for mechanical/trivial issues"),
         check("J", "debugging optional for mechanical/trivial work",
               has_block(text, (r"debugging|systematic[- ]debugging",),
                         (r"mechanical|trivial",), (r"optional|not required|may skip|unnecessary",)),

@@ -178,10 +178,10 @@ def evaluate(repo: Path) -> list[Check]:
             checks.append(Check(requirement, name, "DEFERRED", "target SKILL.md is absent"))
         return checks
 
-    # B: review owns review; the neighboring workflows remain explicit owners
-    # of specification, diagnosis, implementation/testing, and delivery.
+    # B: review owns review; neighboring workflows own behavior, diagnosis,
+    # implementation/testing, and delivery.
     owners = {
-        "SDD": (r"specification|requirements|target behavior|contract",),
+        "BDD": (r"behavior[- ]driven[- ]development|target behavior|examples|acceptance evidence",),
         "debugging": (r"debugging|root cause|diagnos|hypothes|data flow",),
         "TDD": (r"test[- ]driven|red|green|regression test|refactor",),
         "Ponytail": (r"ponytail|implementation shape|minimal implementation",),

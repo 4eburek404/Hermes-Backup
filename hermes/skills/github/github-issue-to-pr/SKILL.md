@@ -8,7 +8,7 @@ platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [GitHub, Issues, Coding, Pull-Requests, CI]
-    related_skills: [github-issues, github-pr-workflow, github-code-review, spec-driven-development, systematic-debugging, test-driven-development, ponytail]
+    related_skills: [github-issues, github-pr-workflow, github-code-review, behavior-driven-development, systematic-debugging, test-driven-development, ponytail]
 ---
 
 # GitHub Issue to Pull Request
@@ -17,7 +17,7 @@ Turn a GitHub issue into a verified delivery while keeping ownership explicit.
 This skill is the orchestrator: it gathers live state, classifies the issue,
 selects the development route, coordinates specialist handoffs, and reports the
 fresh delivery state. It does not reproduce the internal procedures owned by
-SDD, debugging, TDD, Ponytail, review, or PR delivery skills.
+BDD, debugging, TDD, Ponytail, review, or PR delivery skills.
 
 ## When to Use
 
@@ -72,18 +72,17 @@ hypotheses, instrumentation, and the diagnostic handoff. The orchestrator
 returns with the resulting constraints and sibling/class findings rather than
 performing that work itself.
 
-### 5. Route the target specification
+### 5. Route the target behavior
 
 For an active development issue, send a factual packet to
-`spec-driven-development`: the live issue and thread, target behavior,
+`behavior-driven-development`: the live issue and thread, target behavior,
 non-goals, current-state evidence, relevant constraints, design-intent findings,
-and any debugging handoff. `spec-driven-development` owns the target
-specification, public contract, edge cases, requirement/check mapping,
-proportional mode, baseline, and safeguards. Issue-to-PR supplies facts and does
+and any debugging handoff. BDD owns observable target behavior, examples,
+preserved behavior, and acceptance evidence. Issue-to-PR supplies facts and does
 not set the target contract.
 
 Engaged development follows this ownership chain:
-`spec-driven-development` target -> when diagnosis is needed,
+`behavior-driven-development` target -> when diagnosis is needed,
 `systematic-debugging` -> `test-driven-development` preflight / regression
 check / RED -> `ponytail` implementation-shape constraints ->
 `test-driven-development` implementation / GREEN / REFACTOR / regression
@@ -108,7 +107,7 @@ When TDD skips full ceremony for trivial or mechanical work, apply Ponytail's
 minimal implementation scope without artificial ceremony.
 
 Sibling and class findings from `systematic-debugging` inform the scope
-decision. SDD and Ponytail determine whether a sibling belongs in the current
+decision. BDD and Ponytail determine whether a sibling belongs in the current
 change; a sibling is not automatically included merely because it was found.
 
 ### 7. Route review and delivery
@@ -133,7 +132,7 @@ into one claim.
 
 A code-caused CI failure follows this ownership transition:
 delivery state -> development pipeline -> review -> delivery state. Return to
-SDD/TDD/Ponytail as applicable, use `systematic-debugging` when the cause is
+BDD/TDD/Ponytail as applicable; use `systematic-debugging` when the cause is
 unknown, then pass the changed diff through `github-code-review` and back to
 `github-pr-workflow` for fresh CI verification.
 
@@ -156,6 +155,6 @@ release.
 - [ ] Duplicate/existing-work sweep and recent-commit check were performed.
 - [ ] The issue was classified as active, duplicate, stale, or resolved before development.
 - [ ] The current premise and design intent were checked.
-- [ ] Active work received an SDD factual packet; debugging was used only when diagnosis was needed.
+- [ ] Active work received a BDD factual packet; debugging was used only when diagnosis was needed.
 - [ ] Specialist owners supplied implementation, review, and delivery evidence.
 - [ ] Fresh PR, CI, merge, release, and issue-linkage state was reported separately.

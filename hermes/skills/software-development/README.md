@@ -38,10 +38,9 @@ contract.
   target behavior is known;
 - 'plan' — creates a planning artifact when planning is actually requested.
 
-'spec-driven-development' is now only a temporary compatibility alias for
-workflows that still reference the historical owner name. It is not a second
-development methodology and can be removed after dependent GitHub workflows
-migrate to BDD.
+`spec-driven-development` has been retired. Active workflows use
+`behavior-driven-development`; historical evaluation records and pinned baseline
+artifacts remain unchanged for reproducibility.
 
 ## Verification
 
