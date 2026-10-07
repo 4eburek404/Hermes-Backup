@@ -1,0 +1,28 @@
+{
+  "command": "python3 evals/development-workflow/reassess_published.py",
+  "clean_copy_contents": [
+    "reassess_published.py",
+    "consumer.py",
+    "evals/harness package",
+    "published source manifest",
+    "pinned input checksums",
+    "r1-r3 source raw_stream.jsonl, evidence.json, and score.json"
+  ],
+  "other_working_tree_and_untracked_files_copied": false,
+  "output_file_count": 12,
+  "byte_identical": true,
+  "output_sha256": {
+    "r1/event-refs.json": "ae93d94d0f5755a86b2b9849cedf441fda24c2e1a030c25b2b3dcf7850882196",
+    "r1/evidence.json": "3a0315156093803dcab95d96219278a4c0efb66d897758fd66e0dd3c69c01775",
+    "r1/score.json": "7fac61e368d066197f63f09d2681f53371fad367f83afaac9670efde1e2a6349",
+    "r2/event-refs.json": "5546fdfae96eff0e369e000acdabc73988d5d701e6e4a00cda28ce7b123d5730",
+    "r2/evidence.json": "7e8cb68f17e91d5d963fd496206f6c32171afc3bb177b74f1109c83d38a4f2de",
+    "r2/score.json": "7fac61e368d066197f63f09d2681f53371fad367f83afaac9670efde1e2a6349",
+    "r3/event-refs.json": "b7346e78c4bfccef7bc4e2466a95a0541ac44b92cb4bb5b28cf64b4fa729bc3c",
+    "r3/evidence.json": "76464d71afce8fd1f0404524f59320577ed6534ce85b6705a068f6fad195852b",
+    "r3/score.json": "6b21462d48a3f5900f87d5d138e5b15a6ed3528dae0977ad6b392565ebc4c9dc",
+    "reproduction.json": "9959edc9930cbce0edb078ef698e9d7b16e69a23be868b2bee3de4deec9bf58c",
+    "source-checksums.json": "0ea3a4da223d97360f91c88bf09dcfa2cb8a06624b315ba5bbc16db1542b1733",
+    "summary.json": "bcc1a03e6a39c6ab79e288d2c9027f0dc0d6e5e2f11f8e1042d831764a6b6a58"
+  }
+}

@@ -1,0 +1,302 @@
+{
+  "raw_trace": "../../runs/20261006T073402Z/published-bdd-skill/runs/r3/raw_stream.jsonl",
+  "raw_trace_sha256": "edacb97151ec88df82129138e0a8038d9a486a334cf26524aad953b79dc1b2c7",
+  "references": [
+    {
+      "call_line": 16,
+      "call_sha256": "c23d55fc75ae7375e777aa157afd76b086e26ff0dbce19ac784c796b5ae777dd",
+      "call_tool": "patch",
+      "fact": {
+        "index": 15,
+        "kind": "target_check_changed"
+      },
+      "result_line": 17,
+      "result_sha256": "c2852e965474709055b0bcd48a046728ec26f893ff00d12d085cfa1447bd58f3"
+    },
+    {
+      "call_line": 16,
+      "call_sha256": "c23d55fc75ae7375e777aa157afd76b086e26ff0dbce19ac784c796b5ae777dd",
+      "call_tool": "patch",
+      "fact": {
+        "index": 15,
+        "kind": "verification_changed"
+      },
+      "result_line": 17,
+      "result_sha256": "c2852e965474709055b0bcd48a046728ec26f893ff00d12d085cfa1447bd58f3"
+    },
+    {
+      "call_line": 18,
+      "call_sha256": "158da12112268a5a787fbab05fe2bb8e39b1e2c6957aea2dd18dfb9c32a1710a",
+      "call_tool": "terminal",
+      "fact": {
+        "index": 17,
+        "kind": "current_behavior_test_result",
+        "probe_index": 0,
+        "result": "passed",
+        "runner_command": "python3 -m pytest -q",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "550c881b5a6f98b25fcde0d19adbc30f24bef61f1ec4783a1ea884aaa03bf221",
+        "test_name": "test_regular_greeting_behavior"
+      },
+      "result_line": 19,
+      "result_sha256": "cdd54820119a115d23351ebb43874ae64b69fde19c4120ab2797a823f9549071"
+    },
+    {
+      "call_line": 18,
+      "call_sha256": "158da12112268a5a787fbab05fe2bb8e39b1e2c6957aea2dd18dfb9c32a1710a",
+      "call_tool": "terminal",
+      "fact": {
+        "index": 17,
+        "kind": "target_check_passed",
+        "output": "test_regular_greeting_behavior passed"
+      },
+      "result_line": 19,
+      "result_sha256": "cdd54820119a115d23351ebb43874ae64b69fde19c4120ab2797a823f9549071"
+    },
+    {
+      "call_line": 18,
+      "call_sha256": "158da12112268a5a787fbab05fe2bb8e39b1e2c6957aea2dd18dfb9c32a1710a",
+      "call_tool": "terminal",
+      "fact": {
+        "index": 17,
+        "kind": "current_behavior_observed",
+        "probe_index": 0,
+        "source_sha256": "550c881b5a6f98b25fcde0d19adbc30f24bef61f1ec4783a1ea884aaa03bf221",
+        "test_name": "test_regular_greeting_behavior"
+      },
+      "result_line": 19,
+      "result_sha256": "cdd54820119a115d23351ebb43874ae64b69fde19c4120ab2797a823f9549071"
+    },
+    {
+      "call_line": 18,
+      "call_sha256": "158da12112268a5a787fbab05fe2bb8e39b1e2c6957aea2dd18dfb9c32a1710a",
+      "call_tool": "terminal",
+      "fact": {
+        "index": 17,
+        "kind": "preserved_behavior_test_result",
+        "probe_index": 0,
+        "result": "passed",
+        "runner_command": "python3 -m pytest -q",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "550c881b5a6f98b25fcde0d19adbc30f24bef61f1ec4783a1ea884aaa03bf221",
+        "test_name": "test_regular_greeting_behavior"
+      },
+      "result_line": 19,
+      "result_sha256": "cdd54820119a115d23351ebb43874ae64b69fde19c4120ab2797a823f9549071"
+    },
+    {
+      "call_line": 18,
+      "call_sha256": "158da12112268a5a787fbab05fe2bb8e39b1e2c6957aea2dd18dfb9c32a1710a",
+      "call_tool": "terminal",
+      "fact": {
+        "index": 17,
+        "kind": "preserved_behavior_observed",
+        "probe_index": 0,
+        "source_sha256": "550c881b5a6f98b25fcde0d19adbc30f24bef61f1ec4783a1ea884aaa03bf221",
+        "test_name": "test_regular_greeting_behavior"
+      },
+      "result_line": 19,
+      "result_sha256": "cdd54820119a115d23351ebb43874ae64b69fde19c4120ab2797a823f9549071"
+    },
+    {
+      "call_line": 18,
+      "call_sha256": "158da12112268a5a787fbab05fe2bb8e39b1e2c6957aea2dd18dfb9c32a1710a",
+      "call_tool": "terminal",
+      "fact": {
+        "index": 17,
+        "kind": "current_behavior_test_result",
+        "probe_index": 2,
+        "result": "failed",
+        "runner_command": "python3 -m pytest -q",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "550c881b5a6f98b25fcde0d19adbc30f24bef61f1ec4783a1ea884aaa03bf221",
+        "test_name": "test_shout_greeting_behavior"
+      },
+      "result_line": 19,
+      "result_sha256": "cdd54820119a115d23351ebb43874ae64b69fde19c4120ab2797a823f9549071"
+    },
+    {
+      "call_line": 18,
+      "call_sha256": "158da12112268a5a787fbab05fe2bb8e39b1e2c6957aea2dd18dfb9c32a1710a",
+      "call_tool": "terminal",
+      "fact": {
+        "index": 17,
+        "kind": "target_check_failed",
+        "output": "test_shout_greeting_behavior expected HELLO, ALICE!\n failed"
+      },
+      "result_line": 19,
+      "result_sha256": "cdd54820119a115d23351ebb43874ae64b69fde19c4120ab2797a823f9549071"
+    },
+    {
+      "call_line": 20,
+      "call_sha256": "48a98a4fabdcebcbc5a8b4ebd2441ac169f33c8a201579964b87d48b7ffbbb3c",
+      "call_tool": "patch",
+      "fact": {
+        "index": 19,
+        "kind": "production_changed"
+      },
+      "result_line": 21,
+      "result_sha256": "49e64a39a7034412c5c5fac4785ad1537b852c1a1211299e9003c9f50216538a"
+    },
+    {
+      "call_line": 22,
+      "call_sha256": "6013e5450cb6164297092ab799ba2bb8d80978a9a538ff06378cb47665f4f3a2",
+      "call_tool": "patch",
+      "fact": {
+        "index": 21,
+        "kind": "verification_changed"
+      },
+      "result_line": 23,
+      "result_sha256": "369fa48714328ba6950c7d81895f1dcfdd55aa5ea2ad91234c4bf7b4aa56df66"
+    },
+    {
+      "call_line": 24,
+      "call_sha256": "d2c35676c108700ac7c521398da903bf610ae65bfea2fac35ddd4ba4ea6d2920",
+      "call_tool": "terminal",
+      "fact": {
+        "index": 23,
+        "kind": "current_behavior_test_result",
+        "probe_index": 0,
+        "result": "passed",
+        "runner_command": "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "5bc1468916e3c2f948755f74f599cfd9348c00bb707d844f166070196175637c",
+        "test_name": "test_regular_greeting_behavior"
+      },
+      "result_line": 25,
+      "result_sha256": "eb92460524d1592119e7bd4e507ac2599045896db5cdd7015944c700fcda0d65"
+    },
+    {
+      "call_line": 24,
+      "call_sha256": "d2c35676c108700ac7c521398da903bf610ae65bfea2fac35ddd4ba4ea6d2920",
+      "call_tool": "terminal",
+      "fact": {
+        "index": 23,
+        "kind": "target_check_passed",
+        "output": "test_regular_greeting_behavior passed"
+      },
+      "result_line": 25,
+      "result_sha256": "eb92460524d1592119e7bd4e507ac2599045896db5cdd7015944c700fcda0d65"
+    },
+    {
+      "call_line": 24,
+      "call_sha256": "d2c35676c108700ac7c521398da903bf610ae65bfea2fac35ddd4ba4ea6d2920",
+      "call_tool": "terminal",
+      "fact": {
+        "index": 23,
+        "kind": "preserved_behavior_test_result",
+        "probe_index": 0,
+        "result": "passed",
+        "runner_command": "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "5bc1468916e3c2f948755f74f599cfd9348c00bb707d844f166070196175637c",
+        "test_name": "test_regular_greeting_behavior"
+      },
+      "result_line": 25,
+      "result_sha256": "eb92460524d1592119e7bd4e507ac2599045896db5cdd7015944c700fcda0d65"
+    },
+    {
+      "call_line": 24,
+      "call_sha256": "d2c35676c108700ac7c521398da903bf610ae65bfea2fac35ddd4ba4ea6d2920",
+      "call_tool": "terminal",
+      "fact": {
+        "index": 23,
+        "kind": "preserved_behavior_observed",
+        "probe_index": 0,
+        "source_sha256": "5bc1468916e3c2f948755f74f599cfd9348c00bb707d844f166070196175637c",
+        "test_name": "test_regular_greeting_behavior"
+      },
+      "result_line": 25,
+      "result_sha256": "eb92460524d1592119e7bd4e507ac2599045896db5cdd7015944c700fcda0d65"
+    },
+    {
+      "call_line": 24,
+      "call_sha256": "d2c35676c108700ac7c521398da903bf610ae65bfea2fac35ddd4ba4ea6d2920",
+      "call_tool": "terminal",
+      "fact": {
+        "index": 23,
+        "kind": "current_behavior_test_result",
+        "probe_index": 1,
+        "result": "passed",
+        "runner_command": "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "5bc1468916e3c2f948755f74f599cfd9348c00bb707d844f166070196175637c",
+        "test_name": "test_default_greeting_behavior"
+      },
+      "result_line": 25,
+      "result_sha256": "eb92460524d1592119e7bd4e507ac2599045896db5cdd7015944c700fcda0d65"
+    },
+    {
+      "call_line": 24,
+      "call_sha256": "d2c35676c108700ac7c521398da903bf610ae65bfea2fac35ddd4ba4ea6d2920",
+      "call_tool": "terminal",
+      "fact": {
+        "index": 23,
+        "kind": "target_check_passed",
+        "output": "test_default_greeting_behavior passed"
+      },
+      "result_line": 25,
+      "result_sha256": "eb92460524d1592119e7bd4e507ac2599045896db5cdd7015944c700fcda0d65"
+    },
+    {
+      "call_line": 24,
+      "call_sha256": "d2c35676c108700ac7c521398da903bf610ae65bfea2fac35ddd4ba4ea6d2920",
+      "call_tool": "terminal",
+      "fact": {
+        "index": 23,
+        "kind": "preserved_behavior_test_result",
+        "probe_index": 1,
+        "result": "passed",
+        "runner_command": "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "5bc1468916e3c2f948755f74f599cfd9348c00bb707d844f166070196175637c",
+        "test_name": "test_default_greeting_behavior"
+      },
+      "result_line": 25,
+      "result_sha256": "eb92460524d1592119e7bd4e507ac2599045896db5cdd7015944c700fcda0d65"
+    },
+    {
+      "call_line": 24,
+      "call_sha256": "d2c35676c108700ac7c521398da903bf610ae65bfea2fac35ddd4ba4ea6d2920",
+      "call_tool": "terminal",
+      "fact": {
+        "index": 23,
+        "kind": "preserved_behavior_observed",
+        "probe_index": 1,
+        "source_sha256": "5bc1468916e3c2f948755f74f599cfd9348c00bb707d844f166070196175637c",
+        "test_name": "test_default_greeting_behavior"
+      },
+      "result_line": 25,
+      "result_sha256": "eb92460524d1592119e7bd4e507ac2599045896db5cdd7015944c700fcda0d65"
+    },
+    {
+      "call_line": 24,
+      "call_sha256": "d2c35676c108700ac7c521398da903bf610ae65bfea2fac35ddd4ba4ea6d2920",
+      "call_tool": "terminal",
+      "fact": {
+        "index": 23,
+        "kind": "current_behavior_test_result",
+        "probe_index": 2,
+        "result": "passed",
+        "runner_command": "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "5bc1468916e3c2f948755f74f599cfd9348c00bb707d844f166070196175637c",
+        "test_name": "test_shout_greeting_behavior"
+      },
+      "result_line": 25,
+      "result_sha256": "eb92460524d1592119e7bd4e507ac2599045896db5cdd7015944c700fcda0d65"
+    },
+    {
+      "call_line": 24,
+      "call_sha256": "d2c35676c108700ac7c521398da903bf610ae65bfea2fac35ddd4ba4ea6d2920",
+      "call_tool": "terminal",
+      "fact": {
+        "index": 23,
+        "kind": "target_check_passed",
+        "output": "test_shout_greeting_behavior passed"
+      },
+      "result_line": 25,
+      "result_sha256": "eb92460524d1592119e7bd4e507ac2599045896db5cdd7015944c700fcda0d65"
+    }
+  ]
+}
