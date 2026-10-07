@@ -1,0 +1,18 @@
+{
+  "verification": "clean-worktree-replay",
+  "base_revision": "96ee449e5f956c37c467dde0aa31c80fb98e0731",
+  "method": "detached git worktree at baseline; copied only the modified evaluator and reassessment bundle; ran the published script without Hermes, model/API access, or historical command execution",
+  "command": "python3 evals/development-workflow/runs/20261006T073402Z/published-bdd-skill/reassessment-96ee449/reassess.py",
+  "exit_code": 0,
+  "stdout": [
+    {"run": "r1", "outcome": "PASS", "trajectory": "PASS", "privacy": "UNDEFINED"},
+    {"run": "r2", "outcome": "PASS", "trajectory": "PASS", "privacy": "UNDEFINED"},
+    {"run": "r3", "outcome": "PASS", "trajectory": "FAIL", "privacy": "UNDEFINED", "trajectory_reason": "current observable behavior is UNCONFIRMED"}
+  ],
+  "verified_byte_identical_outputs": [
+    "runs/r1/evidence.json", "runs/r1/score.json", "runs/r1/event-refs.json",
+    "runs/r2/evidence.json", "runs/r2/score.json", "runs/r2/event-refs.json",
+    "runs/r3/evidence.json", "runs/r3/score.json", "runs/r3/event-refs.json"
+  ],
+  "output_count": 9
+}

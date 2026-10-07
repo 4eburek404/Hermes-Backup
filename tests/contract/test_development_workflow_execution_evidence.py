@@ -266,7 +266,9 @@ def test_semicolon_does_not_assign_final_status_to_an_earlier_test_command(tmp_p
     hidden_failure = observed(tool_events("python3 -m pytest -q; true", "1 failed\\n", 0), tmp_path)
     confirmed_final_runner = observed(tool_events("true; python3 -m pytest -q", "2 passed\\n", 0), tmp_path)
     assert not any(item["kind"].startswith("target_check_") for item in hidden_failure)
-    assert any(item["kind"] == "target_check_passed" for item in confirmed_final_runner)
+    # The final pytest command's process status is observable, but without a
+    # snapshot mapping collected tests to behavior it is not behavior evidence.
+    assert not any(item["kind"] == "target_check_passed" for item in confirmed_final_runner)
 
 
 def test_post_change_program_run_cannot_establish_pre_change_behavior(tmp_path):

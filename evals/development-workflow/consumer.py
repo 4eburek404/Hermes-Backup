@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -291,6 +292,183 @@ def _invocation_probe(
     return matched
 
 
+def _test_patch_blocks(patch_text: str) -> list[tuple[str, str]]:
+    """Parse only recorded V4A Update File hunks; never execute patch payloads."""
+    result: list[tuple[str, str]] = []
+    current_path = None
+    old_lines: list[str] = []
+    new_lines: list[str] = []
+    added_lines: list[str] = []
+    active = False
+
+    def flush() -> None:
+        nonlocal old_lines, new_lines, added_lines, active
+        if current_path is not None and active:
+            result.append((current_path, "\n".join(old_lines) + "\0" + "\n".join(new_lines) + "\0" + "\n".join(added_lines)))
+        old_lines, new_lines, added_lines, active = [], [], [], False
+
+    for line in patch_text.splitlines():
+        if line.startswith("*** Update File: "):
+            flush()
+            current_path = line.removeprefix("*** Update File: ").strip()
+        elif line.startswith("@@"):
+            active = True
+        elif active and line and line[0] in " +-":
+            if line[0] in " -":
+                old_lines.append(line[1:])
+            if line[0] in " +":
+                new_lines.append(line[1:])
+            if line[0] == "+":
+                added_lines.append(line[1:])
+    flush()
+    return result
+
+
+def _apply_test_patch(source: str, encoded_hunk: str) -> str | None:
+    old_text, new_text, added_text = encoded_hunk.split("\0", 2)
+    old = old_text.splitlines()
+    new = new_text.splitlines()
+    additions = added_text.splitlines()
+    lines = source.splitlines()
+    if not old:
+        lines.extend(additions)
+    else:
+        matches = [i for i in range(len(lines) - len(old) + 1) if lines[i:i + len(old)] == old]
+        if len(matches) != 1:
+            return None
+        index = matches[0]
+        lines[index:index + len(old)] = new
+    return "\n".join(lines) + "\n"
+
+
+def _pytest_behavior_results(command: str, output: str, exit_code: Any,
+                             test_sources: dict[str, str], cfg: dict[str, Any]) -> list[dict[str, Any]]:
+    """Recognize only complete, unfiltered feature-shout pytest collections."""
+    parsed = _shell_invocations(command)
+    if not parsed or not isinstance(exit_code, int):
+        return []
+    commands, operators = parsed
+    runners = [argv for argv in commands if len(argv) >= 3 and argv[0] in {"python", "python3"}
+               and argv[1:3] == ["-m", "pytest"]]
+    if len(runners) != 1:
+        return []
+    runner = runners[0]
+    if any(arg not in {"-q", "--quiet"} for arg in runner[3:]):
+        return []
+    if any(op != "&&" for op in operators):
+        return []
+
+    probes = cfg.get("behavior_probes", [])
+    all_cases: list[dict[str, Any]] = []
+    for filename, source in test_sources.items():
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            return []
+        funcs = [node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                 and node.name.startswith("test_")]
+        for func in funcs:
+            if func.decorator_list or isinstance(func, ast.AsyncFunctionDef) or len(func.body) != 3:
+                return []
+            if not isinstance(func.body[0], ast.Assign) or not all(
+                isinstance(node, ast.Assert) for node in func.body[1:]
+            ):
+                return []
+            run_calls = [node.value for node in func.body if isinstance(node, ast.Assign)
+                         and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)
+                         and isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name)
+                         and node.value.func.id == "run_app"]
+            if len(run_calls) != 1:
+                return []
+            call = run_calls[0]
+            try:
+                args = [ast.literal_eval(arg) for arg in call.args]
+            except (ValueError, TypeError):
+                return []
+            result_name = next(node.targets[0].id for node in func.body if isinstance(node, ast.Assign)
+                               and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)
+                               and node.value is call)
+            stdout_expected = None
+            exit_asserted = False
+            for node in func.body:
+                if not isinstance(node, ast.Assert) or not isinstance(node.test, ast.Compare) or len(node.test.ops) != 1:
+                    continue
+                left, right = node.test.left, node.test.comparators[0]
+                if isinstance(left, ast.Attribute) and isinstance(left.value, ast.Name) and left.value.id == result_name:
+                    if left.attr == "stdout" and isinstance(node.test.ops[0], ast.Eq):
+                        try: stdout_expected = ast.literal_eval(right)
+                        except (ValueError, TypeError): pass
+                    if left.attr == "returncode" and isinstance(node.test.ops[0], ast.Eq) and isinstance(right, ast.Constant) and right.value == 0:
+                        exit_asserted = True
+            if stdout_expected is None or not exit_asserted:
+                return []
+            matching = [i for i, probe in enumerate(probes)
+                        if len(probe.get("command", [])) >= 2
+                        and Path(str(probe["command"][1])).name == "app.py"
+                        and list(probe["command"][2:]) == args
+                        and probe.get("stdout") == stdout_expected
+                        and probe.get("exit_code") == 0]
+            if len(matching) != 1:
+                return []
+            all_cases.append({"probe_index": matching[0], "test_name": func.name,
+                              "source_file": filename, "expected_stdout": stdout_expected})
+    if not all_cases or len({item["test_name"] for item in all_cases}) != len(all_cases):
+        return []
+
+    # A zero chain status proves every command on an all-&& chain, including the
+    # full unfiltered pytest run, succeeded. Test AST excludes skips/decorators.
+    if re.search(r"\b(?:skipped|deselected|xfailed)\b", output, re.IGNORECASE):
+        return []
+    if exit_code == 0:
+        results = {item["test_name"]: "passed" for item in all_cases}
+    elif len(commands) == 1:
+        failures = set(re.findall(r"(?m)^FAILED\s+[^\n]*::(test_[A-Za-z0-9_]+)", output))
+        summary = re.search(r"(?m)^(?:(\d+) failed, )?(\d+) passed(?:\s|$)", output)
+        if not summary or not failures:
+            return []
+        failed_count = int(summary.group(1) or 0)
+        passed_count = int(summary.group(2))
+        if failed_count != len(failures) or failed_count + passed_count != len(all_cases):
+            return []
+        names = {item["test_name"] for item in all_cases}
+        if not failures <= names:
+            return []
+        results = {name: ("failed" if name in failures else "passed") for name in names}
+    else:
+        return []
+
+    out = []
+    for item in all_cases:
+        probe = probes[item["probe_index"]]
+        command = list(probe.get("command", []))
+        command_args = command[2:]
+        command_context = command[1:]
+        common = {"test_name": item["test_name"], "source_file": item["source_file"],
+                  "expected_stdout": item["expected_stdout"],
+                  "result": results[item["test_name"]]}
+        categories = (("current", "behavior_probes"), ("current", "current_behavior_probes"),
+                      ("preserved", "preserved_behavior_probes"))
+        for kind, key in categories:
+            for index, contract in enumerate(cfg.get(key, [])):
+                if key == "behavior_probes":
+                    target_text = " ".join([
+                        *(str(value) for value in contract.get("command", [])),
+                        str(contract.get("stdout", "")),
+                    ])
+                    if not all(signal in target_text for signal in cfg.get("target_check_signals", [])):
+                        continue
+                signals = [str(value) for value in contract.get("input_signals", [])]
+                if key == "behavior_probes":
+                    contract_args = list(contract.get("command", [])[2:])
+                    inputs_match = command_args == contract_args
+                else:
+                    inputs_match = (all(signal in command_context for signal in signals)
+                                    if signals else not command_args)
+                if inputs_match and contract.get("stdout") == probe.get("stdout") and contract.get("exit_code") == probe.get("exit_code"):
+                    out.append({**common, "kind": kind, "probe_index": index})
+    return out
+
+
 def _observed_invocations(command: str, output: str, exit_code: Any,
                           probes: list[dict[str, Any]],
                           behavior_probes: list[dict[str, Any]]) -> list[tuple[int, int]]:
@@ -378,6 +556,12 @@ def _observed_invocations(command: str, output: str, exit_code: Any,
 def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture: Path) -> list[dict[str, Any]]:
     pending: dict[str, deque[dict[str, Any]]] = defaultdict(deque)
     records: list[dict[str, Any]] = []
+    test_sources = {
+        relative: content
+        for relative, content in cfg.get("fixture_files", {}).items()
+        if _is_verification_file(relative) and Path(relative).name == "test_app.py"
+    }
+    test_source_ambiguous = False
     for index, event in enumerate(events):
         kind = event.get("type")
         name = str(event.get("name", ""))
@@ -391,6 +575,20 @@ def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture:
         result = _decode_tool_output(event.get("output"))
         output = str(result.get("output", ""))
         command = str(args.get("command", "")) if name == "terminal" else ""
+        if name == "patch" and result.get("success") is True and any(
+            "--shout" in item.get("command", []) for item in cfg.get("behavior_probes", [])
+        ):
+            for raw_path, hunk in _test_patch_blocks(str(args.get("patch", ""))):
+                matches = [key for key in test_sources if raw_path.replace("\\\\", "/").endswith(key.replace("\\\\", "/"))]
+                if len(matches) != 1:
+                    if Path(raw_path).name == "test_app.py":
+                        test_source_ambiguous = True
+                    continue
+                updated = _apply_test_patch(test_sources[matches[0]], hunk)
+                if updated is None:
+                    test_source_ambiguous = True
+                else:
+                    test_sources[matches[0]] = updated
         record = {"index": call["index"], "tool": name, "output": output, "command": command}
         if name == "terminal":
             record["exit_code"] = result.get("exit_code")
@@ -400,8 +598,34 @@ def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture:
                     command, output, result.get("exit_code"), cfg.get(probe_key, []),
                     cfg.get("behavior_probes", []),
                 )
+            if not test_source_ambiguous and any(
+                "--shout" in item.get("command", []) for item in cfg.get("behavior_probes", [])
+            ):
+                test_results = _pytest_behavior_results(command, output, result.get("exit_code"), test_sources, cfg)
+                if test_results:
+                    source_hashes = {name: hashlib.sha256(text.encode("utf-8")).hexdigest()
+                                     for name, text in test_sources.items()}
+                    record["behavior_test_results"] = [
+                        {**item, "source_sha256": source_hashes[item["source_file"]]}
+                        for item in test_results
+                    ]
+                else:
+                    parsed_command = _shell_invocations(command)
+                    has_pytest = bool(parsed_command and any(
+                        len(argv) >= 3 and argv[0] in {"python", "python3"}
+                        and argv[1:3] == ["-m", "pytest"]
+                        for argv in parsed_command[0]
+                    ))
+                    if has_pytest:
+                        record["test_evidence_unconfirmed"] = {
+                            "reason": "pytest collection, test source, or result was ambiguous",
+                            "source_sha256": {
+                                name: hashlib.sha256(text.encode("utf-8")).hexdigest()
+                                for name, text in test_sources.items()
+                            },
+                        }
             recognized, failed = _is_test_result(command, output, result.get("exit_code"))
-            if recognized:
+            if recognized and not (any("--shout" in item.get("command", []) for item in cfg.get("behavior_probes", []))):
                 record["check_result"] = "failed" if failed or result.get("exit_code", 0) else "passed"
         elif name in {"read_file", "file_read"}:
             record["read_only_file_read"] = True
@@ -461,6 +685,34 @@ def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture:
             facts.append({"kind": "target_check_" + rec["check_result"], "index": rec["index"], "output": rec["output"]})
             if rec["check_result"] == "failed":
                 facts.append({"kind": "verification_failed", "index": rec["index"]})
+        if rec.get("test_evidence_unconfirmed"):
+            facts.append({"kind": "test_evidence_unconfirmed", "index": rec["index"], **rec["test_evidence_unconfirmed"]})
+        for item in rec.get("behavior_test_results", []):
+            test_fact = {
+                "kind": item["kind"] + "_behavior_test_result",
+                "index": rec["index"],
+                "probe_index": item["probe_index"],
+                "result": item["result"],
+                "test_name": item["test_name"],
+                "source_file": item["source_file"],
+                "source_sha256": item["source_sha256"],
+                "runner_command": rec["command"],
+            }
+            facts.append(test_fact)
+            if item["kind"] == "current" and item["result"] == "failed":
+                facts.append({"kind": "target_check_failed", "index": rec["index"],
+                              "output": item["test_name"] + " expected " + item["expected_stdout"] + " failed"})
+            elif item["kind"] == "current" and item["result"] == "passed":
+                facts.append({"kind": "target_check_passed", "index": rec["index"],
+                              "output": item["test_name"] + " passed"})
+                if first_source_change is None or rec["index"] < first_source_change:
+                    facts.append({"kind": "current_behavior_observed", "index": rec["index"],
+                                  "probe_index": item["probe_index"], "test_name": item["test_name"],
+                                  "source_sha256": item["source_sha256"]})
+            elif item["kind"] == "preserved" and item["result"] == "passed":
+                facts.append({"kind": "preserved_behavior_observed", "index": rec["index"],
+                              "probe_index": item["probe_index"], "test_name": item["test_name"],
+                              "source_sha256": item["source_sha256"]})
         if any(change["verification_file"] for change in rec.get("file_changes", [])):
             facts.append({"kind": "verification_changed", "index": rec["index"]})
         if any(not change["verification_file"] for change in rec.get("file_changes", [])):
@@ -477,6 +729,8 @@ def _workflow_events(events: list[dict[str, Any]], cfg: dict[str, Any], fixture:
         if matched:
             facts.append({"kind": "preserved_behavior_observed", "index": matched["index"],
                           "probe_index": probe_index})
+    if test_source_ambiguous:
+        facts.append({"kind": "test_evidence_unconfirmed", "reason": "recorded test-source patch could not be replayed unambiguously"})
     return sorted(facts, key=lambda fact: int(fact.get("index", 0)))
 
 
@@ -1404,6 +1658,17 @@ class DevelopmentWorkflowConsumer:
                     raise ValueError(
                         f"invalid raw JSONL event at line {line_number}: expected an event object with type"
                     )
+                # Published traces use a stable fixture placeholder. Rebind it to
+                # this replay's isolated fixture, never to an original temp path.
+                def rebind(value):
+                    if isinstance(value, str):
+                        return value.replace("$FIXTURE", str(fixture))
+                    if isinstance(value, list):
+                        return [rebind(item) for item in value]
+                    if isinstance(value, dict):
+                        return {key: rebind(item) for key, item in value.items()}
+                    return value
+                event = rebind(event)
                 events.append(event)
         if not events:
             raise ValueError("raw trace contains no readable events")

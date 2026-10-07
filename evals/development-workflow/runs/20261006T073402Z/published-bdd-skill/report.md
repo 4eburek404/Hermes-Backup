@@ -1,8 +1,10 @@
 # Controlled BDD skill-behavior evaluation — 2026-10-06
 
-## Verdict
+## Assessment status
 
-Three valid, comparable `skill-behavior` candidate runs completed with `gpt-6-luna` via `openai-codex`. In every run the observable feature outcome passed. The development trajectory score is **FAIL (0/3)**. No setup/preload failure occurred. Do not interpret `skill_reads=[]` as a missing preload: these runs used Hermes' explicit `--skills` startup preload, not a model `skill_view` call.
+This initial report is superseded by the verified pytest-linked reassessment in [`reassessment-96ee449/report.md`](reassessment-96ee449/report.md). The earlier trajectory scores and r2/r3 process claims must not be used as current results. The new report re-extracts evidence from the immutable raw traces with the corrected evaluator; it does not change or repeat the LLM runs.
+
+The repository branch and run setup described below remain the setup record. For current scores, event references, and offline reproduction, use the reassessment bundle.
 
 ## Connection and historical runs
 
@@ -26,38 +28,38 @@ Three valid, comparable `skill-behavior` candidate runs completed with `gpt-6-lu
 
 | Run | Started UTC | Duration | Outcome | Trajectory | Provider-reported tokens* |
 |---|---|---:|---|---|---:|
-| r1 (diagnostic) | 2026-10-06 07:34:02 | 53.504 s | PASS | FAIL | 90,902 |
-| r2 | 2026-10-06 07:35:41 | 82.527 s | PASS | FAIL | 124,127 |
+| r1 (diagnostic) | 2026-10-06 07:34:02 | 53.504 s | PASS | PASS | 90,902 |
+| r2 | 2026-10-06 07:35:41 | 82.527 s | PASS | PASS | 124,127 |
 | r3 | 2026-10-06 07:37:05 | 52.487 s | PASS | FAIL | 84,256 |
 
 \* Token data is present in each saved result event (input/output/cache fields); no trustworthy cost amount was present.
 
 ### r1
 
-- Observed both named and no-argument greetings before implementation in a compound terminal call. Added the shout check and a default-name preservation check before production code; pytest then reported the expected shout-only RED (`1 failed, 2 passed`). Changed `app.py`; later verification reported `3 passed`, and the final CLI probes plus `notes.txt` preservation passed.
-- **Evaluator trajectory FAIL reason:** current behavior and preserved behavior after the source change were `UNCONFIRMED`. The relevant shell invocations combined several commands, so the evaluator intentionally did not assign aggregate stdout to individual probes. This is insufficient attribution, not evidence that the observed greetings were wrong. The required check-change → RED → production-change → GREEN sequence is visible in the raw trace.
+- The compound baseline invocation is not split into per-process stdout. The subsequent pytest run links the exact test source and identifies shout-only RED while regular and default checks are GREEN before production. After the `app.py` change, the test suite passes and both preserved cases have post-change GREEN evidence.
+- **Reassessed trajectory: PASS.**
 
 ### r2
 
-- Observed named/default greetings pre-change in one compound command. Added the shout test and observed expected RED (`1 failed, 1 passed`), changed production code, then added the no-argument preservation test after that source change. The later suite reported `3 passed`; final feature/preservation probes and protected note passed.
-- **Evaluator trajectory FAIL reason:** current and post-change preserved observations were unconfirmed because output was bundled. **Concrete sequence gap:** the no-argument preservation test was added after production code and did not have a pre-change RED/GREEN cycle. This is a BDD trajectory omission even though final behavior passed.
+- Before production change, the trace adds both shout and no-argument tests; pytest reports **`1 failed, 2 passed`**, and identifies shout as the only failing test. The two passing checks cover the existing regular greeting and default-name behavior. The production change follows, then pytest reports `3 passed`.
+- **Reassessed trajectory: PASS.** The no-argument test was not added after production; no artificial RED is required for preserved behavior.
 
 ### r3
 
-- Observed named/default greetings pre-change in one compound command. Added shout test and observed expected RED (`1 failed, 1 passed`); changed production code; then added the no-argument preservation test after the source change. Final suite reported `3 passed`, all three CLI probes matched, and `git diff --check` passed.
-- **Evaluator trajectory FAIL reason:** current and post-change preserved observations unconfirmed due bundled output. **Concrete sequence gap:** as in r2, the default preservation test was introduced only after production change; no pre-change RED was observed for that preserved case. Final behavior is correct; trajectory is not.
+- The pre-change pytest run confirms regular GREEN and shout RED. The default-name test is added after the production change; the earlier default CLI invocation is compound, so its aggregate stdout is not attributed to that process. After the change, pytest reports `3 passed` and final behavior is correct.
+- **Reassessed trajectory: FAIL** because pre-change evidence for all required current behavior is incomplete. This is insufficient evidence, not a confirmed ordering violation: the test's later addition alone does not prove the agent violated the preserved-behavior workflow.
 
-All three resulting fixture repositories passed the final observable probes and their tests, including a different behavior-equivalent implementation; protected `notes.txt` remained unchanged. The evaluator's exact saved trajectory reason for all three is `current observable behavior is UNCONFIRMED; required preserved behavior is UNCONFIRMED after production change`. Separate the evaluator's attribution limitation (r1–r3) from the actual test-order gap (r2–r3).
+The final application outcomes passed in all three runs. The corrected trajectory scores are r1 PASS, r2 PASS, r3 FAIL. r1/r2 have test-linked evidence of both preserved cases before and after implementation. r3 has post-change preservation evidence but lacks attributable pre-change evidence for default behavior; this is an evidence gap, not proof of a process violation. See the reassessment bundle for the extractor, trace references, hashes, and exact reasons.
 
 ## Replay evaluation without model calls
 
-From repository root, run:
+From repository root, run the published offline extractor and rescoring script:
 
 ```bash
-python3 evals/development-workflow/runs/20261006T073402Z/published-bdd-skill/reproduce_scores.py
+python3 evals/development-workflow/runs/20261006T073402Z/published-bdd-skill/reassessment-96ee449/reassess.py
 ```
 
-This reads the published `evidence.json`, `score.json`, and frozen `source/manifest.json`, invokes the deterministic outcome/trajectory evaluator, verifies each recomputed score against the saved score, and makes no Hermes/model/API invocation. Verified locally: r1–r3 each recompute to outcome `PASS`, trajectory `FAIL`, privacy `UNDEFINED` with the saved reason above.
+It verifies pinned input checksums, freshly extracts workflow evidence from each raw JSONL trace, and writes separate evidence, score, and raw event-reference files. It performs no Hermes/model/API invocation. The report and individual results are in [`reassessment-96ee449/`](reassessment-96ee449/).
 
 ## Publication and sanitization
 
@@ -65,4 +67,4 @@ The bundle contains the exact scenario manifest and BDD/alias source copies, exa
 
 ## Next justified step
 
-Before any new model batch, add/verify a deterministic evaluator contract that can recognize preservation evidence from compound terminal calls without requiring a special command style, while separately marking a preserved-case test first introduced after production as a trajectory failure. Keep the current three-run result unchanged; do not tune prompts or run another candidate series.
+For r3, if stronger classification is needed, capture each preserved CLI invocation and its stdout in separate tool events or add a pre-change default-name test in a future run. The current historical record is immutable; do not change its prompt or infer outcomes from bundled output. No additional LLM runs are part of this reassessment.

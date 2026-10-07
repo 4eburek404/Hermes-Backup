@@ -1,0 +1,748 @@
+{
+  "agent_execution_count": 1,
+  "agent_started": true,
+  "behavior_probes": [
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "Hello, Alice!\n",
+      "command": [
+        "python3",
+        "app.py",
+        "Alice"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "Hello, Alice!\n",
+      "name": "normal-greeting",
+      "stderr": ""
+    },
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "Hello, World!\n",
+      "command": [
+        "python3",
+        "app.py"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "Hello, World!\n",
+      "name": "default-greeting",
+      "stderr": ""
+    },
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "HELLO, ALICE!\n",
+      "command": [
+        "python3",
+        "app.py",
+        "Alice",
+        "--shout"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "HELLO, ALICE!\n",
+      "name": "shout-greeting",
+      "stderr": ""
+    }
+  ],
+  "command": [
+    "$HERMES_BIN",
+    "chat",
+    "--query-file",
+    "$REPO/evals/development-workflow/runs/20261006T073402Z/feature-shout--gpt-6-luna--openai-codex--candidate--r1/prompt.txt",
+    "--oneshot",
+    "--quiet",
+    "--format",
+    "stream-json",
+    "--model",
+    "gpt-6-luna",
+    "--provider",
+    "openai-codex",
+    "--toolsets",
+    "terminal,file,skills",
+    "--max-turns",
+    "36",
+    "--run-budget",
+    "240",
+    "--skills",
+    "behavior-driven-development",
+    "--yolo",
+    "--source",
+    "eval"
+  ],
+  "comparable": true,
+  "completion_observed": true,
+  "completion_status": "result_observed",
+  "diagnostics": {
+    "outcome": {
+      "reason": null,
+      "status": "PASS"
+    },
+    "privacy": {
+      "reason": "no privacy contract in this fixture",
+      "status": "UNDEFINED"
+    },
+    "trajectory": {
+      "reason": "current observable behavior is UNCONFIRMED; required preserved behavior is UNCONFIRMED after production change",
+      "status": "FAIL"
+    }
+  },
+  "elapsed_seconds": 53.50383323477581,
+  "ended_at": "2026-10-06T07:34:56.093499+00:00",
+  "equivalent_behavior_probes": [
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "Hello, Alice!\n",
+      "command": [
+        "python3",
+        "app.py",
+        "Alice"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "Hello, Alice!\n",
+      "name": "normal-greeting",
+      "stderr": ""
+    },
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "Hello, World!\n",
+      "command": [
+        "python3",
+        "app.py"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "Hello, World!\n",
+      "name": "default-greeting",
+      "stderr": ""
+    },
+    {
+      "actual_exit_code": 0,
+      "actual_stdout": "HELLO, ALICE!\n",
+      "command": [
+        "python3",
+        "app.py",
+        "Alice",
+        "--shout"
+      ],
+      "expected_exit_code": 0,
+      "expected_stdout": "HELLO, ALICE!\n",
+      "name": "shout-greeting",
+      "stderr": ""
+    }
+  ],
+  "equivalent_test_result": {
+    "command": [
+      "python3",
+      "-m",
+      "pytest",
+      "-q"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "...                                                                      [100%]\n3 passed in 0.17s\n"
+  },
+  "evaluation_mode": "skill-behavior",
+  "event_summary": {
+    "event_count": 117,
+    "mutation_events": [],
+    "review_evidence": [],
+    "skill_reads": [],
+    "skill_views": [],
+    "terminal_result": {
+      "duration_ms": 50252,
+      "exit_code": 0,
+      "session_id": "$SESSION_R1",
+      "text": "Добавлен необязательный флаг `--shout`: `python3 app.py Alice --shout` выводит `HELLO, ALICE!`. Обычное приветствие и имя по умолчанию `World` сохранены.\n\nПроверка: `3 passed`; все три варианта CLI проверены, `git diff --check` прошёл. Изменены `app.py` и `tests/test_app.py`.",
+      "timestamp": 1791272094591,
+      "tokens": {
+        "cache_read": 72192,
+        "cache_write": 0,
+        "input": 17305,
+        "output": 1405,
+        "total": 90902
+      },
+      "type": "result"
+    },
+    "tool_calls": [
+      "git status --short --branch",
+      "python3 app.py Alice && python3 app.py && python3 -m pytest -q",
+      "python3 -m pytest -q",
+      "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+      "git diff --check && git status --short && git diff -- app.py tests/test_app.py"
+    ],
+    "tool_names": [
+      "search_files",
+      "search_files",
+      "terminal",
+      "read_file",
+      "read_file",
+      "read_file",
+      "search_files",
+      "terminal",
+      "patch",
+      "terminal",
+      "patch",
+      "terminal",
+      "terminal"
+    ],
+    "workflow_events": [
+      {
+        "index": 15,
+        "kind": "current_behavior_test_result",
+        "probe_index": 0,
+        "result": "passed",
+        "runner_command": "python3 app.py Alice && python3 app.py && python3 -m pytest -q",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "df162860553ff2816f237940a456863550cbb5111a2d57299010fe0b97d218e4",
+        "test_name": "test_regular_greeting_behavior"
+      },
+      {
+        "index": 15,
+        "kind": "target_check_passed",
+        "output": "test_regular_greeting_behavior passed"
+      },
+      {
+        "index": 15,
+        "kind": "current_behavior_observed",
+        "probe_index": 0,
+        "source_sha256": "df162860553ff2816f237940a456863550cbb5111a2d57299010fe0b97d218e4",
+        "test_name": "test_regular_greeting_behavior"
+      },
+      {
+        "index": 15,
+        "kind": "preserved_behavior_test_result",
+        "probe_index": 0,
+        "result": "passed",
+        "runner_command": "python3 app.py Alice && python3 app.py && python3 -m pytest -q",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "df162860553ff2816f237940a456863550cbb5111a2d57299010fe0b97d218e4",
+        "test_name": "test_regular_greeting_behavior"
+      },
+      {
+        "index": 15,
+        "kind": "preserved_behavior_observed",
+        "probe_index": 0,
+        "source_sha256": "df162860553ff2816f237940a456863550cbb5111a2d57299010fe0b97d218e4",
+        "test_name": "test_regular_greeting_behavior"
+      },
+      {
+        "index": 17,
+        "kind": "target_check_changed"
+      },
+      {
+        "index": 17,
+        "kind": "verification_changed"
+      },
+      {
+        "index": 19,
+        "kind": "current_behavior_test_result",
+        "probe_index": 0,
+        "result": "passed",
+        "runner_command": "python3 -m pytest -q",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+        "test_name": "test_regular_greeting_behavior"
+      },
+      {
+        "index": 19,
+        "kind": "target_check_passed",
+        "output": "test_regular_greeting_behavior passed"
+      },
+      {
+        "index": 19,
+        "kind": "current_behavior_observed",
+        "probe_index": 0,
+        "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+        "test_name": "test_regular_greeting_behavior"
+      },
+      {
+        "index": 19,
+        "kind": "preserved_behavior_test_result",
+        "probe_index": 0,
+        "result": "passed",
+        "runner_command": "python3 -m pytest -q",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+        "test_name": "test_regular_greeting_behavior"
+      },
+      {
+        "index": 19,
+        "kind": "preserved_behavior_observed",
+        "probe_index": 0,
+        "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+        "test_name": "test_regular_greeting_behavior"
+      },
+      {
+        "index": 19,
+        "kind": "current_behavior_test_result",
+        "probe_index": 2,
+        "result": "failed",
+        "runner_command": "python3 -m pytest -q",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+        "test_name": "test_shout_greeting_behavior"
+      },
+      {
+        "index": 19,
+        "kind": "target_check_failed",
+        "output": "test_shout_greeting_behavior expected HELLO, ALICE!\n failed"
+      },
+      {
+        "index": 19,
+        "kind": "current_behavior_test_result",
+        "probe_index": 1,
+        "result": "passed",
+        "runner_command": "python3 -m pytest -q",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+        "test_name": "test_default_name_behavior"
+      },
+      {
+        "index": 19,
+        "kind": "target_check_passed",
+        "output": "test_default_name_behavior passed"
+      },
+      {
+        "index": 19,
+        "kind": "current_behavior_observed",
+        "probe_index": 1,
+        "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+        "test_name": "test_default_name_behavior"
+      },
+      {
+        "index": 19,
+        "kind": "preserved_behavior_test_result",
+        "probe_index": 1,
+        "result": "passed",
+        "runner_command": "python3 -m pytest -q",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+        "test_name": "test_default_name_behavior"
+      },
+      {
+        "index": 19,
+        "kind": "preserved_behavior_observed",
+        "probe_index": 1,
+        "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+        "test_name": "test_default_name_behavior"
+      },
+      {
+        "index": 21,
+        "kind": "production_changed"
+      },
+      {
+        "index": 23,
+        "kind": "current_behavior_test_result",
+        "probe_index": 0,
+        "result": "passed",
+        "runner_command": "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+        "test_name": "test_regular_greeting_behavior"
+      },
+      {
+        "index": 23,
+        "kind": "target_check_passed",
+        "output": "test_regular_greeting_behavior passed"
+      },
+      {
+        "index": 23,
+        "kind": "preserved_behavior_test_result",
+        "probe_index": 0,
+        "result": "passed",
+        "runner_command": "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+        "test_name": "test_regular_greeting_behavior"
+      },
+      {
+        "index": 23,
+        "kind": "preserved_behavior_observed",
+        "probe_index": 0,
+        "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+        "test_name": "test_regular_greeting_behavior"
+      },
+      {
+        "index": 23,
+        "kind": "current_behavior_test_result",
+        "probe_index": 2,
+        "result": "passed",
+        "runner_command": "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+        "test_name": "test_shout_greeting_behavior"
+      },
+      {
+        "index": 23,
+        "kind": "target_check_passed",
+        "output": "test_shout_greeting_behavior passed"
+      },
+      {
+        "index": 23,
+        "kind": "current_behavior_test_result",
+        "probe_index": 1,
+        "result": "passed",
+        "runner_command": "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+        "test_name": "test_default_name_behavior"
+      },
+      {
+        "index": 23,
+        "kind": "target_check_passed",
+        "output": "test_default_name_behavior passed"
+      },
+      {
+        "index": 23,
+        "kind": "preserved_behavior_test_result",
+        "probe_index": 1,
+        "result": "passed",
+        "runner_command": "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+        "source_file": "tests/test_app.py",
+        "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+        "test_name": "test_default_name_behavior"
+      },
+      {
+        "index": 23,
+        "kind": "preserved_behavior_observed",
+        "probe_index": 1,
+        "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+        "test_name": "test_default_name_behavior"
+      }
+    ]
+  },
+  "execution_policy": "one-shot",
+  "execution_status": "COMPLETED",
+  "exit_code": 0,
+  "final_answer": "Добавлен необязательный флаг `--shout`: `python3 app.py Alice --shout` выводит `HELLO, ALICE!`. Обычное приветствие и имя по умолчанию `World` сохранены.\n\nПроверка: `3 passed`; все три варианта CLI проверены, `git diff --check` прошёл. Изменены `app.py` и `tests/test_app.py`.",
+  "fixture_baseline_head": "59f300ee5512b86d9530d197071ae2cf241030c4",
+  "fixture_sha256": "908f3a8245ab3943584f34fc8ce41bfe6c1a5d0154ea2c22ea5f018e77c79004",
+  "fixture_version": "908f3a8245ab3943584f34fc8ce41bfe6c1a5d0154ea2c22ea5f018e77c79004",
+  "forced_owner_skill": "behavior-driven-development",
+  "metadata_path": "$REPO/evals/development-workflow/runs/20261006T073402Z/feature-shout--gpt-6-luna--openai-codex--candidate--r1/metadata.json",
+  "mode": "skill-behavior",
+  "model": "gpt-6-luna",
+  "mutation_events": [],
+  "orphan_process_group_found": null,
+  "post_snapshot": {
+    "file_sha256": {
+      "app.py": "6dce51ce2ca34a1522a4de01d5c5e3f5c9c93e81a0613cfc7b3db50f0f44d9ee",
+      "notes.txt": "5cd635dc875b6cfb0171cd062d756f0bbfff06c0cb3a73c7fb193449eebd04d4",
+      "tests/__pycache__/test_app.cpython-311-pytest-9.1.1.pyc": "f936b90b4f41088cf16ac086f68b9bc4d8e5df83e0bf92888d58e7e2403b89e3",
+      "tests/test_app.py": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead"
+    },
+    "head": "59f300ee5512b86d9530d197071ae2cf241030c4",
+    "status_porcelain": "M app.py\n M tests/test_app.py\n?? tests/__pycache__/"
+  },
+  "pre_snapshot": {
+    "file_sha256": {
+      "app.py": "607b12614693fa83efb672a5909d43c96f39a245bf41fcc76d998aaa9f51497f",
+      "notes.txt": "5cd635dc875b6cfb0171cd062d756f0bbfff06c0cb3a73c7fb193449eebd04d4",
+      "tests/test_app.py": "df162860553ff2816f237940a456863550cbb5111a2d57299010fe0b97d218e4"
+    },
+    "head": "59f300ee5512b86d9530d197071ae2cf241030c4",
+    "status_porcelain": ""
+  },
+  "prompt_path": "$REPO/evals/development-workflow/runs/20261006T073402Z/feature-shout--gpt-6-luna--openai-codex--candidate--r1/prompt.txt",
+  "prompt_sha256": "368ef8b6c84e14164cf4ea25df042371242b8ad57f8f0d0e06b16a7359d5b1c5",
+  "prompt_version": "368ef8b6c84e14164cf4ea25df042371242b8ad57f8f0d0e06b16a7359d5b1c5",
+  "protected_paths_unchanged": {
+    "notes.txt": true
+  },
+  "provider": "openai-codex",
+  "raw_final_answer_path": "$REPO/evals/development-workflow/runs/20261006T073402Z/feature-shout--gpt-6-luna--openai-codex--candidate--r1/raw_final_answer.txt",
+  "raw_session_path": null,
+  "raw_stderr_path": "$REPO/evals/development-workflow/runs/20261006T073402Z/feature-shout--gpt-6-luna--openai-codex--candidate--r1/raw_stderr.txt",
+  "raw_stream_path": "$REPO/evals/development-workflow/runs/20261006T073402Z/feature-shout--gpt-6-luna--openai-codex--candidate--r1/raw_stream.jsonl",
+  "raw_terminal_output_path": null,
+  "reassessment": {
+    "evaluator_sha256": "5c9ac411b4441fda9f46613d70f0b80b113ca8d52fd6ad5a16128d538537d45c",
+    "event_references": "event-refs.json",
+    "execution": "offline only; no historical command, Hermes process, or model call",
+    "input_checksums_sha256": "dfa3b821b0dfc972e48aee6f979402c17a2ff1d8ddc74c426a7d97d665627278",
+    "method": "fresh raw_stream.jsonl extraction; original workflow_events/evidence were not reused",
+    "source_manifest_sha256": "f3e45ad04f0620fc0743681d217978ab066db59cb49db28a8fefa1899ab0c66c",
+    "source_original_evidence_sha256": "6b274e56ac7b514474c2ab829d58950868886afb6ea644bdcfb2d3aa07a92402",
+    "source_original_score_sha256": "2864cc0f1a9b1b7f5888448c092c4331ea9853da81d64fa5d4c0368b65c461f3",
+    "source_raw_trace": "../../../runs/r1/raw_stream.jsonl",
+    "source_raw_trace_sha256": "a11d8a9679fef78159f97f5d7bb30aa847d8bfa30a6d2ba41f87a26de26f9e75"
+  },
+  "repeat": 1,
+  "repository_changed": true,
+  "review_evidence": [],
+  "run_id": "feature-shout--gpt-6-luna--openai-codex--candidate--r1",
+  "runtime_version": "Hermes Agent v0.21.4 (2026.9.21) · upstream d3b25b52\nInstall directory: $HOME/.hermes/hermes-agent\nInstall method: git\nPython: 3.11.15\nOpenAI SDK: 2.24.0\nUpdate available: 8767 commits behind — run 'hermes update'",
+  "scenario": "feature-shout",
+  "session_capture_error": null,
+  "session_id": null,
+  "skill_reads": [],
+  "skill_sources": [
+    {
+      "content_sha256": "64432fe89de2213715133e56870576795cd7a1615932b3533c9816f7b4354a55",
+      "requested_ref": null,
+      "resolved_commit": "68a62b3fd5864f9178c3ace44bc61b23fb8cfcaa",
+      "skill_path": "hermes/skills/software-development/behavior-driven-development",
+      "source": "working_tree",
+      "working_tree_dirty": false
+    }
+  ],
+  "skill_version": "candidate",
+  "skill_views": [],
+  "started_at": "2026-10-06T07:34:02.589666+00:00",
+  "test_result": {
+    "command": [
+      "python3",
+      "-m",
+      "pytest",
+      "-q"
+    ],
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "...                                                                      [100%]\n3 passed in 0.17s\n"
+  },
+  "timed_out": false,
+  "tool_calls": [
+    "git status --short --branch",
+    "python3 app.py Alice && python3 app.py && python3 -m pytest -q",
+    "python3 -m pytest -q",
+    "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+    "git diff --check && git status --short && git diff -- app.py tests/test_app.py"
+  ],
+  "tool_names": [
+    "search_files",
+    "search_files",
+    "terminal",
+    "read_file",
+    "read_file",
+    "read_file",
+    "search_files",
+    "terminal",
+    "patch",
+    "terminal",
+    "patch",
+    "terminal",
+    "terminal"
+  ],
+  "workflow_events": [
+    {
+      "index": 15,
+      "kind": "current_behavior_test_result",
+      "probe_index": 0,
+      "result": "passed",
+      "runner_command": "python3 app.py Alice && python3 app.py && python3 -m pytest -q",
+      "source_file": "tests/test_app.py",
+      "source_sha256": "df162860553ff2816f237940a456863550cbb5111a2d57299010fe0b97d218e4",
+      "test_name": "test_regular_greeting_behavior"
+    },
+    {
+      "index": 15,
+      "kind": "target_check_passed",
+      "output": "test_regular_greeting_behavior passed"
+    },
+    {
+      "index": 15,
+      "kind": "current_behavior_observed",
+      "probe_index": 0,
+      "source_sha256": "df162860553ff2816f237940a456863550cbb5111a2d57299010fe0b97d218e4",
+      "test_name": "test_regular_greeting_behavior"
+    },
+    {
+      "index": 15,
+      "kind": "preserved_behavior_test_result",
+      "probe_index": 0,
+      "result": "passed",
+      "runner_command": "python3 app.py Alice && python3 app.py && python3 -m pytest -q",
+      "source_file": "tests/test_app.py",
+      "source_sha256": "df162860553ff2816f237940a456863550cbb5111a2d57299010fe0b97d218e4",
+      "test_name": "test_regular_greeting_behavior"
+    },
+    {
+      "index": 15,
+      "kind": "preserved_behavior_observed",
+      "probe_index": 0,
+      "source_sha256": "df162860553ff2816f237940a456863550cbb5111a2d57299010fe0b97d218e4",
+      "test_name": "test_regular_greeting_behavior"
+    },
+    {
+      "index": 17,
+      "kind": "target_check_changed"
+    },
+    {
+      "index": 17,
+      "kind": "verification_changed"
+    },
+    {
+      "index": 19,
+      "kind": "current_behavior_test_result",
+      "probe_index": 0,
+      "result": "passed",
+      "runner_command": "python3 -m pytest -q",
+      "source_file": "tests/test_app.py",
+      "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+      "test_name": "test_regular_greeting_behavior"
+    },
+    {
+      "index": 19,
+      "kind": "target_check_passed",
+      "output": "test_regular_greeting_behavior passed"
+    },
+    {
+      "index": 19,
+      "kind": "current_behavior_observed",
+      "probe_index": 0,
+      "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+      "test_name": "test_regular_greeting_behavior"
+    },
+    {
+      "index": 19,
+      "kind": "preserved_behavior_test_result",
+      "probe_index": 0,
+      "result": "passed",
+      "runner_command": "python3 -m pytest -q",
+      "source_file": "tests/test_app.py",
+      "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+      "test_name": "test_regular_greeting_behavior"
+    },
+    {
+      "index": 19,
+      "kind": "preserved_behavior_observed",
+      "probe_index": 0,
+      "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+      "test_name": "test_regular_greeting_behavior"
+    },
+    {
+      "index": 19,
+      "kind": "current_behavior_test_result",
+      "probe_index": 2,
+      "result": "failed",
+      "runner_command": "python3 -m pytest -q",
+      "source_file": "tests/test_app.py",
+      "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+      "test_name": "test_shout_greeting_behavior"
+    },
+    {
+      "index": 19,
+      "kind": "target_check_failed",
+      "output": "test_shout_greeting_behavior expected HELLO, ALICE!\n failed"
+    },
+    {
+      "index": 19,
+      "kind": "current_behavior_test_result",
+      "probe_index": 1,
+      "result": "passed",
+      "runner_command": "python3 -m pytest -q",
+      "source_file": "tests/test_app.py",
+      "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+      "test_name": "test_default_name_behavior"
+    },
+    {
+      "index": 19,
+      "kind": "target_check_passed",
+      "output": "test_default_name_behavior passed"
+    },
+    {
+      "index": 19,
+      "kind": "current_behavior_observed",
+      "probe_index": 1,
+      "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+      "test_name": "test_default_name_behavior"
+    },
+    {
+      "index": 19,
+      "kind": "preserved_behavior_test_result",
+      "probe_index": 1,
+      "result": "passed",
+      "runner_command": "python3 -m pytest -q",
+      "source_file": "tests/test_app.py",
+      "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+      "test_name": "test_default_name_behavior"
+    },
+    {
+      "index": 19,
+      "kind": "preserved_behavior_observed",
+      "probe_index": 1,
+      "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+      "test_name": "test_default_name_behavior"
+    },
+    {
+      "index": 21,
+      "kind": "production_changed"
+    },
+    {
+      "index": 23,
+      "kind": "current_behavior_test_result",
+      "probe_index": 0,
+      "result": "passed",
+      "runner_command": "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+      "source_file": "tests/test_app.py",
+      "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+      "test_name": "test_regular_greeting_behavior"
+    },
+    {
+      "index": 23,
+      "kind": "target_check_passed",
+      "output": "test_regular_greeting_behavior passed"
+    },
+    {
+      "index": 23,
+      "kind": "preserved_behavior_test_result",
+      "probe_index": 0,
+      "result": "passed",
+      "runner_command": "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+      "source_file": "tests/test_app.py",
+      "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+      "test_name": "test_regular_greeting_behavior"
+    },
+    {
+      "index": 23,
+      "kind": "preserved_behavior_observed",
+      "probe_index": 0,
+      "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+      "test_name": "test_regular_greeting_behavior"
+    },
+    {
+      "index": 23,
+      "kind": "current_behavior_test_result",
+      "probe_index": 2,
+      "result": "passed",
+      "runner_command": "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+      "source_file": "tests/test_app.py",
+      "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+      "test_name": "test_shout_greeting_behavior"
+    },
+    {
+      "index": 23,
+      "kind": "target_check_passed",
+      "output": "test_shout_greeting_behavior passed"
+    },
+    {
+      "index": 23,
+      "kind": "current_behavior_test_result",
+      "probe_index": 1,
+      "result": "passed",
+      "runner_command": "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+      "source_file": "tests/test_app.py",
+      "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+      "test_name": "test_default_name_behavior"
+    },
+    {
+      "index": 23,
+      "kind": "target_check_passed",
+      "output": "test_default_name_behavior passed"
+    },
+    {
+      "index": 23,
+      "kind": "preserved_behavior_test_result",
+      "probe_index": 1,
+      "result": "passed",
+      "runner_command": "python3 -m pytest -q && python3 app.py Alice --shout && python3 app.py Alice && python3 app.py",
+      "source_file": "tests/test_app.py",
+      "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+      "test_name": "test_default_name_behavior"
+    },
+    {
+      "index": 23,
+      "kind": "preserved_behavior_observed",
+      "probe_index": 1,
+      "source_sha256": "3eb7b288f671246f11a8835b246d7708ec7252a7c2fb653d593bbfa87d611ead",
+      "test_name": "test_default_name_behavior"
+    }
+  ]
+}
