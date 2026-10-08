@@ -1,30 +1,32 @@
-# Eval artifact retention policy
+# Eval artifact lifecycle
 
-This repository keeps the reusable parts of evaluation in source control and keeps generated run evidence out of the active source tree.
+Generated eval evidence is temporary working material, but it may be committed to a development branch when another agent or reviewer needs the actual run evidence.
 
-## Tracked
+## During development and evaluation
 
-Track material required to define or reproduce evaluator behavior:
-
-- behavioral specifications;
-- the shared harness and evaluator/consumer code;
-- manifests, prompts, deterministic replay code, expected results, and stable fixtures;
-- small curated regression fixtures extracted from real failures when a historical defect needs permanent executable coverage;
-- contract tests that protect the observable evaluator contract.
-
-A regression fixture should contain only the evidence needed to reproduce the protected behavior. Record provenance such as the original run identifier or commit when useful.
-
-## Not tracked
-
-Do not add generated evaluation output to the active source tree:
+It is acceptable to commit full run evidence to the working branch when it is needed to inspect or verify the work, including:
 
 - timestamped `runs/`;
-- raw sessions, streams, terminal output, batch reports, scores, and derived evidence produced by those runs;
+- raw sessions, streams, terminal output, reports, scores, and derived evidence;
 - ad-hoc `experiments/`;
-- `reassessments/` generated from saved evidence;
+- `reassessments/`;
 - generated audit evidence bundles.
 
-Full raw evidence may be retained outside the active source tree when an experiment needs archival reproducibility. It is not a dependency of normal contract tests.
+This is a transport and review mechanism between development/evaluation steps. These files are not automatically permanent repository content.
+
+## Before merge to main
+
+Clean generated eval evidence from the final PR diff before merging to `main`.
+
+Keep the durable parts:
+
+- behavioral specifications;
+- shared harness and evaluator/consumer code;
+- manifests, prompts, deterministic replay code, expected results, and stable fixtures;
+- contract tests that protect observable behavior;
+- small curated regression fixtures extracted from real failures when permanent executable coverage is useful.
+
+Remove temporary run evidence unless it has been deliberately promoted into a stable fixture or another durable input.
 
 ## Promotion rule
 
@@ -32,6 +34,8 @@ When a real run exposes a defect worth protecting:
 
 1. identify the observable defect;
 2. extract the smallest stable evidence needed to reproduce it;
-3. place that evidence under a deterministic `fixtures/regressions/` path;
+3. place that evidence under a deterministic fixture path;
 4. add an executable check against that fixture;
-5. leave the full generated run outside the active source tree.
+5. remove the full generated run from the final PR diff.
+
+The cleanup requirement applies to the result merged into `main`, not to intermediate development branches.
