@@ -1,0 +1,87 @@
+# flight-calendar-ics agent eval
+
+Recorded, offline agent-level evaluation of the candidate `flight-calendar-ics`
+skill. The configured manifest has **three scenarios**, two repeats, and **18
+configured agent runs**: three provider/model pairs for each scenario.
+
+Scenarios:
+
+- `url-success` — existing synthetic Aeroflot booking URL flow;
+- `ural-url-success` — synthetic Ural Airlines mail-wrapper source flow with
+  recorded deployment/bootstrap/clock/reservation replay;
+- `pdf-success` — synthetic `ticket.pdf` converted through the recorded AnyDoc
+  boundary, then mapped to private itinerary JSON and the production CLI.
+
+The provider/model order is contractual:
+
+1. GPT-6 Luna — `gpt-6-luna` / `openai-codex`;
+2. Neural Deep — Qwen 3.8 27B — `qwen3.8-27b` / `custom:neuraldeep`;
+3. Ollama Cloud — Nemotron 3 Super — `nemotron-3-super` / `ollama-cloud`.
+
+## Prepare the next selected batch
+
+The next run should select only Ural and PDF:
+
+```bash
+python3 evals/flight-calendar-ics/run_eval.py \
+  --scenario ural-url-success \
+  --scenario pdf-success
+```
+
+That selection produces **2 scenarios × 3 models × 2 repeats = 12 agent runs**.
+Without `--scenario`, the runner executes all three configured scenarios. The
+runner supports configured scenario names generically; it does not hardcode the
+selected pair.
+
+This preparation task does not run LLM evaluations. Provider credentials/OAuth
+must already be configured before a future selected batch is launched.
+
+Before a model batch starts, the runner builds a deterministic known-good
+reference result for every selected scenario and applies the same Outcome
+evaluator. A failed reference stops the batch as
+`EVALUATOR_PREFLIGHT_FAILURE` with zero agent executions. The runner prints
+high-level per-run progress without streaming raw model traces.
+
+To reevaluate an existing batch without launching Hermes or a model:
+
+```bash
+python3 evals/flight-calendar-ics/run_eval.py \
+  --reevaluate evals/flight-calendar-ics/runs/<batch>
+```
+
+The derived result is written under `reevaluations/`; the source batch and its
+raw evidence are read-only inputs.
+
+## Recorded boundaries
+
+The candidate is materialized from:
+
+```json
+{"source": "git", "ref": "update/flight-calendar-ics"}
+```
+
+The source checkout is never switched, merged, reset, or modified by the eval.
+Only the isolated materialized skill copy receives `replay/carrier_http.py`.
+Aeroflot keeps its existing fixture flow. Ural replay supplies only external
+HTTP responses: before replaying, it verifies production's actual endpoint,
+method, query, and required request headers. The production skill performs
+source routing/unwrapping, credential parsing, request construction,
+deployment-cache, clock, authentication-header, validation, conversion,
+timezone, and CLI logic. A sanitized request ledger is saved with each run.
+Each run gets a fresh `FLIGHT_CALENDAR_CACHE_DIR`.
+
+For PDF, `ticket.pdf` is copied into the isolated workspace. The eval-only `npx`
+shim accepts only the documented `npx -y @firecrawl/anydoc ticket.pdf -o ...`
+shape and writes checked-in `fixtures/pdf/anydoc.md`; it never uses the network and does
+not read or extract the PDF. This scenario tests the recorded converter boundary and
+subsequent mapping/CLI behavior, not real PDF extraction fidelity. The agent must still extract facts, create private itinerary JSON, call
+`--json build --input ...` exactly once, and return the exact `MEDIA:` result.
+
+## Evidence and report
+
+Each scenario has its own prompt, raw fixture, oracle, prompt SHA, and fixture
+SHA. The common harness report labels rows with `Scenario` and keeps Outcome,
+Trajectory, and Privacy separate. URL-integrity aggregation includes only URL
+scenarios; PDF rows show `URL = —`, `Source = PDF`, and AnyDoc count in their
+facts/notes. Private URLs, names, PNRs, tickets, raw PDF text, and intermediate
+JSON contents are not printed in `report.md`.
