@@ -1,25 +1,56 @@
 #!/usr/bin/env python3
-"""Minimal airport timezone catalog support for flight-calendar-ics.
-
-The bundled asset is a compact derived catalog with a single field needed for
-calendar correctness: IATA airport code -> IANA timezone. It is not a copy of
-any full airport reference dictionary; only ``code -> time_zone`` is retained.
-"""
+"""Runtime timezone catalog loading with synchronous 15-day refresh."""
 
 from __future__ import annotations
 
-import argparse
-import hashlib
+import fcntl
 import json
+import os
 import re
+from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Iterator, NoReturn
 
-SCHEMA_VERSION = "airport-timezones.v1"
-RAW_AIRPORT_FILENAMES = ("airports_en.json", "airports_ru.json", "airports.json")
+from flight_calendar.timezone_catalog_builder import (
+    CANONICAL_SOURCE_URL,
+    CatalogUpdateFailure,
+    SCHEMA_VERSION,
+    atomic_write_bytes,
+    build_catalog_document,
+    fetch_source as default_fetch_source,
+    serialize_catalog,
+    validate_catalog_document,
+)
+
 SKILL_DIR = Path(__file__).resolve().parents[2]
 CATALOG_PATH = SKILL_DIR / "data" / "airport-timezones.json"
-IATA_RE = re.compile(r"^[A-Z0-9]{3}$")
+DEFAULT_RUNTIME_CACHE_DIR = Path.home() / ".hermes" / "cache" / "flight-calendar-ics"
+RUNTIME_CACHE_FILENAME = "airport-timezones.json"
+REFRESH_STATE_FILENAME = "refresh-state.json"
+REFRESH_LOCK_FILENAME = "refresh.lock"
+REFRESH_INTERVAL = timedelta(days=15)
+IATA_RE = re.compile(r"^[A-Z]{3}$")
+FetchSource = Callable[[str], bytes]
+
+
+def parse_tz_overrides(items: list[str]) -> dict[str, str]:
+    """Parse repeated CODE=Area/City timezone overrides."""
+    out: dict[str, str] = {}
+    for item in items:
+        if "=" not in item:
+            _reject_timezone_override(item)
+        code, tzid = item.split("=", 1)
+        code = code.strip().upper()
+        tzid = tzid.strip()
+        if not code or not tzid:
+            _reject_timezone_override(item)
+        out[code] = tzid
+    return out
+
+
+def _reject_timezone_override(item: str) -> NoReturn:
+    raise ValueError(f"bad --tz value {item!r}; use CODE=Area/City")
 
 
 def _normalize_code(value: Any) -> str:
@@ -30,71 +61,12 @@ def _normalize_timezone(value: Any) -> str:
     return str(value or "").strip()
 
 
-def _looks_like_iata_timezone(code: str, timezone: str) -> bool:
+def _looks_like_iata_timezone(code: str, timezone_value: str) -> bool:
     return bool(
-        IATA_RE.fullmatch(code) and "/" in timezone and not timezone.startswith("/")
+        IATA_RE.fullmatch(code)
+        and "/" in timezone_value
+        and not timezone_value.startswith("/")
     )
-
-
-def extract_airport_timezones(
-    source_dir: Path,
-) -> tuple[dict[str, str], list[dict[str, Any]]]:
-    """Extract only IATA -> IANA timezone entries from raw airport JSON files.
-
-    Source precedence is airports_en.json, airports_ru.json, then airports.json.
-    Later files can replace earlier values if localized catalogs differ.
-    """
-    timezones: dict[str, str] = {}
-    source_files: list[dict[str, Any]] = []
-    for filename in RAW_AIRPORT_FILENAMES:
-        path = source_dir / filename
-        raw = path.read_bytes()
-        data = json.loads(raw.decode("utf-8"))
-        if not isinstance(data, list):
-            raise ValueError(f"{path} must contain a JSON array")
-        added_or_updated = 0
-        for item in data:
-            if not isinstance(item, dict):
-                continue
-            code = _normalize_code(item.get("code"))
-            timezone = _normalize_timezone(
-                item.get("time_zone") or item.get("timezone")
-            )
-            if _looks_like_iata_timezone(code, timezone):
-                if timezones.get(code) != timezone:
-                    added_or_updated += 1
-                timezones[code] = timezone
-        source_files.append(
-            {
-                "filename": filename,
-                "sha256": hashlib.sha256(raw).hexdigest(),
-                "records": len(data),
-                "timezone_updates": added_or_updated,
-            }
-        )
-    return dict(sorted(timezones.items())), source_files
-
-
-def build_catalog_document(source_dir: Path) -> dict[str, Any]:
-    timezones, source_files = extract_airport_timezones(source_dir)
-    return {
-        "schema_version": SCHEMA_VERSION,
-        "source": "Compact derived airport catalog; only code -> time_zone is retained.",
-        "source_files": source_files,
-        "timezones": timezones,
-    }
-
-
-def write_catalog_document(
-    source_dir: Path, output_path: Path = CATALOG_PATH
-) -> dict[str, Any]:
-    document = build_catalog_document(source_dir)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    return document
 
 
 def load_catalog_document(catalog_path: Path | None = None) -> dict[str, Any]:
@@ -102,98 +74,170 @@ def load_catalog_document(catalog_path: Path | None = None) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError(f"{path} must contain a JSON object")
-    if data.get("schema_version") != SCHEMA_VERSION:
-        raise ValueError(
-            f"{path} has unsupported schema_version {data.get('schema_version')!r}"
-        )
-    timezones = data.get("timezones")
-    if not isinstance(timezones, dict):
-        raise ValueError(f"{path} has no timezones object")
+    try:
+        validate_catalog_document(data)
+    except CatalogUpdateFailure as exc:
+        raise ValueError(f"{path}: {exc}") from exc
     return data
 
 
-def load_airport_timezones(catalog_path: Path | None = None) -> dict[str, str]:
-    document = load_catalog_document(catalog_path)
+def _load_catalog_map(path: Path) -> dict[str, str]:
+    document = load_catalog_document(path)
     timezones: dict[str, str] = {}
-    for code, timezone in document["timezones"].items():
+    for code, timezone_value in document["timezones"].items():
         norm_code = _normalize_code(code)
-        norm_tz = _normalize_timezone(timezone)
+        norm_tz = _normalize_timezone(timezone_value)
         if _looks_like_iata_timezone(norm_code, norm_tz):
             timezones[norm_code] = norm_tz
     return timezones
 
 
+def _runtime_cache_dir() -> Path:
+    override = os.environ.get("FLIGHT_CALENDAR_CACHE_DIR")
+    if override and override.strip():
+        return Path(override).expanduser()
+    return DEFAULT_RUNTIME_CACHE_DIR
+
+
+def _parse_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _read_last_success(path: Path) -> datetime | None:
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(state, dict):
+        return None
+    return _parse_timestamp(state.get("last_success"))
+
+
+def _catalog_is_fresh(path: Path, now: datetime) -> bool:
+    last_success = _read_last_success(path)
+    if last_success is None:
+        return False
+    return now.astimezone(timezone.utc) - last_success < REFRESH_INTERVAL
+
+
+def _write_success_state(path: Path, now: datetime) -> None:
+    atomic_write_bytes(
+        path,
+        (
+            json.dumps(
+                {"last_success": now.astimezone(timezone.utc).isoformat()},
+                sort_keys=True,
+            )
+            + "\n"
+        ).encode("utf-8"),
+    )
+
+
+@contextmanager
+def _refresh_critical_section(cache_dir: Path) -> Iterator[None]:
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = cache_dir / REFRESH_LOCK_FILENAME
+    with lock_path.open("a+", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _try_load_fallback(cache_path: Path, bundled_path: Path) -> dict[str, str]:
+    for path in (cache_path, bundled_path):
+        try:
+            return _load_catalog_map(path)
+        except (OSError, ValueError, TypeError, KeyError):
+            continue
+    raise ValueError("no valid runtime or bundled timezone catalog is available")
+
+
+def _load_runtime_catalog(
+    *,
+    runtime_cache_dir: Path,
+    bundled_catalog_path: Path,
+    fetch_source: FetchSource,
+    now: datetime,
+) -> dict[str, str]:
+    cache_path = runtime_cache_dir / RUNTIME_CACHE_FILENAME
+    state_path = runtime_cache_dir / REFRESH_STATE_FILENAME
+    try:
+        cached = _load_catalog_map(cache_path)
+    except (OSError, ValueError, TypeError, KeyError):
+        cached = None
+    try:
+        bundled = _load_catalog_map(bundled_catalog_path)
+    except (OSError, ValueError, TypeError, KeyError):
+        bundled = None
+
+    if cached is not None and _catalog_is_fresh(state_path, now):
+        return cached
+
+    try:
+        with _refresh_critical_section(runtime_cache_dir):
+            try:
+                cached = _load_catalog_map(cache_path)
+            except (OSError, ValueError, TypeError, KeyError):
+                cached = None
+            try:
+                bundled = _load_catalog_map(bundled_catalog_path)
+            except (OSError, ValueError, TypeError, KeyError):
+                bundled = None
+            if cached is not None and _catalog_is_fresh(state_path, now):
+                return cached
+
+            raw = fetch_source(CANONICAL_SOURCE_URL)
+            document = build_catalog_document(raw, url=CANONICAL_SOURCE_URL)
+            candidate_bytes = serialize_catalog(document)
+            atomic_write_bytes(cache_path, candidate_bytes)
+            _write_success_state(state_path, now)
+            return {
+                code: timezone_value
+                for code, timezone_value in document["timezones"].items()
+                if _looks_like_iata_timezone(code, timezone_value)
+            }
+    except Exception:
+        return _try_load_fallback(cache_path, bundled_catalog_path)
+
+
+def load_airport_timezones(
+    catalog_path: Path | None = None,
+    *,
+    runtime_cache_dir: Path | None = None,
+    bundled_catalog_path: Path | None = None,
+    fetch_source: FetchSource = default_fetch_source,
+    now: datetime | None = None,
+) -> dict[str, str]:
+    """Load an explicit catalog or refresh/select the runtime catalog."""
+    if catalog_path is not None:
+        return _load_catalog_map(catalog_path)
+    current_time = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    return _load_runtime_catalog(
+        runtime_cache_dir=runtime_cache_dir or _runtime_cache_dir(),
+        bundled_catalog_path=bundled_catalog_path or CATALOG_PATH,
+        fetch_source=fetch_source,
+        now=current_time,
+    )
+
+
 def build_timezone_map(
     overrides: dict[str, str] | None = None, *, catalog_path: Path | None = None
 ) -> dict[str, str]:
-    """Build timezone map: bundled catalog < explicit overrides.
-
-    There is intentionally no local/manual fallback map here. If an airport is
-    missing from the bundled asset, regenerate the asset from the raw airport
-    cache or pass a deliberate explicit override supplied by the user/operator.
-    """
+    """Build timezone map: runtime/bundled catalog < explicit overrides."""
     timezone_map = load_airport_timezones(catalog_path)
-    for code, timezone in (overrides or {}).items():
+    for code, timezone_value in (overrides or {}).items():
         norm_code = _normalize_code(code)
-        norm_tz = _normalize_timezone(timezone)
+        norm_tz = _normalize_timezone(timezone_value)
         if norm_code and norm_tz:
             timezone_map[norm_code] = norm_tz
     return timezone_map
-
-
-def catalog_metadata(catalog_path: Path | None = None) -> dict[str, Any]:
-    document = load_catalog_document(catalog_path)
-    return {
-        "schema_version": document.get("schema_version"),
-        "path": str(catalog_path or CATALOG_PATH),
-        "timezones_count": len(document.get("timezones") or {}),
-        "source_files": document.get("source_files") or [],
-    }
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Build or inspect the flight-calendar-ics airport timezone asset."
-    )
-    sub = parser.add_subparsers(dest="command", required=True)
-
-    build = sub.add_parser(
-        "build", help="Extract code -> time_zone from raw airport JSON cache files"
-    )
-    build.add_argument(
-        "--source-dir",
-        required=True,
-        type=Path,
-        help="Directory containing airports_en.json, airports_ru.json, airports.json",
-    )
-    build.add_argument(
-        "--output",
-        type=Path,
-        default=CATALOG_PATH,
-        help="Output airport-timezones.json path",
-    )
-
-    inspect = sub.add_parser(
-        "inspect", help="Print metadata for the bundled timezone asset"
-    )
-    inspect.add_argument(
-        "--catalog", type=Path, default=CATALOG_PATH, help="Catalog asset path"
-    )
-
-    args = parser.parse_args(argv)
-    if args.command == "build":
-        document = write_catalog_document(args.source_dir, args.output)
-        result = {
-            "ok": True,
-            "output": str(args.output),
-            "timezones_count": len(document["timezones"]),
-            "source_files": document["source_files"],
-        }
-    else:
-        result = {"ok": True, **catalog_metadata(args.catalog)}
-    print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

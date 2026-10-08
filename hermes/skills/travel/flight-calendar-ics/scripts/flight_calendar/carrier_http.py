@@ -6,9 +6,11 @@ caller-provided label, status/content type, and exception class.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from dataclasses import dataclass
 import json
 import time
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 from urllib.parse import urlencode, urljoin
 
 from curl_cffi import requests as _requests
@@ -19,7 +21,6 @@ BACKOFF_SECONDS = (0.5, 2.0)
 IMPERSONATE_TARGET = "chrome"
 _NETWORK_ERRORS: tuple[type[BaseException], ...] = (
     getattr(_requests, "RequestsError", OSError),
-    TimeoutError,
     OSError,
 )
 
@@ -27,9 +28,20 @@ _NETWORK_ERRORS: tuple[type[BaseException], ...] = (
 class TransportError(ValueError):
     """Carrier HTTP failure with a redaction-safe message."""
 
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
-def active_transport() -> str:
-    return "curl_cffi"
+
+@dataclass(frozen=True)
+class TransportResponse:
+    """Redaction-safe response data exposed to carrier adapters."""
+
+    status_code: int
+    content_type: str
+    text: str
+    url: str
+    headers: dict[str, str]
 
 
 def browser_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
@@ -41,6 +53,82 @@ def browser_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
     if extra:
         headers.update(extra)
     return headers
+
+
+@contextmanager
+def open_session() -> Iterator[Any]:
+    """Open a browser-impersonating session without exposing the HTTP engine."""
+    session = _requests.Session(impersonate=IMPERSONATE_TARGET)
+    try:
+        yield session
+    finally:
+        close = getattr(session, "close", None)
+        if callable(close):
+            close()
+
+
+def _response_from_engine(response: Any, fallback_url: str) -> TransportResponse:
+    response_headers = dict(getattr(response, "headers", {}) or {})
+    return TransportResponse(
+        status_code=int(getattr(response, "status_code", 0) or 0),
+        content_type=response_headers.get("Content-Type", ""),
+        text=str(getattr(response, "text", "") or ""),
+        url=str(getattr(response, "url", fallback_url) or fallback_url),
+        headers=response_headers,
+    )
+
+
+def request_session_raw(
+    session: Any,
+    url: str,
+    *,
+    method: str = "GET",
+    headers: dict[str, str] | None = None,
+    body: Any = None,
+    timeout: int = 45,
+    allow_redirects: bool = True,
+    max_redirects: int | None = None,
+    label: str = "HTTP request",
+    sleep: Callable[[float], None] = time.sleep,
+) -> TransportResponse:
+    """Use a shared session with the same retries and safe errors as request_raw."""
+    request_headers = browser_headers(headers)
+    last_result: TransportResponse | None = None
+    last_failure = f"{label} failed"
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            request_kwargs: dict[str, Any] = {
+                "headers": request_headers,
+                "data": body,
+                "timeout": timeout,
+                "allow_redirects": allow_redirects,
+            }
+            if max_redirects is not None:
+                request_kwargs["max_redirects"] = max_redirects
+            response = session.request(method, url, **request_kwargs)
+            last_result = _response_from_engine(response, url)
+        except _NETWORK_ERRORS as exc:
+            last_result = None
+            last_failure = f"{label} failed: network error ({type(exc).__name__})"
+        else:
+            if last_result.status_code < 500:
+                return last_result
+            last_failure = f"{label} returned HTTP {last_result.status_code} ({last_result.content_type})"
+        if attempt < MAX_ATTEMPTS:
+            sleep(BACKOFF_SECONDS[min(attempt - 1, len(BACKOFF_SECONDS) - 1)])
+    if last_result is not None:
+        return last_result
+    raise TransportError(f"{last_failure}; giving up after {MAX_ATTEMPTS} attempts")
+
+
+def response_text(response: TransportResponse, *, label: str) -> str:
+    """Return successful response text or a redaction-safe HTTP failure."""
+    if response.status_code >= 400:
+        raise TransportError(
+            f"{label} returned HTTP {response.status_code} ({response.content_type})",
+            status_code=response.status_code,
+        )
+    return response.text
 
 
 def _fetch_once(
@@ -62,18 +150,15 @@ def resolve_redirect_url(
     *,
     timeout: int = 30,
     label: str = "redirect resolution",
-    max_redirects: int = 0,
 ) -> str:
     """Read a single redirect Location with curl_cffi and return its URL.
 
     The input URL may contain credentials; failures intentionally mention only
     the caller-provided label and exception/status class, never the URL.
 
-    ``max_redirects`` remains in the signature for compatibility only. This
-    resolver must not follow redirects automatically; it always requests the
-    wrapper URL with ``allow_redirects=False`` and ``max_redirects=0``.
+    This resolver must not follow redirects automatically; it always requests
+    the wrapper URL with ``allow_redirects=False`` and ``max_redirects=0``.
     """
-    _ = max_redirects
     request_headers = browser_headers(
         {"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
     )
@@ -94,7 +179,10 @@ def resolve_redirect_url(
 
     status_code = int(getattr(response, "status_code", 0) or 0)
     if status_code not in {301, 302, 303, 307, 308}:
-        raise TransportError(f"{label} failed: non-redirect HTTP {status_code}")
+        raise TransportError(
+            f"{label} failed: non-redirect HTTP {status_code}",
+            status_code=status_code,
+        )
 
     headers = getattr(response, "headers", {}) or {}
     location = headers.get("Location") or headers.get("location")
@@ -157,7 +245,10 @@ def request_text(
         sleep=sleep,
     )
     if status >= 400:
-        raise TransportError(f"{label} returned HTTP {status} ({content_type})")
+        raise TransportError(
+            f"{label} returned HTTP {status} ({content_type})",
+            status_code=status,
+        )
     return text
 
 

@@ -48,11 +48,21 @@ _LETTER_MAP = {
     "Z": "з",
 }
 
+_KNOWN_RUSSIAN_FORMS = {
+    "SERGEI": "Сергей",
+    "ALEXANDER": "Александр",
+    "OLGA": "Ольга",
+    "EVGENEVICH": "Евгеньевич",
+}
+
 
 def _transliterate_word(word: str) -> str:
     if not re.search(r"[A-Za-z]", word):
         return word[:1].upper() + word[1:].lower() if word else word
     source = word.upper()
+    known = _KNOWN_RUSSIAN_FORMS.get(source)
+    if known:
+        return known
     out: list[str] = []
     index = 0
     while index < len(source):

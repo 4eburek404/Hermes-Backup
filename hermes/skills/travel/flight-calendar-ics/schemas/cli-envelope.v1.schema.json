@@ -9,8 +9,7 @@
       "required": [
         "ok",
         "media",
-        "segments_count",
-        "no_further_action_needed"
+        "segments_count"
       ],
       "properties": {
         "ok": {
@@ -23,9 +22,6 @@
         "segments_count": {
           "type": "integer",
           "minimum": 1
-        },
-        "no_further_action_needed": {
-          "const": true
         }
       }
     },
