@@ -8,7 +8,8 @@
   "skill_versions": {
     "candidate": {
       "source": "git",
-      "ref": "update/flight-calendar-ics"
+      "ref": "2b47b78893b1f5c1d861a551493da8fe66c8ee9f",
+      "reference_commit": "2b47b78893b1f5c1d861a551493da8fe66c8ee9f"
     }
   },
   "models": [
