@@ -11,10 +11,10 @@ from __future__ import annotations
 
 import re
 from typing import Any
-from urllib.parse import quote, unquote, urlparse
+from urllib.parse import unquote, urlparse
 
 from flight_calendar import carrier_http
-from flight_calendar.common import die
+from flight_calendar.errors import CliFailure
 
 
 REDWINGS_BOOKING_BASE = "https://flyredwings.com/booking/"
@@ -92,45 +92,42 @@ def first_value(obj: dict[str, Any], keys: list[str]) -> Any:
     return None
 
 
-def parse_redwings_source(
-    url: str | None, pnr: str | None, finder_code: str | None
-) -> tuple[str, str, str]:
-    """Parse Red Wings ``#/find/<PNR>/<ACCESS_KEY>/Submit`` or explicit values.
-
-    The access key is a private Websky/email-link credential. Do not infer it
-    from passenger surname, PNR, ticket, or ``#/booking/<ORDER_ID>/order`` links.
-    """
-    booking_url = url.strip() if url else None
-    if booking_url:
-        parsed = urlparse(booking_url)
-        route = parsed.fragment or parsed.path
-        route = unquote(route).strip()
-        parts = [part for part in route.strip("/").split("/") if part]
-        lower_parts = [part.lower() for part in parts]
-        if lower_parts[:1] == ["find"] and len(parts) >= 3:
-            pnr = pnr or parts[1]
-            finder_code = finder_code or parts[2]
-        elif lower_parts[:1] == ["booking"]:
-            die(
-                "Red Wings order page URL is not enough; provide a direct email/manage link shaped #/find/<PNR>/<ACCESS_KEY>/Submit"
-            )
-
-    if not pnr or not finder_code:
-        die(
-            "provide --url shaped #/find/<PNR>/<ACCESS_KEY>/Submit or both --pnr and --access-key"
+def parse_redwings_source(url: str) -> tuple[str, str, str]:
+    """Parse and validate Red Wings' direct find fragment."""
+    booking_url = url.strip()
+    parsed = urlparse(booking_url)
+    route = unquote(parsed.fragment or parsed.path).strip()
+    parts = [part for part in route.strip("/").split("/") if part]
+    lower_parts = [part.lower() for part in parts]
+    if lower_parts[:1] == ["find"] and len(parts) >= 4 and lower_parts[3] == "submit":
+        pnr = parts[1]
+        finder_code = parts[2]
+    elif lower_parts[:1] == ["booking"]:
+        raise CliFailure(
+            "Red Wings order page URL is not enough; provide the direct find link",
+            code="route_input_insufficient",
+        )
+    else:
+        raise CliFailure(
+            "Red Wings booking URL is missing required credentials",
+            code="route_input_insufficient",
         )
 
     locator = str(pnr).strip().upper()
     code = str(finder_code).strip()
     if not re.fullmatch(r"[A-Z0-9]{5,8}", locator):
-        die("Red Wings PNR format looks invalid")
+        raise ValueError("Red Wings PNR format looks invalid")
     if not re.fullmatch(r"[^\s/]{2,256}", code):
-        die("Red Wings access key format looks invalid")
-    if not booking_url:
-        booking_url = (
-            REDWINGS_BOOKING_BASE + f"#/find/{locator}/{quote(code, safe='')}/Submit"
-        )
+        raise ValueError("Red Wings access key format looks invalid")
     return locator, code, booking_url
+
+
+def build_itinerary(booking_url: str) -> dict[str, Any]:
+    locator, access_code, normalized_url = parse_redwings_source(booking_url)
+    return convert_to_itinerary(
+        fetch_redwings_order(locator, access_code),
+        booking_url=normalized_url,
+    )
 
 
 def browser_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
@@ -171,7 +168,7 @@ def fetch_redwings_order(
     }
     data = post_json(endpoint, body, timeout=timeout)
     if not isinstance(data, dict):
-        die("Red Wings GraphQL response is not a JSON object")
+        raise ValueError("Red Wings GraphQL response is not a JSON object")
     errors = data.get("errors")
     if errors:
         messages = []
@@ -179,12 +176,12 @@ def fetch_redwings_order(
             for item in errors[:3]:
                 if isinstance(item, dict) and item.get("message"):
                     messages.append(str(item["message"]))
-        die(
+        raise ValueError(
             "Red Wings GraphQL returned errors"
             + (": " + "; ".join(messages) if messages else "")
         )
     if not find_order(data):
-        die("no Red Wings order found")
+        raise ValueError("no Red Wings order found")
     return data
 
 
@@ -220,7 +217,7 @@ def flight_number(segment: dict[str, Any]) -> str:
         .upper()
     )
     if not raw:
-        die("Red Wings segment has no flight number")
+        raise ValueError("Red Wings segment has no flight number")
     carrier = (
         str(
             first_value(airline(segment, "marketingAirline"), ["iata", "code"])
@@ -348,28 +345,12 @@ def ticket_numbers(order: dict[str, Any]) -> list[str]:
     return sorted(dict.fromkeys(numbers))
 
 
-def status_text(segment: dict[str, Any], order: dict[str, Any]) -> str:
-    parts: list[str] = []
-    for value in [
-        segment.get("status"),
-        order.get("status"),
-        order.get("paymentStatus"),
-    ]:
-        if clean(value):
-            text = str(value).strip()
-            if text not in parts:
-                parts.append(text)
-    if not parts:
-        return "confirmed"
-    return " / ".join(parts)
-
-
 def convert_to_itinerary(
-    data: dict[str, Any], tz_map: dict[str, str], booking_url: str | None = None
+    data: dict[str, Any], booking_url: str | None = None
 ) -> dict[str, Any]:
     order = find_order(data)
     if not order:
-        die("no Red Wings order found")
+        raise ValueError("no Red Wings order found")
     assert order is not None
 
     pnr = (
@@ -378,27 +359,20 @@ def convert_to_itinerary(
     )
     passengers = passenger_names(order)
     flights: list[dict[str, Any]] = []
-    missing_tz: set[str] = set()
 
     for seg, _group in collect_segments(order):
         dep = as_dict(seg.get("departure"))
         arr = as_dict(seg.get("arrival"))
         dep_code = point_airport(dep)
         arr_code = point_airport(arr)
-        for code in (dep_code, arr_code):
-            if code and code not in tz_map:
-                missing_tz.add(code)
-        if missing_tz:
-            continue
         dep_local = point_local(dep)
         arr_local = point_local(arr)
         if not dep_code or not arr_code or not dep_local or not arr_local:
-            die("Red Wings segment is missing route or local time fields")
+            raise ValueError("Red Wings segment is missing route or local time fields")
 
         departure: dict[str, Any] = {
             "airport": dep_code,
             "local": dep_local,
-            "tz": tz_map[dep_code],
         }
         dep_city = point_city(dep)
         if dep_city:
@@ -406,7 +380,6 @@ def convert_to_itinerary(
         arrival: dict[str, Any] = {
             "airport": arr_code,
             "local": arr_local,
-            "tz": tz_map[arr_code],
         }
         arr_city = point_city(arr)
         if arr_city:
@@ -415,7 +388,6 @@ def convert_to_itinerary(
             "flight_number": flight_number(seg),
             "departure": departure,
             "arrival": arrival,
-            "status": status_text(seg, order),
         }
         aircraft = as_dict(seg.get("aircraft"))
         aircraft_name = first_value(aircraft, ["name", "title"])
@@ -423,21 +395,17 @@ def convert_to_itinerary(
             flight["aircraft"] = str(aircraft_name).strip()
         flights.append(flight)
 
-    if missing_tz:
-        codes = ", ".join(sorted(missing_tz))
-        die(f"missing timezone for airport(s): {codes}; rerun with --tz CODE=Area/City")
     if not flights:
-        die("no flight segments found in Red Wings response")
+        raise ValueError("no flight segments found in Red Wings response")
 
     itinerary: dict[str, Any] = {
-        "schema_version": "flight-calendar-ics-itinerary.v1",
         "flights": flights,
     }
     tickets = ticket_numbers(order)
     if pnr:
         itinerary["pnr"] = pnr
     if passengers:
-        itinerary["passengers"] = passengers
+        itinerary["passenger"] = passengers[0]
     if tickets:
         itinerary["ticket_number"] = ", ".join(tickets)
     if booking_url:

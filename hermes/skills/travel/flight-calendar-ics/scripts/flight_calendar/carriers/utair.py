@@ -14,11 +14,12 @@ from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from flight_calendar import carrier_http
-from flight_calendar.common import die
+from flight_calendar.errors import CliFailure
 
 
 UTAIR_WEB_BASE = "https://www.utair.ru/"
 UTAIR_API_BASE = "https://b.utair.ru/"
+UTAIR_MAIL_HOST = "click.mail.utair.io"
 
 
 def clean(value: Any) -> Any:
@@ -36,45 +37,93 @@ def browser_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
     )
 
 
-def parse_utair_source(
-    url: str | None, rloc: str | None, last_name: str | None
-) -> tuple[str, str, str]:
-    """Parse a Utair order-manage URL or explicit locator/surname values.
+def _is_utair_booking_url(url: str) -> bool:
+    parsed = urlparse(url)
+    return (
+        parsed.scheme.lower() == "https"
+        and parsed.netloc.lower() == "www.utair.ru"
+        and parsed.path == "/order-manage"
+    )
 
-    The returned booking URL may contain private parameters; callers must keep it
-    inside private artifacts and never echo it to chat/log summaries.
-    """
-    booking_url = url.strip() if url else None
-    if booking_url:
-        parsed = urlparse(booking_url)
-        qs = parse_qs(parsed.query, keep_blank_values=False)
-        rloc = rloc or (qs.get("rloc") or qs.get("RLOC") or qs.get("pnr") or [None])[0]
-        last_name = (
-            last_name
-            or (
-                qs.get("last_name")
-                or qs.get("lastName")
-                or qs.get("lastname")
-                or qs.get("surname")
-                or [None]
-            )[0]
+
+def resolve_utair_source(raw_url: str) -> str:
+    """Resolve Utair's opaque mail source; leave direct booking URLs unchanged."""
+    source = raw_url.strip()
+    parsed = urlparse(source)
+    if (parsed.hostname or "").lower() != UTAIR_MAIL_HOST:
+        return source
+    if (
+        parsed.scheme.lower() != "https"
+        or parsed.netloc.lower() != UTAIR_MAIL_HOST
+    ):
+        raise CliFailure(
+            "Utair mail source must use HTTPS",
+            code="redirect_resolution_failed",
         )
+    try:
+        target = carrier_http.resolve_redirect_url(
+            source,
+            label="Utair booking redirect",
+        )
+    except carrier_http.TransportError as exc:
+        raise CliFailure(
+            "Utair booking redirect could not be resolved",
+            code="redirect_resolution_failed",
+        ) from exc
+    if not _is_utair_booking_url(target):
+        raise CliFailure(
+            "Utair booking redirect resolved to an unsupported destination",
+            code="redirect_resolution_failed",
+        )
+    return target
+
+
+def parse_utair_source(url: str) -> tuple[str, str, str]:
+    """Parse and validate the Utair order-manage URL contract."""
+    booking_url = url.strip()
+    if not _is_utair_booking_url(booking_url):
+        raise CliFailure(
+            "Utair booking URL is unsupported",
+            code="route_input_insufficient",
+        )
+    parsed = urlparse(booking_url)
+    qs = parse_qs(parsed.query, keep_blank_values=False)
+    rloc = (qs.get("rloc") or qs.get("RLOC") or qs.get("pnr") or [None])[0]
+    last_name = (
+        qs.get("last_name")
+        or qs.get("lastName")
+        or qs.get("lastname")
+        or qs.get("surname")
+        or [None]
+    )[0]
     if not rloc or not last_name:
-        die("provide --url containing rloc/last_name or both --rloc and --last-name")
+        raise CliFailure(
+            "Utair booking URL is missing required credentials",
+            code="route_input_insufficient",
+        )
 
     locator = rloc.strip().upper()
     surname = last_name.strip().upper()
     if not re.fullmatch(r"[A-Z0-9]{5,8}", locator):
-        die("Utair booking locator format looks invalid")
+        raise ValueError("Utair booking locator format looks invalid")
     if not re.fullmatch(r"[A-ZА-ЯЁ' -]{2,80}", surname, flags=re.IGNORECASE):
-        die("Utair last name format looks invalid")
-    if not booking_url:
-        booking_url = (
-            UTAIR_WEB_BASE.rstrip("/")
-            + "/order-manage?"
-            + urlencode({"rloc": locator, "last_name": surname})
-        )
-    return locator, surname, booking_url
+        raise ValueError("Utair last name format looks invalid")
+    canonical_url = (
+        UTAIR_WEB_BASE.rstrip("/")
+        + "/order-manage?"
+        + urlencode({"rloc": locator, "last_name": surname})
+    )
+    return locator, surname, canonical_url
+
+
+def build_itinerary(booking_url: str) -> dict[str, Any]:
+    direct_url = resolve_utair_source(booking_url)
+    locator, last_name, canonical_url = parse_utair_source(direct_url)
+    token = fetch_utair_token()
+    return convert_to_itinerary(
+        fetch_utair_orders(locator, last_name, token=token),
+        booking_url=canonical_url,
+    )
 
 
 def fetch_utair_token(timeout: int = 45) -> str:
@@ -86,10 +135,10 @@ def fetch_utair_token(timeout: int = 45) -> str:
         label="Utair OAuth",
     )
     if not isinstance(data, dict):
-        die("Utair OAuth response is not a JSON object")
+        raise ValueError("Utair OAuth response is not a JSON object")
     token = data.get("access_token")
     if not isinstance(token, str) or not token.strip():
-        die("Utair OAuth response has no access_token")
+        raise ValueError("Utair OAuth response has no access_token")
     return token.strip()
 
 
@@ -107,9 +156,9 @@ def fetch_utair_orders(
         label="Utair orders API",
     )
     if not isinstance(data, dict):
-        die("Utair orders API response is not a JSON object")
+        raise ValueError("Utair orders API response is not a JSON object")
     if not collect_orders(data):
-        die("no Utair orders found")
+        raise ValueError("no Utair orders found")
     return data
 
 
@@ -197,7 +246,7 @@ def flight_number(seg: dict[str, Any]) -> str:
         .replace(" ", "")
     )
     if not number:
-        die("Utair segment has no flight number")
+        raise ValueError("Utair segment has no flight number")
     if number.startswith(carrier):
         return number
     return f"{carrier}{number}"
@@ -236,33 +285,20 @@ def ticket_numbers(order: dict[str, Any]) -> list[str]:
     return sorted(dict.fromkeys(numbers))
 
 
-def status_text(seg: dict[str, Any], order: dict[str, Any]) -> str:
-    raw = first_value(
-        seg, ["status", "status_code", "statusCode", "status_visual", "statusVisual"]
-    ) or order.get("status")
-    if not clean(raw):
-        return "confirmed"
-    text = str(raw).strip()
-    if text.upper() in {"HK", "T", "CONFIRMED", "ACTIVE"}:
-        return f"confirmed ({text})"
-    return text
-
-
 def convert_to_itinerary(
-    data: dict[str, Any], tz_map: dict[str, str], booking_url: str | None = None
+    data: dict[str, Any], booking_url: str | None = None
 ) -> dict[str, Any]:
     if not isinstance(data, dict):
-        die("Utair orders API response is not a JSON object")
+        raise ValueError("Utair orders API response is not a JSON object")
 
     flights: list[dict[str, Any]] = []
     passengers: list[str] = []
     all_tickets: list[str] = []
     pnr: str | None = None
-    missing_tz: set[str] = set()
 
     orders = collect_orders(data)
     if not orders:
-        die("no Utair orders found")
+        raise ValueError("no Utair orders found")
 
     for order in orders:
         if pnr is None:
@@ -286,20 +322,14 @@ def convert_to_itinerary(
                 continue
             dep_code = airport_code(seg, "departure")
             arr_code = airport_code(seg, "arrival")
-            for code in [dep_code, arr_code]:
-                if code and code not in tz_map:
-                    missing_tz.add(code)
-            if missing_tz:
-                continue
             dep_local = segment_local(seg, "departure")
             arr_local = segment_local(seg, "arrival")
             if not dep_code or not arr_code or not dep_local or not arr_local:
-                die("Utair segment is missing route or local time fields")
+                raise ValueError("Utair segment is missing route or local time fields")
 
             departure: dict[str, Any] = {
                 "airport": dep_code,
                 "local": dep_local,
-                "tz": tz_map[dep_code],
             }
             dep_city = city_name(seg, "departure")
             if dep_city:
@@ -307,7 +337,6 @@ def convert_to_itinerary(
             arrival: dict[str, Any] = {
                 "airport": arr_code,
                 "local": arr_local,
-                "tz": tz_map[arr_code],
             }
             arr_city = city_name(seg, "arrival")
             if arr_city:
@@ -316,27 +345,31 @@ def convert_to_itinerary(
                 "flight_number": flight_number(seg),
                 "departure": departure,
                 "arrival": arrival,
-                "status": status_text(seg, order),
             }
-            aircraft = first_value(seg, ["aircraft", "aircraft_name", "aircraftName"])
+            aircraft = first_value(
+                seg,
+                [
+                    "aircraft",
+                    "aircraft_name",
+                    "aircraftName",
+                    "plane_type_name",
+                    "plane_type",
+                ],
+            )
             if clean(aircraft):
                 flight["aircraft"] = str(aircraft).strip()
             flights.append(flight)
 
-    if missing_tz:
-        codes = ", ".join(sorted(missing_tz))
-        die(f"missing timezone for airport(s): {codes}; rerun with --tz CODE=Area/City")
     if not flights:
-        die("no flight segments found in Utair response")
+        raise ValueError("no flight segments found in Utair response")
 
     itinerary: dict[str, Any] = {
-        "schema_version": "flight-calendar-ics-itinerary.v1",
         "flights": flights,
     }
     if pnr:
         itinerary["pnr"] = pnr
     if passengers:
-        itinerary["passengers"] = passengers
+        itinerary["passenger"] = passengers[0]
     if all_tickets:
         itinerary["ticket_number"] = ", ".join(all_tickets)
     if booking_url:

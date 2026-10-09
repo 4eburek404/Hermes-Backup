@@ -7,6 +7,7 @@ import argparse
 import contextlib
 import io
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -14,24 +15,21 @@ from typing import Any
 
 from flight_calendar import ics_render, itinerary_contract, timezone_catalog
 from flight_calendar.carriers import aeroflot, redwings, s7, ural, utair
-from flight_calendar.common import parse_tz_overrides, secure_write_text
 from flight_calendar.errors import CliFailure
-from flight_calendar.redirect_resolution import resolve_known_booking_redirect
 from flight_calendar.route_detection import first_url_from_args, infer_build_route
 
 
-PUBLIC_USAGE = "use --json build with exactly one source: --url-file or --input"
+PUBLIC_USAGE = "use --json build with exactly one source: --url, --url-file, or --input"
 BLOCKED_OPTIONS = {
-    "--url": "--url is not supported; use --url-file",
     "--output-dir": "--output-dir was removed; use --output for the .ics path",
     "--full-envelope": "--full-envelope was removed",
-    "--pnr": "explicit carrier credential flags were removed; use --url-file",
-    "--rloc": "explicit carrier credential flags were removed; use --url-file",
-    "--pnr-locator": "explicit carrier credential flags were removed; use --url-file",
-    "--pnr-key": "explicit carrier credential flags were removed; use --url-file",
-    "--last-name": "explicit carrier credential flags were removed; use --url-file",
-    "--first-name": "explicit carrier credential flags were removed; use --url-file",
-    "--access-key": "explicit carrier credential flags were removed; use --url-file",
+    "--pnr": "explicit carrier credential flags were removed; use --url or --url-file",
+    "--rloc": "explicit carrier credential flags were removed; use --url or --url-file",
+    "--pnr-locator": "explicit carrier credential flags were removed; use --url or --url-file",
+    "--pnr-key": "explicit carrier credential flags were removed; use --url or --url-file",
+    "--last-name": "explicit carrier credential flags were removed; use --url or --url-file",
+    "--first-name": "explicit carrier credential flags were removed; use --url or --url-file",
+    "--access-key": "explicit carrier credential flags were removed; use --url or --url-file",
     "--frontend-base": "diagnostic carrier overrides were removed",
     "--graphql-endpoint": "diagnostic carrier overrides were removed",
 }
@@ -49,94 +47,76 @@ def _reject_removed_options(argv: list[str]) -> None:
                 raise CliFailure(message, code="usage_error")
 
 
-def _fail_usage(message: str) -> None:
-    raise CliFailure(message, code="usage_error")
-
-
 def parse_cli_tz_overrides(items: list[str]) -> dict[str, str]:
-    return parse_tz_overrides(items, fail=_fail_usage)
+    try:
+        return timezone_catalog.parse_tz_overrides(items)
+    except ValueError as exc:
+        raise CliFailure(str(exc), code="usage_error") from exc
 
 
 def build_timezone_map(overrides: dict[str, str] | None = None) -> dict[str, str]:
     return timezone_catalog.build_timezone_map(overrides)
 
 
-def validate_itinerary_contract(itinerary: dict[str, Any]) -> dict[str, Any]:
-    normalized = itinerary_contract.normalize_legacy_itinerary(itinerary)
-    itinerary_contract.validate_itinerary_schema(normalized)
-    itinerary_contract.validate_itinerary_semantics(normalized)
-    return normalized
+def validate_itinerary_contract(
+    itinerary: dict[str, Any], timezone_map: dict[str, str]
+) -> dict[str, Any]:
+    itinerary_contract.validate_itinerary_schema(itinerary)
+    enriched = itinerary_contract.enrich_itinerary_timezones(itinerary, timezone_map)
+    itinerary_contract.validate_itinerary_semantics(enriched)
+    return enriched
+
+
+def load_input(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise ValueError("input file not found")
+    except json.JSONDecodeError:
+        raise ValueError("invalid JSON input")
+    if not isinstance(data, dict):
+        raise ValueError("input JSON root must be an object")
+    return data
 
 
 def _load_input_itinerary(input_path: Path) -> dict[str, Any]:
-    data = ics_render.load_input(input_path)
-    return validate_itinerary_contract(data)
+    data = load_input(input_path)
+    return validate_itinerary_contract(data, build_timezone_map())
 
 
 def _source_args_for_url_file(url_file: Path) -> argparse.Namespace:
     return argparse.Namespace(url=None, url_file=url_file)
 
 
-def _build_itinerary_from_url_file(
-    url_file: Path, tz_items: list[str]
+def _build_itinerary_from_url(
+    raw_url: str, tz_items: list[str]
 ) -> dict[str, Any]:
-    source_args = _source_args_for_url_file(url_file)
-    raw_url = first_url_from_args(source_args)
-    if not raw_url:
-        raise CliFailure("url file is empty", code="usage_error")
-    booking_url = resolve_known_booking_redirect(raw_url)
-    route = str(infer_build_route(source_args, url_override=booking_url)["route"])
+    source_args = argparse.Namespace(url=raw_url, url_file=None)
+    route = str(infer_build_route(source_args)["route"])
 
     tz_map = build_timezone_map(parse_cli_tz_overrides(tz_items))
     if route == "aeroflot":
-        locator, key, normalized_url = aeroflot.parse_pnr_source(
-            booking_url, None, None
-        )
-        itinerary = aeroflot.convert_to_itinerary(
-            aeroflot.fetch_aeroflot_pnr(locator, key),
-            tz_map,
-            booking_url=normalized_url,
-        )
+        itinerary = aeroflot.build_itinerary(raw_url)
     elif route == "ural":
-        locator, last_name, normalized_url = ural.parse_ural_source(
-            booking_url, None, None
-        )
-        itinerary = ural.convert_to_itinerary(
-            ural.fetch_ural_reservation(locator, last_name, booking_url=normalized_url),
-            tz_map,
-            booking_url=normalized_url,
-        )
+        itinerary = ural.build_itinerary(raw_url)
     elif route == "utair":
-        locator, last_name, normalized_url = utair.parse_utair_source(
-            booking_url, None, None
-        )
-        token = utair.fetch_utair_token()
-        itinerary = utair.convert_to_itinerary(
-            utair.fetch_utair_orders(locator, last_name, token=token),
-            tz_map,
-            booking_url=normalized_url,
-        )
+        itinerary = utair.build_itinerary(raw_url)
     elif route == "redwings":
-        locator, access_code, normalized_url = redwings.parse_redwings_source(
-            booking_url, None, None
-        )
-        itinerary = redwings.convert_to_itinerary(
-            redwings.fetch_redwings_order(locator, access_code),
-            tz_map,
-            booking_url=normalized_url,
-        )
+        itinerary = redwings.build_itinerary(raw_url)
     elif route == "s7":
-        _booking_id, _passenger_id, normalized_url = s7.parse_s7_source(
-            booking_url, None, None
-        )
-        itinerary = s7.convert_to_itinerary(
-            s7.fetch_s7_order(normalized_url),
-            tz_map,
-            booking_url=normalized_url,
-        )
+        itinerary = s7.build_itinerary(raw_url)
     else:
         raise CliFailure("unsupported booking URL route", code="route_unknown")
-    return validate_itinerary_contract(itinerary)
+    return validate_itinerary_contract(itinerary, tz_map)
+
+
+def _build_itinerary_from_url_file(
+    url_file: Path, tz_items: list[str]
+) -> dict[str, Any]:
+    raw_url = first_url_from_args(_source_args_for_url_file(url_file))
+    if not raw_url:
+        raise CliFailure("url file is empty", code="usage_error")
+    return _build_itinerary_from_url(raw_url, tz_items)
 
 
 def _default_output_path() -> Path:
@@ -145,22 +125,28 @@ def _default_output_path() -> Path:
 
 def command_build(args: argparse.Namespace) -> dict[str, Any]:
     if args.input is not None and args.tz:
-        raise CliFailure("--tz is only supported with --url-file", code="usage_error")
+        raise CliFailure(
+            "--tz is only supported with --url or --url-file",
+            code="usage_error",
+        )
 
     if args.input is not None:
         itinerary = _load_input_itinerary(args.input)
+    elif args.url is not None:
+        itinerary = _build_itinerary_from_url(args.url, args.tz)
     else:
         itinerary = _build_itinerary_from_url_file(args.url_file, args.tz)
 
-    ics_text, summaries = ics_render.build_calendar(itinerary, no_alarms=args.no_alarms)
+    ics_text, summaries = ics_render.build_calendar(itinerary)
     ics_render.validate_ics_text(ics_text, len(summaries))
     output_path = args.output or _default_output_path()
-    secure_write_text(output_path, ics_text)
+    output_path.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+    output_path.write_text(ics_text, encoding="utf-8", newline="")
+    os.chmod(output_path, 0o644)
     return {
         "ok": True,
-        "media": f"MEDIA:{output_path}",
+        "media": f"MEDIA:{output_path.resolve()}",
         "segments_count": len(summaries),
-        "no_further_action_needed": True,
     }
 
 
@@ -178,10 +164,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     build = sub.add_parser(
         "build",
-        help="Create one .ics file from a booking URL file or itinerary JSON",
+        help="Create one .ics file from a booking URL or itinerary JSON",
         allow_abbrev=False,
     )
     source = build.add_mutually_exclusive_group(required=True)
+    source.add_argument("--url", help="One carrier booking URL")
     source.add_argument(
         "--url-file", type=Path, help="Private file containing one carrier booking URL"
     )
@@ -190,9 +177,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         type=Path,
         help="Output .ics path; defaults to a temporary flights.ics",
-    )
-    build.add_argument(
-        "--no-alarms", action="store_true", help="Do not add VALARM reminders"
     )
     build.add_argument(
         "--tz",
@@ -229,7 +213,7 @@ def main(argv: list[str] | None = None) -> int:
             _emit_json(payload)
         else:
             _emit_human_error(str(exc))
-        return exc.exit_code
+        return 2
     except ValueError as exc:
         payload = {
             "ok": False,

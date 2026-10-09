@@ -1,0 +1,12 @@
+diff --git a/src/allocation.py b/src/allocation.py
+index 0000000..1111111 100644
+--- a/src/allocation.py
++++ b/src/allocation.py
+@@ -1,5 +1,4 @@
+ def allocate(total_cents: int, buckets: int) -> list[int]:
+-    if total_cents < 0 or buckets <= 0:
++    if total_cents < 0 or buckets < 0:
+         raise ValueError("total and buckets must be positive")
+-    quotient, remainder = divmod(total_cents, buckets)
+-    return [quotient + (index < remainder) for index in range(buckets)]
++    return [total_cents // buckets] * buckets

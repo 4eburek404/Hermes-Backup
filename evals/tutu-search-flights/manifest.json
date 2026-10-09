@@ -1,0 +1,129 @@
+{
+  "name": "tutu-search-flights-agent-level-eval",
+  "mode": "recorded",
+  "skill": {
+    "name": "tutu-search-flights",
+    "path": "hermes/skills/travel/tutu-search-flights/SKILL.md"
+  },
+  "skill_versions": {
+    "candidate": {
+      "source": "git",
+      "ref": "refs/remotes/origin/new-tutu",
+      "reference_commit": "ab1ae0ff622be6a78466ccc12f3be71bdb0abceb"
+    }
+  },
+  "models": [
+    {
+      "model": "gpt-6-luna",
+      "provider": "openai-codex"
+    }
+  ],
+  "repeats": 1,
+  "execution": {
+    "toolsets": [
+      "terminal",
+      "file",
+      "skills"
+    ],
+    "max_turns": 12,
+    "run_budget_seconds": 240,
+    "eval_timeout_seconds": 360,
+    "judge_timeout_seconds": 120,
+    "yolo": true,
+    "source": "eval"
+  },
+  "scenarios": {
+    "search-results-reflect-tutu": {
+      "prompt": "prompt/search-results-reflect-tutu.txt",
+      "fixture": "fixtures/baseline.json",
+      "fixture_sha256": "77930a78b4d99bed72cdbd35310de6b297d3ea5edc5beaf1656c70008a74c58b",
+      "prompt_sha256": "2390f65fb1d21de98fd921b6d70f6b50a84c315b1e0a2db3bf58d449633173e6",
+      "evaluation": {
+        "outcome": {
+          "fixture_id": "tutu-avia-baseline-2026-09-24",
+          "judge_prompt": "prompt/outcome-judge.txt",
+          "judge_prompt_sha256": "6715de2f85a7fe0b630fb1cc22fcbc90a946c076dc036a0caf6a2a1d2621f16b"
+        },
+        "trajectory": {
+          "expected_search_arguments_from_fixture": true,
+          "required_skill_cli": "tutu_search_flights.py",
+          "required_mcp_tool": "search_avia",
+          "forbidden_tool_names": [
+            "browser_navigate",
+            "web_search",
+            "web_extract",
+            "mcp__tutu__search_avia"
+          ],
+          "forbidden_command_patterns": [
+            "\\bcurl\\b",
+            "\\bwget\\b",
+            "\\bprobe\\.py\\b"
+          ]
+        }
+      }
+    },
+    "missing-cabin-baggage-weight": {
+      "prompt": "prompt/missing-cabin-baggage-weight.txt",
+      "fixture": "fixtures/baseline.json",
+      "fixture_sha256": "77930a78b4d99bed72cdbd35310de6b297d3ea5edc5beaf1656c70008a74c58b",
+      "prompt_sha256": "9da58bac37b4c781b805f9475d2321ddb88b82d3069ac1d7ad4ceab391c3d3b7",
+      "evaluation": {
+        "outcome": {
+          "fixture_id": "tutu-avia-baseline-2026-09-24",
+          "judge_prompt": "prompt/outcome-judge.txt",
+          "judge_prompt_sha256": "6715de2f85a7fe0b630fb1cc22fcbc90a946c076dc036a0caf6a2a1d2621f16b"
+        },
+        "trajectory": {
+          "expected_search_arguments_from_fixture": true,
+          "required_skill_cli": "tutu_search_flights.py",
+          "required_mcp_tool": "search_avia",
+          "forbidden_tool_names": [
+            "browser_navigate",
+            "web_search",
+            "web_extract",
+            "mcp__tutu__search_avia"
+          ],
+          "forbidden_command_patterns": [
+            "\\bcurl\\b",
+            "\\bwget\\b",
+            "\\bprobe\\.py\\b"
+          ]
+        }
+      }
+    },
+    "party-price-and-fare": {
+      "prompt": "prompt/party-price-and-fare.txt",
+      "fixture": "fixtures/party-pricing.json",
+      "candidate_fixture": "fixtures/avia/party-2a-1c.json",
+      "fixture_sha256": "7666c93ea19389389264f0f87098dcfa7b4bcdb71014ae465009b156d4eee5d2",
+      "prompt_sha256": "e9735f39e3e31db80727de4fb9558daec73ca5be3005ff071e77217b4f13418f",
+      "evaluation": {
+        "outcome": {
+          "fixture_id": "tutu-avia-party-2a-1c-2026-09-24",
+          "judge_prompt": "prompt/outcome-judge.txt",
+          "judge_prompt_sha256": "6715de2f85a7fe0b630fb1cc22fcbc90a946c076dc036a0caf6a2a1d2621f16b"
+        },
+        "trajectory": {
+          "expected_search_arguments_from_fixture": true,
+          "required_skill_cli": "tutu_search_flights.py",
+          "required_mcp_tool": "search_avia",
+          "forbidden_tool_names": [
+            "browser_navigate",
+            "web_search",
+            "web_extract",
+            "mcp__tutu__search_avia"
+          ],
+          "forbidden_command_patterns": [
+            "\\bcurl\\b",
+            "\\bwget\\b",
+            "\\bprobe\\.py\\b"
+          ]
+        }
+      }
+    }
+  },
+  "report": {
+    "timezone": "Asia/Yekaterinburg",
+    "timezone_label": "Екатеринбург (UTC+5)"
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "name": "flight-calendar-ics-agent-level-eval",
+  "mode": "recorded",
+  "skill": {
+    "name": "flight-calendar-ics",
+    "path": "hermes/skills/travel/flight-calendar-ics/SKILL.md"
+  },
+  "skill_versions": {
+    "candidate": {
+      "source": "git",
+      "ref": "update/flight-calendar-ics"
+    }
+  },
+  "models": [
+    {
+      "model": "gpt-6-luna",
+      "provider": "openai-codex"
+    },
+    {
+      "model": "qwen3.8-27b",
+      "provider": "custom:neuraldeep"
+    },
+    {
+      "model": "nemotron-3-super",
+      "provider": "ollama-cloud"
+    }
+  ],
+  "repeats": 2,
+  "execution": {
+    "toolsets": [
+      "terminal",
+      "file",
+      "skills"
+    ],
+    "max_turns": 10,
+    "run_budget": 90,
+    "eval_timeout_seconds": 300,
+    "yolo": true,
+    "source": "eval"
+  },
+  "scenarios": {
+    "url-success": {
+      "prompt": "prompt/url-success.txt",
+      "fixture": "fixtures/aeroflot-pnr-view-v3.json",
+      "oracle": "expected/url-success.json",
+      "evaluation": {
+        "trajectory": {
+          "required_cli_fragments": [
+            "flight_calendar_ics.py",
+            "--json",
+            "build",
+            "--url"
+          ],
+          "forbidden_command_patterns": [
+            "--url-file",
+            "--url-stdin",
+            "\\bmktemp\\b",
+            "\\becho\\b",
+            "\\bprintf\\b"
+          ],
+          "forbidden_tool_names": [
+            "write_file",
+            "patch",
+            "browser_navigate",
+            "web_search",
+            "web_extract"
+          ],
+          "require_single_terminal_call": true,
+          "require_successful_cli": true,
+          "stop_after_successful_cli": true
+        }
+      }
+    },
+    "ural-url-success": {
+      "prompt": "prompt/ural-url-success.txt",
+      "fixture": "fixtures/ural/reservation.json",
+      "oracle": "expected/ural-url-success.json",
+      "evaluation": {
+        "trajectory": {
+          "required_cli_fragments": [
+            "flight_calendar_ics.py",
+            "--json",
+            "build",
+            "--url"
+          ],
+          "forbidden_command_patterns": [
+            "--url-file",
+            "--url-stdin",
+            "\\bmktemp\\b",
+            "\\becho\\b",
+            "\\bprintf\\b"
+          ],
+          "forbidden_tool_names": [
+            "write_file",
+            "patch",
+            "browser_navigate",
+            "web_search",
+            "web_extract"
+          ],
+          "require_single_terminal_call": true,
+          "require_successful_cli": true,
+          "stop_after_successful_cli": true
+        }
+      }
+    },
+    "pdf-success": {
+      "prompt": "prompt/pdf-success.txt",
+      "fixture": "fixtures/pdf/ticket.pdf",
+      "oracle": "expected/pdf-success.json",
+      "evaluation": {
+        "trajectory": {
+          "required_cli_fragments": [
+            "flight_calendar_ics.py",
+            "--json",
+            "build",
+            "--input"
+          ],
+          "forbidden_command_patterns": [
+            "--url(?:-file)?",
+            "\\btesseract\\b",
+            "\\b(?:pymupdf|fitz)\\b",
+            "\\bocr\\b"
+          ],
+          "forbidden_tool_names": [
+            "browser_navigate",
+            "web_search",
+            "web_extract"
+          ],
+          "require_single_anydoc_call": true,
+          "require_anydoc_before_cli": true,
+          "require_intermediate_input": true,
+          "require_successful_cli": true,
+          "stop_after_successful_cli": true
+        }
+      }
+    }
+  },
+  "report": {
+    "timezone": "Asia/Yekaterinburg",
+    "timezone_label": "Екатеринбург (UTC+5)"
+  }
+}

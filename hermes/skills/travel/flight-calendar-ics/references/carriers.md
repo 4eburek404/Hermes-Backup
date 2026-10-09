@@ -1,8 +1,8 @@
 # Carrier Notes
 
-Open this file only when a carrier `build` fails or the source evidence is ambiguous. The normal path stays one command: `--json build` with either `--url-file` or `--input`. Endpoints, payloads, headers, retries, and response mapping are code-owned by `flight_calendar/carriers/` and `flight_calendar/carrier_http.py`.
+Open this file only for troubleshooting a recognized carrier source: `route_input_insufficient` or another carrier-specific build/redirect failure. Do not open it as a fallback for `route_unknown`; the normal path stays one command: `--json build --url '<booking-url>'`. `--url-file` remains an optional backward-compatible source, and `--input` is the PDF itinerary source. Endpoints, payloads, headers, retries, and response mapping are code-owned by `flight_calendar/carriers/` and `flight_calendar/carrier_http.py`.
 
-Common to all carriers: store credential-bearing URLs in a private file and pass `--url-file`; manage-booking pages are JavaScript SPAs, so never scrape page HTML for itinerary data; if no live lookup is possible, normalize visible flight facts into minimal itinerary JSON using `templates/itinerary.example.json` and state any limitation (for example, a missing reopen link). The compact public CLI accepts only `--url-file` or `--input`; do not use carrier-specific argv. A `route_unknown` error means the source fingerprint was not recognized; it does not prove the carrier is unsupported.
+Common to all carriers: keep credential-bearing URLs private and never expose them in chat, diagnostics, CLI stdout/stderr, or structured errors; manage-booking pages are JavaScript SPAs, so never scrape page HTML for itinerary data; if no live lookup is possible, normalize visible flight facts into minimal itinerary JSON using `templates/itinerary.example.json` and state any limitation (for example, a missing reopen link). The compact public CLI accepts `--url`, `--url-file`, or `--input`; do not use carrier-specific argv. A `route_unknown` error means that the URL source is not a supported trusted booking source; it does not prove that the airline itself is unsupported. Do not guess the carrier from an unknown source. Suggest a PDF itinerary as the fallback.
 
 ## Aeroflot
 
@@ -13,28 +13,39 @@ Common to all carriers: store credential-bearing URLs in a private file and pass
 
 ## Red Wings
 
-- Only the original email/manage link works for live lookup: `https://flyredwings.com/booking/#/find/<PNR>/<SECRET>/Submit`.
-- An already-opened order page `#/booking/<ORDER_ID>/order` is not portable, is not a source of `<SECRET>`, and cannot be converted into one.
-- `<SECRET>` is a Websky access key, not the passenger surname. Never guess it from surname, PNR, order ID, or ticket data — if the user has only a PDF/screenshot/opened page and wants a reopen link, ask for the original email link.
+- Routing is based on the trusted `flyredwings.com/booking/` source and the original URL is passed unchanged to the Red Wings adapter.
+- The useful email/manage source is `https://flyredwings.com/booking/#/find/<PNR>/<SECRET>/Submit`. It contains both values needed for live lookup.
+- When that link is opened in a browser, Red Wings may replace the fragment with `#/booking/<ORDER_ID>/order`. This is browser state after the original lookup; the CLI does not need to reproduce that transition.
+- An already-opened `#/booking/<ORDER_ID>/order` source can still be identified as Red Wings, but it is not a source of `<SECRET>` and cannot be converted back into the original find link.
+- `<SECRET>` is a Websky access key, not the passenger surname. Never guess it from surname, PNR, order ID, or ticket data.
 - Domestic routes can cross timezones; never assume arrival timezone equals departure timezone.
 
 ## Ural Airlines
 
-- Tracker-wrapped links (`u=` / `url=` query parameters) are decoded by the adapter; pass them as-is via `--url-file`.
-- A link carrying only `pnrOrTicket=` is a form-prefill signal, not sufficient evidence: the live lookup also needs the passenger surname in the URL. A missing-surname error here is the correct outcome, not a generator failure; use a complete manage-booking URL or minimal itinerary JSON.
-- Node.js is required at runtime: the adapter executes the carrier's frontend API-key helper in a sandboxed Node VM. Generated API keys and session keys are credentials.
-- Do not hand the adapter local `.env`/`env.json` copies; the normal path reads live frontend config.
+- A direct `service.uralairlines.ru` booking source routes to Ural Airlines and is passed unchanged to the Ural adapter.
+- Ural booking emails may use `tn-hgl.mckx.ru`. In the observed form, its single `u` parameter contains the complete direct Ural booking URL URL-encoded.
+- Because `tn-hgl.mckx.ru` does not identify the airline by its own host, routing may inspect the embedded destination only far enough to identify a supported `service.uralairlines.ru` source. The original wrapper URL is still passed unchanged to the Ural adapter.
+- The Ural adapter owns wrapper decoding, destination validation, credential extraction, and canonicalization.
+- The canonical manage-booking URL is `https://service.uralairlines.ru/services?pnr=<PNR>&lastName=<SURNAME>`. Passenger first name and tracking parameters are not part of the canonical link.
+- Pass either the direct booking URL or the original mail URL through the normal `--url` interface. The agent must not decode `u`, extract credentials, or reconstruct the direct URL itself.
+- A link carrying only `pnrOrTicket=` remains unverified for the Reservation flow. Do not treat it as a PNR alias without evidence; the current live Reservation lookup requires a PNR and surname.
+- The adapter keeps only deployment configuration (`version`, `API_URL`, and `API_KEY`) in the runtime cache. A cache miss reads the trusted frontend root and its versioned `env/env.json`; a cache hit skips both.
+- The Reservation request uses the locally generated time-bucketed `X-Api-Key` and direct `GET Reservation`. Generated keys and booking credentials remain private.
 
 ## S7 Airlines
 
-- Evidence is a direct `https://myb.s7.ru/myb/manage-order?...` URL carrying both `bookingId` and `passengerId`; both query values are private booking credentials and must stay in `--url-file` or inside the generated `.ics` only.
+- Evidence is a direct `https://myb.s7.ru/myb/manage-order?...` URL carrying both `bookingId` and `passengerId`; both query values are private booking credentials and must stay in the CLI source or inside the generated `.ics` only.
 - S7's entrypoint returns an auto-submit HTML form first; the adapter follows that form with the same session and extracts the embedded `__r_airs_data` payload from the resulting page. Do not scrape arbitrary visible labels when this payload exists.
 - The S7 payload usually includes IANA timezones per segment; `--tz CODE=Area/City` remains a fallback if a segment lacks timezone data.
 - Ticket number can be absent from S7 manage-order data; this is acceptable because the compact itinerary contract makes it optional.
 
 ## Utair
 
-- Evidence is `rloc` (locator) plus `last_name` from the order-manage URL; Cyrillic surnames and URL-encoding are handled, `utm_*` parameters are ignored. In the compact public CLI, pass the full URL through `--url-file` or use minimal itinerary JSON with `--input`.
-- Utair mail redirect links like `click.mail.utair.io/...` must resolve to `utair.ru/order-manage?...`; the CLI handles known Utair redirects automatically. If redirect resolution fails, provide the direct Utair `order-manage` URL.
+- Both `www.utair.ru/order-manage` and the carrier-branded mail source `click.mail.utair.io` route directly to the Utair adapter. The original URL is passed unchanged.
+- The canonical manage-booking URL is `https://www.utair.ru/order-manage?rloc=<PNR>&last_name=<SURNAME>`.
+- Observed direct links may also contain `utm_source` and `utm_campaign`; those tracking parameters are not required and are not part of the canonical booking link.
+- The opaque `click.mail.utair.io/<...>` link does not contain the destination or credentials. The Utair adapter therefore performs one redirect lookup, validates that the result is a supported Utair order-manage URL, then extracts locator and surname.
+- Pass either the direct booking URL or the original mail-click URL through the normal `--url` interface. The agent must not follow the redirect manually, extract credentials, or reconstruct a direct URL itself.
+- The current live API flow uses the booking locator plus passenger surname: OAuth client credentials, then the orders lookup. Cyrillic surnames and URL encoding are supported.
 - A smoke run with a fake locator/surname is a safe reachability check: token success plus a redacted "no orders found" confirms the flow without real booking data.
 - Baggage is included only when explicit in booking data; it is never inferred from the fare brand.
