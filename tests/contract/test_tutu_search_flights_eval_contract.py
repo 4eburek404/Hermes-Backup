@@ -236,10 +236,11 @@ def test_recorded_boundary_keeps_candidate_cli_parser_and_mcp_sdk_live(tmp_path)
     fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
     skill_path = Path("hermes/skills/travel/tutu-search-flights")
     materialized = tmp_path / "skills" / "travel" / "tutu-search-flights"
+    manifest = json.loads((EVAL / "manifest.json").read_text(encoding="utf-8"))
     identity = materialize_skill_source(
         ROOT,
         skill_path,
-        {"source": "git", "ref": "origin/new-tutu"},
+        manifest["skill_versions"]["candidate"],
         materialized,
     )
     log_path = tmp_path / "mcp-boundary.jsonl"
@@ -272,10 +273,65 @@ def test_recorded_boundary_keeps_candidate_cli_parser_and_mcp_sdk_live(tmp_path)
 
     records = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
     calls = [record for record in records if record.get("jsonrpc_method") == "tools/call"]
-    assert identity["resolved_commit"] == "ab1ae0ff622be6a78466ccc12f3be71bdb0abceb"
+    expected_candidate = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "rev-parse",
+            f"{manifest['skill_versions']['candidate']['ref']}^{{commit}}",
+        ],
+        check=True,
+        text=True,
+        capture_output=True,
+    ).stdout.strip()
+    assert identity["resolved_commit"] == expected_candidate
     assert len(calls) == 1
     assert calls[0]["tool_name"] == "search_avia"
     assert calls[0]["arguments"] == fixture["arguments"]
+
+
+def test_eval_case_selects_requested_skill_version():
+    path = EVAL / "run_eval.py"
+    spec = importlib.util.spec_from_file_location("tutu_search_flights_run_eval", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    manifest = json.loads((EVAL / "manifest.json").read_text(encoding="utf-8"))
+
+    assert module._case(manifest, skill_version="candidate")["skill_versions"] == [
+        "candidate"
+    ]
+    assert module._case(manifest, skill_version="baseline")["skill_versions"] == [
+        "baseline"
+    ]
+
+
+def test_candidate_source_tracks_declared_ref_and_baseline_stays_pinned(tmp_path):
+    manifest = json.loads((EVAL / "manifest.json").read_text(encoding="utf-8"))
+    skill_path = Path(manifest["skill"]["path"]).parent
+    candidate_dir = tmp_path / "candidate"
+    candidate = manifest["skill_versions"]["candidate"]
+    candidate_identity = materialize_skill_source(
+        ROOT, skill_path, candidate, candidate_dir
+    )
+    expected_candidate = subprocess.run(
+        ["git", "-C", str(ROOT), "rev-parse", f"{candidate['ref']}^{{commit}}"],
+        check=True,
+        text=True,
+        capture_output=True,
+    ).stdout.strip()
+    assert candidate_identity["resolved_commit"] == expected_candidate
+    assert "reference_commit" not in candidate
+
+    baseline_dir = tmp_path / "baseline"
+    baseline = manifest["skill_versions"]["baseline"]
+    baseline_identity = materialize_skill_source(
+        ROOT, skill_path, baseline, baseline_dir
+    )
+    assert baseline_identity["resolved_commit"] == (
+        "ab1ae0ff622be6a78466ccc12f3be71bdb0abceb"
+    )
 
 
 def test_egress_guard_blocks_live_tutu_connect(tmp_path):

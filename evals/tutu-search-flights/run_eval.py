@@ -43,7 +43,11 @@ def _runtime_version() -> str:
     return (proc.stdout or proc.stderr).strip()
 
 
-def _case(manifest: dict[str, Any], scenario: str | None = None) -> dict[str, Any]:
+def _case(
+    manifest: dict[str, Any],
+    scenario: str | None = None,
+    skill_version: str = "candidate",
+) -> dict[str, Any]:
     scenario = scenario or next(iter(manifest["scenarios"]))
     if scenario not in manifest["scenarios"]:
         raise ValueError(f"unknown scenario: {scenario}")
@@ -53,7 +57,7 @@ def _case(manifest: dict[str, Any], scenario: str | None = None) -> dict[str, An
     return {
         "consumer": manifest["name"],
         "mode": manifest["mode"],
-        "skill_versions": ["candidate"],
+        "skill_versions": [skill_version],
         "scenarios": [scenario],
         "models": manifest["models"],
         "repeats": int(manifest["repeats"]),
@@ -78,18 +82,35 @@ def main() -> int:
         default=next(iter(scenarios)),
         help="scenario to evaluate (default: the original Scenario 1)",
     )
+    parser.add_argument(
+        "--skill-version",
+        choices=list(manifest["skill_versions"]),
+        default="candidate",
+        help="skill source to evaluate (default: candidate)",
+    )
     parser.add_argument("--output-dir", type=Path, help="persistent evidence directory (default: ~/.hermes/evals/...)")
     args = parser.parse_args()
 
     if manifest["repeats"] != 1 or len(manifest["models"]) != 1:
         raise SystemExit("this consumer is intentionally limited to one scenario, model, and repeat")
-    source = manifest["skill_versions"]["candidate"]
-    _git("fetch", "origin", "new-tutu")
+    source = manifest["skill_versions"][args.skill_version]
+    if args.skill_version == "candidate":
+        _git("fetch", "origin", "new-tutu")
     resolved = _git("rev-parse", f"{source['ref']}^{{commit}}")
-    if resolved != source["reference_commit"]:
+    pinned_commit = source.get("reference_commit")
+    if pinned_commit and resolved != pinned_commit:
         raise SystemExit(
-            f"candidate source moved: {resolved} != pinned {source['reference_commit']}; update the eval baseline deliberately"
+            f"candidate source moved: {resolved} != pinned {pinned_commit}; update the eval baseline deliberately"
         )
+    baseline_source = manifest["skill_versions"].get("baseline")
+    baseline_commit = None
+    if baseline_source:
+        baseline_commit = _git("rev-parse", f"{baseline_source['ref']}^{{commit}}")
+        expected_baseline = baseline_source.get("reference_commit")
+        if expected_baseline and baseline_commit != expected_baseline:
+            raise SystemExit(
+                f"baseline source moved: {baseline_commit} != pinned {expected_baseline}"
+            )
 
     output_dir = args.output_dir or (
         Path.home()
@@ -107,14 +128,21 @@ def main() -> int:
     baseline = {
         "branch": _git("branch", "--show-current"),
         "head": _git("rev-parse", "HEAD"),
+        "skill_version": args.skill_version,
+        "evaluated_skill_commit": resolved,
+        "pinned_baseline_commit": baseline_commit,
         "worktree_status": _git("status", "--porcelain=v1", "--untracked-files=all"),
-        "remote_new_tutu_commit": resolved,
     }
     (output_dir / "baseline.json").write_text(
         json.dumps(baseline, indent=2) + "\n", encoding="utf-8"
     )
-    case = _case(manifest, args.scenario)
+    case = _case(manifest, args.scenario, args.skill_version)
     consumer = _load_consumer()
+    consumer.manifest["skill_versions"][args.skill_version] = {
+        **source,
+        "ref": resolved,
+        "reference_commit": resolved,
+    }
     from evals.harness.core import Harness
 
     batch = Harness(consumer).run(case, output_dir)

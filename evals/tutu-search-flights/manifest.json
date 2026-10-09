@@ -8,7 +8,11 @@
   "skill_versions": {
     "candidate": {
       "source": "git",
-      "ref": "refs/remotes/origin/new-tutu",
+      "ref": "refs/remotes/origin/new-tutu"
+    },
+    "baseline": {
+      "source": "git",
+      "ref": "ab1ae0ff622be6a78466ccc12f3be71bdb0abceb",
       "reference_commit": "ab1ae0ff622be6a78466ccc12f3be71bdb0abceb"
     }
   },
