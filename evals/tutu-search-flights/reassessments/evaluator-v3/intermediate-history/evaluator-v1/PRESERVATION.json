@@ -1,0 +1,76 @@
+{
+  "source_directory": "evaluator-v1",
+  "reason": "Byte-different historical evidence not present at the same relative path in evaluator-v3. Active scores remain evaluator-v3; this is archival provenance.",
+  "files": [
+    {
+      "path": "batch_manifest.json",
+      "sha256": "b73ea3fdd8a6cfc1972537a6d9636bfd0ce05cb46cd23e92a7428072d0ef7413",
+      "bytes": 375369
+    },
+    {
+      "path": "missing-cabin-baggage-weight--gpt-6-luna--openai-codex--candidate--r1/evidence.json",
+      "sha256": "2d57e404dc85566692ddb6c4f2bec0b7c4a87bb45e672981840c6598f062b952",
+      "bytes": 65350
+    },
+    {
+      "path": "missing-cabin-baggage-weight--gpt-6-luna--openai-codex--candidate--r1/score.json",
+      "sha256": "c75e9b57150d82848160a7ea910da7541b6ae78fc3c8c8a9075cbeb53e000010",
+      "bytes": 4049
+    },
+    {
+      "path": "missing-cabin-baggage-weight--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1/evidence.json",
+      "sha256": "09e74826c921cc94a93390dcc052f728b63ab23fab5b2b10eba0975f24760c73",
+      "bytes": 55021
+    },
+    {
+      "path": "missing-cabin-baggage-weight--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1/score.json",
+      "sha256": "6673f895991bc42450f3c5261f99a8d16206586585bf1c3330c4672f0e3fc388",
+      "bytes": 3995
+    },
+    {
+      "path": "party-price-and-fare--gpt-6-luna--openai-codex--candidate--r1/evidence.json",
+      "sha256": "900bea0977670b77c387e9c2a65294714f5bc7319c76b511abd8300ea2fea382",
+      "bytes": 51178
+    },
+    {
+      "path": "party-price-and-fare--gpt-6-luna--openai-codex--candidate--r1/score.json",
+      "sha256": "c38538332254aca868cda63556baddec9383532844370fba411ec6fd7f9aeb0a",
+      "bytes": 4023
+    },
+    {
+      "path": "party-price-and-fare--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1/evidence.json",
+      "sha256": "f479cd4663ada9fa922720c61051b89a432a26234e45417358618dc0ebc0e946",
+      "bytes": 57275
+    },
+    {
+      "path": "party-price-and-fare--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1/score.json",
+      "sha256": "86bca6b94a692f480b258cccc6e1fed44dd98b96f479ed418beec78c1d1ea9ce",
+      "bytes": 4071
+    },
+    {
+      "path": "search-results-reflect-tutu--gpt-6-luna--openai-codex--candidate--r1/evidence.json",
+      "sha256": "536c26aacc928098da6390745c485cbbbe5c63e3d2a4b9f2a520418693522f35",
+      "bytes": 62729
+    },
+    {
+      "path": "search-results-reflect-tutu--gpt-6-luna--openai-codex--candidate--r1/score.json",
+      "sha256": "9a79a11e4e4b121abf5beee72b263eb235e985e2500db6bed0385defeb7745a7",
+      "bytes": 4165
+    },
+    {
+      "path": "search-results-reflect-tutu--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1/evidence.json",
+      "sha256": "b418b908b77784979a2d902545a48ba6e9d957a2bbc55fad7224672870103973",
+      "bytes": 62519
+    },
+    {
+      "path": "search-results-reflect-tutu--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1/score.json",
+      "sha256": "b192e88a34f013a5daa4187306bcd15a4a1e74590dcc8bf44294b02c6cde48ed",
+      "bytes": 4079
+    },
+    {
+      "path": "source-manifest.json",
+      "sha256": "a29010ade0794e7117494ac166901932a099513e0c42f2df27d81c000a4ec23b",
+      "bytes": 3862
+    }
+  ]
+}

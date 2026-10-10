@@ -105,6 +105,28 @@ def test_scenario_2_deterministically_rejects_invented_cabin_baggage_weight():
     assert "cabin baggage weight is not confirmed" in unsupported_details["reason"]
 
 
+def test_http_429_without_tool_execution_is_unobservable_not_model_failure():
+    consumer = load_consumer()
+    evidence = evidence_for(
+        "HTTP 429: too many concurrent requests",
+        scenario="missing-cabin-baggage-weight",
+    )
+    evidence["tool_names"] = []
+    scenario_rules = consumer.manifest["scenarios"]["missing-cabin-baggage-weight"]["evaluation"]
+
+    outcome = consumer.evaluate_dimension_diagnostic(
+        "outcome", evidence, scenario_rules["outcome"]
+    )
+    trajectory = consumer.evaluate_dimension_diagnostic(
+        "trajectory", evidence, scenario_rules["trajectory"]
+    )
+
+    assert outcome["status"] == "ERROR"
+    assert "PROVIDER_FAILURE" in outcome["reason"]
+    assert trajectory["status"] == "ERROR"
+    assert "PROVIDER_FAILURE" in trajectory["reason"]
+
+
 def test_scenario_3_deterministically_checks_party_price_and_fare_association():
     consumer = load_consumer()
     scenario = consumer.manifest["scenarios"]["party-price-and-fare"]
@@ -380,7 +402,7 @@ def test_recorded_boundary_accepts_only_semantically_equivalent_search_arguments
         "adults": 1,
         "page": 1,
         "sort": "price_asc",
-        "view": "full",
+        "view": "compact",
     }
     accepted = subprocess.run(
         [*cli, json.dumps(equivalent, ensure_ascii=False)], env=env, text=True, capture_output=True
@@ -397,6 +419,7 @@ def test_recorded_boundary_accepts_only_semantically_equivalent_search_arguments
         {"departure_date": "2026-10-16"},
         {"adults": 2},
         {"page_size": 2},
+        {"view": "full"},
     ):
         changed = {**expected, **changes}
         rejected = subprocess.run(
@@ -407,6 +430,7 @@ def test_recorded_boundary_accepts_only_semantically_equivalent_search_arguments
     calls = [item for item in recorded if item.get("jsonrpc_method") == "tools/call"]
     assert [item["replay_status"] for item in calls] == [
         "fixture-served-equivalent",
+        "request-mismatch",
         "request-mismatch",
         "request-mismatch",
         "request-mismatch",

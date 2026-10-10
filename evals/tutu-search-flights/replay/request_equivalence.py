@@ -11,24 +11,20 @@ def equivalent_arguments(actual: Any, expected: Any, payload: Any) -> bool:
         return False
     if any(actual.get(key) != value for key, value in expected.items()):
         return False
-    meta_value = payload.get("meta")
-    meta: dict[str, Any] = meta_value if isinstance(meta_value, dict) else {}
-    pricing_value = meta.get("pricing")
-    pricing: dict[str, Any] = pricing_value if isinstance(pricing_value, dict) else {}
-    passengers_value = pricing.get("passengers")
-    passengers: dict[str, Any] = passengers_value if isinstance(passengers_value, dict) else {}
+    # Values below are the recorded search_avia schema defaults in
+    # fixtures/meta/tools-list.json. Do not infer defaults from the response:
+    # a response can describe a different passenger or pagination scope.
+    defaults = {
+        "adults": 1,
+        "children": 0,
+        "page": 1,
+        "sort": "price_asc",
+        "view": "compact",
+    }
     for key, value in actual.items():
         if key in expected:
             continue
-        if key == "adults" and "adults" not in expected and value == passengers.get("full", 1):
-            continue
-        if key == "children" and "children" not in expected and value == passengers.get("child", 0):
-            continue
-        if key == "page" and value == meta.get("page", 1):
-            continue
-        if key == "sort" and value == meta.get("sort"):
-            continue
-        if key == "view" and value == "full":
+        if key in defaults and value == defaults[key]:
             continue
         return False
     return True

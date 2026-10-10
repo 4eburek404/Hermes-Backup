@@ -1,89 +1,55 @@
-# Tutu Search-Flights: сравнительная агентская оценка
+# Tutu Search-Flights — проверка и офлайн-переоценка
 
-Дата: 9 октября 2026 г.  
-Проверяемый skill: `55effd14b8245125cf9c47e65aad4dd84e8ec24a`  
-Сохранённый baseline: `ab1ae0ff622be6a78466ccc12f3be71bdb0abceb`  
-Текущий исходный SHA ветки перед изменениями: `55effd14b8245125cf9c47e65aad4dd84e8ec24a`  
+Дата завершения: 10 октября 2026 г.
+Ветка: `new-tutu`
+Исходный SHA до этой работы: `55effd14b8245125cf9c47e65aad4dd84e8ec24a`
+SHA контрольного снимка исходного рабочего дерева: `dfee765aff46bb9a799a60a9d40ef3f3449f26bf`
+SHA версии evaluator для всех шести переоценок: `4ddcc7e0e8431d3327d9bfa2b7c58d6d2d1e1da9bb54f61f1080f19dc6fab9f5`
 
-## Сравнительная матрица
+## Матрица исходных и новых оценок
 
-`O` — Outcome, `T` — Trajectory. PASS/FAIL — оценка сохранённой трассы текущей версией evaluator; «НЕ ПОДТВЕРЖДЕНО» означает, что прогон не позволяет сделать вывод о качестве модели.
+Обозначения: O — outcome, T — trajectory, P — privacy. Новая оценка получена из сохранённых трасс; `ERROR`/`UNDEFINED` не трактуется как PASS или подтверждённый FAIL.
 
-| Модель (provider) | search-results-reflect-tutu | missing-cabin-baggage-weight | party-price-and-fare |
+| Сценарий | Модель | Исходная O / T / P | Новая O / T / P |
 |---|---|---|---|
-| GPT-6 Luna (`gpt-6-luna`, `openai-codex`) | O: PASS / T: FAIL | O: PASS / T: FAIL | O: PASS / T: FAIL |
-| Nemotron 3 Ultra (`nemotron-3-ultra:cloud`, `ollama-cloud`) | O: FAIL / T: FAIL | O: НЕ ПОДТВЕРЖДЕНО / T: НЕ ПОДТВЕРЖДЕНО* | O: PASS / T: FAIL |
-| Qwen 3.8 27B (`qwen3.8-27b`, `custom:neuraldeep`) | O: НЕ ПОДТВЕРЖДЕНО / T: НЕ ПОДТВЕРЖДЕНО | O: НЕ ПОДТВЕРЖДЕНО / T: НЕ ПОДТВЕРЖДЕНО | O: НЕ ПОДТВЕРЖДЕНО / T: НЕ ПОДТВЕРЖДЕНО |
+| `search-results-reflect-tutu` | GPT-6 Luna | PASS / FAIL / UNDEFINED | PASS / FAIL / UNDEFINED |
+| `missing-cabin-baggage-weight` | GPT-6 Luna | PASS / FAIL / UNDEFINED | PASS / ERROR / UNDEFINED |
+| `party-price-and-fare` | GPT-6 Luna | FAIL / FAIL / UNDEFINED | PASS / ERROR / UNDEFINED |
+| `search-results-reflect-tutu` | Nemotron 3 Ultra | FAIL / FAIL / UNDEFINED | FAIL / FAIL / UNDEFINED |
+| `missing-cabin-baggage-weight` | Nemotron 3 Ultra | FAIL / FAIL / UNDEFINED | ERROR / ERROR / UNDEFINED |
+| `party-price-and-fare` | Nemotron 3 Ultra | FAIL / FAIL / UNDEFINED | PASS / ERROR / UNDEFINED |
 
-`*` Nemotron для сценария ручной клади получил HTTP 429 (`too many concurrent requests`) до начала инструментального выполнения; fixture/CLI не использованы. Raw harness score: Outcome ERROR (semantic judge timeout), Trajectory FAIL (CLI не вызван). Для сравнения поведения модели результат классифицирован как НЕ ПОДТВЕРЖДЕНО, а не как содержательный FAIL.
+## Причины изменений и итоговые ограничения
 
-**Матрица не полная: 6 из 9 комбинаций получили агентский прогон; Qwen отклонён endpoint-ом до генерации.** Итоговый сравнительный результат: **НЕ ПОДТВЕРЖДЕНО**.
+- В трассах Scenario 3 у обеих моделей корректная длительность `3 ч 40 мин` раньше давала ложный Outcome FAIL: evaluator разбирал часы и минуты раздельно. Исправленный парсер сопоставил общую длительность с fixture; O изменился FAIL → PASS. Проверены также краткая запись `3ч 40м`, часовой пояс `+03:00` и `(RUB)`.
+- Для GPT-6 Luna в Scenario 2 MCP fixture был обслужен на повторном вызове, но сохранённый результат CLI обрезан и не содержит `exit_code`. Поэтому прежний Trajectory FAIL уточнён до `ERROR` (недостаточно доказательств), а не повышен до PASS. В Scenario 3 та же причина: fixture обслужен, но exit code не зафиксирован.
+- Для Nemotron в Scenario 2 трасса заканчивается HTTP 429 до инструментального выполнения. Исходный FAIL заменён на `ERROR` для Outcome и Trajectory: качество ответа и прохождение маршрута не наблюдались.
+- В Scenario 1 trajectory остаётся FAIL у обеих моделей. Для GPT запрос содержал `view=full`; схема Tutu задаёт default `compact`, поэтому это не эквивалентный аргумент. Для Nemotron первый вызов менял маршрут на IATA-коды MOW/AER, второй не получил fixture из-за отличающегося набора аргументов. Изменение маршрута не считается эквивалентностью.
+- Эквивалентность replay допускает только значения схемы `search_avia` по умолчанию для `adults=1`, `page=1`, `sort=price_asc`, `view=compact`, когда ключ отсутствует в ожидаемых аргументах. `page_size` не ослаблялся; пассажиры, маршрут, дата и фильтры остаются точными. Основание — записанная схема `hermes/skills/travel/tutu-search-flights/fixtures/meta/tools-list.json`.
+- Ни одна неопределённая оценка не повышена до PASS; P остаётся `UNDEFINED` вне области сценариев. Оценки не подтверждают ранжирование моделей или устойчивость по повторным прогонам.
 
-## Доступность моделей и подготовка
+## Проверки
 
-Проверка выполнена через установленный Hermes и пользовательскую конфигурацию:
+- `PYTHONPATH=. pytest -q tests/contract/test_tutu_search_flights_eval_contract.py` — **16 passed**.
+- `pytest -q tests/contract` — **139 passed**.
+- `py_compile` для evaluator, replay и reassessment CLI; `run_eval.py --help`; `reevaluate_saved.py --help` — **PASS**.
+- Офлайн-переоценка: **6/6** сохранённых трасс; `agent_execution_count=0` относится к самой переоценке. В исходных сохранённых запусках зафиксирован `agent_execution_count=1` на каждый run — эти исторические значения оставлены без изменений. Все новые оценки помечены одной версией evaluator SHA `4ddcc7e0…`. Агент, semantic judge и сетевые запросы при переоценке не запускались.
+- Первый прямой запуск целевого модуля без `PYTHONPATH=.` завершился ошибкой импорта `evals`; повтор с корнем проекта в `PYTHONPATH` прошёл. Полный contract-набор также прошёл.
 
-- `gpt-6-luna` / `openai-codex`: присутствует в текущем профиле; предварительный `hermes chat` запрос успешно вызвал terminal и вернул `TOOL_PROBE_GPT6`.
-- Точный Hermes ID Nemotron — **`nemotron-3-ultra:cloud`**. Предварительный `hermes chat` через `ollama-cloud` успешно вызвал terminal и вернул `TOOL_PROBE_NEMOTRON`. В сравнительной серии один из трёх параллельных запросов получил HTTP 429; это ограничение провайдера, не ошибка skill.
-- `qwen3.8-27b` указан среди моделей `custom:neuraldeep` в конфигурации. Запрос с точными model/provider завершился HTTP 403: модель не входит в доступный текущему API-ключу тариф. Проверить инструменты и запустить Qwen eval не удалось; модель не заменялась.
+## Доказательства и безопасность
 
-Использованы существующие `run_eval.py`, consumer, manifest, replay и общий `evals.harness`. Skill не изменялся; fixtures, prompts, критерии, лимиты и конфигурация сценариев не обновлялись. Кандидат закреплён на SHA `55effd14…`; baseline остался `ab1ae0f…`. Оценки после итерации исправлений evaluator пересчитаны по сохранённым evidence без повторного запуска агентов.
+Артефакты находятся в `evals/tutu-search-flights/reassessments/evaluator-v3/`:
 
-## Результаты отдельных прогонов
+- `batch_manifest.json` — все шесть run ID, статусы, `agent_execution_count=0` и общий evaluator SHA;
+- `original-scores/` — отдельные побайтные копии первоначальных `score.json`;
+- каталоги по run ID — новые `score.json`, диагностические причины, evidence и ссылки на события;
+- `raw-traces/` — сохранённые исходные потоки и имеющиеся MCP boundary traces;
+- `source-manifest.json` и `event-refs.json` — SHA-256 исходников/копий и ссылки на события. Исходные файлы под `~/.hermes/evals/.../20261009-comparison/` не изменялись.
 
-### GPT-6 Luna
+Проверка публикуемых артефактов на типовые credential/token маркеры, email-адреса и приватные IP не выявила совпадений. Это проверка по шаблонам, не формальная гарантия отсутствия любых чувствительных данных.
 
-1. **search-results-reflect-tutu** — 60.37 с. Агент выдал честное сообщение, что результат не получен, без выдуманных рейсов; Outcome PASS подтверждает отсутствие неподтверждённых утверждений, но не успешность задачи. CLI вызван один раз с лишними `adults`, `page`, `sort`, `view`; replay записал `request-mismatch`, fixture не обслужена. Trajectory FAIL.
-2. **missing-cabin-baggage-weight** — 57.76 с. Ответ верно сообщает, что вес ручной клади не указан, и приводит подтверждённые предложения. Первый CLI-вызов не содержал `page_size` и завершился exit 1/request-mismatch; повторный вызов с ожидаемыми аргументами получил `fixture-served`. В обрезанном событии терминала отсутствует достоверный exit code (null); успешность CLI доказать нельзя. Trajectory FAIL, хотя содержательный ответ совпал с fixture.
-3. **party-price-and-fare** — 38.26 с. Итоговые суммы всей группы и тарифные условия подтверждены fixture; Outcome PASS. Аргументы `search_avia` совпали и fixture была обслужена. Однако trace терминала не содержит проверяемого exit code (null); по строгому критерию успешного CLI Trajectory FAIL.
+Промежуточные evaluator-v1/v2 удалены после сравнения содержимого. Отличающиеся исторические результаты v1 (14 файлов) и batch manifest v2 (1 файл), отсутствовавшие по тем же путям/в байтах в v3, сохранены в `reassessments/evaluator-v3/intermediate-history/` с SHA-256; они явно архивные и не участвуют в активной матрице v3.
 
-### Nemotron 3 Ultra
+## Публикация
 
-1. **search-results-reflect-tutu** — 121.41 с. Ответ содержит выдуманную цену `79 288,91 RUB` для третьего предложения/бизнес-тарифа, отсутствующую в соответствующем offer; Outcome FAIL. Два CLI-вызова: первый использовал коды MOW/AER вместо ожидаемых значений, второй добавил `adults`; оба `request-mismatch`, ни один fixture-ответ не обслужил. Trajectory FAIL. Semantic judge завершился timeout; FAIL основан на независимой детерминированной проверке цены.
-2. **missing-cabin-baggage-weight** — 284.34 с. Провайдер вернул HTTP 429 после повторных попыток; Hermes не вызвал ни одного инструмента/CLI. Semantic judge также timeout. Это сбой доступности/лимита провайдера; вывод о навыке модели не подтверждён.
-3. **party-price-and-fare** — 100.56 с. В ответе указаны цена за всю группу и тарифные условия, подтверждённые fixture; независимый semantic judge PASS, Outcome PASS. Ожидаемые аргументы `search_avia` совпали, replay отдал fixture; exit code CLI отсутствует в сохранённом событии, поэтому Trajectory FAIL.
-
-### Qwen 3.8 27B
-
-Все три комбинации не запускались: endpoint вернул HTTP 403 до начала генерации. Нет трасс, score или измерений; все клетки НЕ ПОДТВЕРЖДЕНО.
-
-## Время, токены и стоимость
-
-Время ниже — сумма длительностей индивидуальных агентских прогонов, запущенных параллельно; это не wall-clock длительность серии. Время semantic judge показано отдельно и не включено в agent elapsed.
-
-| Модель | Прогоны | Сумма agent elapsed | Semantic judge elapsed | Input / output tokens агента |
-|---|---:|---:|---:|---:|
-| GPT-6 Luna | 3 | 156.39 с | 35.27 с | 120 683 / 4 799 |
-| Nemotron 3 Ultra | 3 | 506.31 с | 309.63 с | 171 368 / 4 284 |
-| **Итого по выполненным попыткам** | **6** | **662.71 с** | **344.89 с** | **292 051 / 9 083** |
-
-Токены взяты из итоговых `result.tokens` raw stream, когда Hermes их предоставил; у Nemotron с 429 usage отсутствует. Токены для semantic-judge CLI в text режиме не предоставлены. Стоимость в evidence/runtime output отсутствует, поэтому не оценивалась.
-
-## Независимая проверка и исправления evaluator
-
-- Проверены реальные `terminal` tool_use/tool_result, извлечённые команды, exit code (включая null), все MCP `tools/call`, аргументы, `replay_status`, финальные ответы, сохранённые judge claims и детерминированные outcome issues. Успех CLI не выводился из одного лишь наличия похожего на JSON текста.
-- Воспроизведена контрактным тестом ошибка: обрезанный tool_result с текстовыми маркерами `offers` ранее считался успешным CLI, даже если exit code отсутствовал. Исправлено: успех требует распарсенного результата с `offers` и `exit_code == 0`; добавлены проверки truncated output и ненулевого кода. Это предотвращает ложный Trajectory PASS.
-- Реальная корректная длительность `3 ч 40 мин` раньше разбивалась на 180 и 40 минут и давала ложный Outcome FAIL. Ошибка воспроизведена, evaluator теперь разбирает комбинированные часы/минуты и краткую форму `3ч 40м`.
-- Время timezone `+03:00`, не являющееся временем вылета/прилёта, и `(RUB)` ошибочно распознавались как время рейса/код аэропорта. Добавлены контрактные проверки и фильтрация этих ложных совпадений.
-- Исходные матричные оценки сохранены в run evidence; текущие статусы Outcome выше повторно вычислены исправленным consumer по тем же evidence. Trajectory FAIL для CLI с неизвестным exit code оставлен намеренно — это не подменялось PASS. Критерии manifest не менялись.
-
-## Ограничения выводов
-
-- Нет полной матрицы: Qwen заблокирован тарифом API; один Nemotron run заблокирован rate limit. Их поведение на соответствующих сценариях неизвестно.
-- Для трёх из пяти содержательных ответов после исключения Nemotron rate-limit failure сохранённый tool_result CLI не содержит exit code. При строгой проверке нельзя подтвердить полный успешный CLI-путь, даже когда replay отдал fixture и ответ выглядит основанным на ней.
-- Один прогон на комбинацию не подтверждает устойчивость/повторяемость.
-- Провайдеры, кэширование и конкурентный rate limit различались; длительности не являются чистым сравнением скорости моделей.
-- Сценарии — записи фиксированных fixture, не живой поиск Tutu; выводы ограничены тремя указанными prompt/fixture случаями.
-
-## Артефакты
-
-Все артефакты сохранены вне репозитория в `/home/konstantin/.hermes/evals/tutu-search-flights/runs/20261009-comparison/`.
-
-- GPT-6 Luna: `gpt-6-luna/<scenario>/<run-id>/evidence.json`, `score.json`, `raw_stream.jsonl`, `raw_stderr.txt`, `raw_final_answer.txt`, `mcp-boundary.jsonl`, `semantic-judge-prompt.txt`, `semantic-judge-response.txt`.
-- Nemotron 3 Ultra: `nemotron-3-ultra-cloud/<scenario>/<run-id>/` — те же файлы; отсутствие некоторых файлов/ответов при provider failure отражено в evidence.
-- На каждый запуск: `baseline.json`, `report.md`; на каждый scenario directory: `report.md` и `batch_manifest.json`.
-- Проверка Qwen 403 и предварительные tool probes выполнены отдельно через Hermes CLI; их stdout сохранён в истории сессии, отдельные файлы не создавались.
-
-## Итог
-
-**НЕ ПОДТВЕРЖДЕНО** — требуемые 9/9 валидных прогонов получить невозможно при текущем доступе к Qwen; при этом все шесть доступных попыток сохранены и проверены. Среди фактически выполненных попыток Luna дала три фактически осторожных ответа, но ни одна не прошла строгий Trajectory gate из-за request mismatch или отсутствующего exit code. Nemotron показал подтверждённую неподдержанную цену в Scenario 1; его Scenario 3 ответ подтверждён содержательно, но CLI exit code также не зафиксирован. Данных недостаточно для общего ранжирования моделей.
+Контрольный снимок исходного рабочего дерева сохранён отдельным commit `dfee765aff46bb9a799a60a9d40ef3f3449f26bf`. Финальный commit и remote SHA указаны в сообщении о завершении этой задачи.

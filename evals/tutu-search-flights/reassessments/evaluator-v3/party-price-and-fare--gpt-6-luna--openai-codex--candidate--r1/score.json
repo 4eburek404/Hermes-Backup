@@ -1,0 +1,112 @@
+{
+  "evaluator_version_sha256": "4ddcc7e0e8431d3327d9bfa2b7c58d6d2d1e1da9bb54f61f1080f19dc6fab9f5",
+  "original": {
+    "evaluator_provenance": {
+      "evaluator": "tutu-search-flights",
+      "identity_sha256": "088b38a62d7dcaaf5c7e41f522d709b2ac92305afc01b2a1ce2c0779cb97fb0e",
+      "recorded_fixture_sha256": "7666c93ea19389389264f0f87098dcfa7b4bcdb71014ae465009b156d4eee5d2",
+      "rules": {
+        "outcome": {
+          "fixture_id": "tutu-avia-party-2a-1c-2026-09-24",
+          "judge_prompt": "prompt/outcome-judge.txt",
+          "judge_prompt_sha256": "6715de2f85a7fe0b630fb1cc22fcbc90a946c076dc036a0caf6a2a1d2621f16b"
+        },
+        "trajectory": {
+          "expected_search_arguments_from_fixture": true,
+          "forbidden_command_patterns": [
+            "\\bcurl\\b",
+            "\\bwget\\b",
+            "\\bprobe\\.py\\b"
+          ],
+          "forbidden_tool_names": [
+            "browser_navigate",
+            "web_search",
+            "web_extract",
+            "mcp__tutu__search_avia"
+          ],
+          "required_mcp_tool": "search_avia",
+          "required_skill_cli": "tutu_search_flights.py"
+        }
+      }
+    },
+    "score": {
+      "outcome": "FAIL",
+      "privacy": "UNDEFINED",
+      "trajectory": "FAIL"
+    }
+  },
+  "reevaluated": {
+    "diagnostics": {
+      "outcome": {
+        "reason": null,
+        "status": "PASS"
+      },
+      "privacy": {
+        "reason": "privacy is outside this scenario's evaluation scope",
+        "status": "UNDEFINED"
+      },
+      "trajectory": {
+        "reason": "INSUFFICIENT_EVIDENCE: saved terminal result is truncated or lacks an exit code; CLI success or failure cannot be confirmed",
+        "status": "ERROR"
+      }
+    },
+    "harness_result": {
+      "agent_execution_count": 1,
+      "diagnostics": {
+        "outcome": {
+          "reason": null,
+          "status": "PASS"
+        },
+        "privacy": {
+          "reason": "privacy is outside this scenario's evaluation scope",
+          "status": "UNDEFINED"
+        },
+        "trajectory": {
+          "reason": "INSUFFICIENT_EVIDENCE: saved terminal result is truncated or lacks an exit code; CLI success or failure cannot be confirmed",
+          "status": "ERROR"
+        }
+      },
+      "evaluator_provenance": {
+        "evaluator": "tutu-search-flights",
+        "identity_sha256": "57c4343519dbff857ba4bfb3cae80d14f7bc66ae8dff2700d2e4eef99eb78d85",
+        "recorded_fixture_sha256": "7666c93ea19389389264f0f87098dcfa7b4bcdb71014ae465009b156d4eee5d2",
+        "rules": {
+          "outcome": {
+            "fixture_id": "tutu-avia-party-2a-1c-2026-09-24",
+            "judge_prompt": "prompt/outcome-judge.txt",
+            "judge_prompt_sha256": "6715de2f85a7fe0b630fb1cc22fcbc90a946c076dc036a0caf6a2a1d2621f16b"
+          },
+          "trajectory": {
+            "expected_search_arguments_from_fixture": true,
+            "forbidden_command_patterns": [
+              "\\bcurl\\b",
+              "\\bwget\\b",
+              "\\bprobe\\.py\\b"
+            ],
+            "forbidden_tool_names": [
+              "browser_navigate",
+              "web_search",
+              "web_extract",
+              "mcp__tutu__search_avia"
+            ],
+            "required_mcp_tool": "search_avia",
+            "required_skill_cli": "tutu_search_flights.py"
+          }
+        }
+      },
+      "score": {
+        "outcome": "PASS",
+        "privacy": "UNDEFINED",
+        "trajectory": "ERROR"
+      },
+      "workflow_events": null
+    },
+    "score": {
+      "outcome": "PASS",
+      "privacy": "UNDEFINED",
+      "trajectory": "ERROR"
+    }
+  },
+  "source_evidence": "../../../../../.hermes/evals/tutu-search-flights/runs/20261009-comparison/gpt-6-luna/party-price-and-fare/party-price-and-fare--gpt-6-luna--openai-codex--candidate--r1/evidence.json",
+  "source_score": "../../../../../.hermes/evals/tutu-search-flights/runs/20261009-comparison/gpt-6-luna/party-price-and-fare/party-price-and-fare--gpt-6-luna--openai-codex--candidate--r1/score.json"
+}

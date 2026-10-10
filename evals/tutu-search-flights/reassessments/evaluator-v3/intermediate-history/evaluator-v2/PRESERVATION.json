@@ -1,0 +1,11 @@
+{
+  "source_directory": "evaluator-v2",
+  "reason": "Byte-different historical evidence not present at the same relative path in evaluator-v3. Active scores remain evaluator-v3; this is archival provenance.",
+  "files": [
+    {
+      "path": "batch_manifest.json",
+      "sha256": "2b003b604979d72924e3977bea4d8b01ecafc549f436e74d85d4c30c655dfa08",
+      "bytes": 375355
+    }
+  ]
+}

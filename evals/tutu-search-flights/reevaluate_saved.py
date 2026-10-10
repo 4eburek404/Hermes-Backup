@@ -21,6 +21,21 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def evaluator_sha256() -> str:
+    digest = hashlib.sha256()
+    for path in (
+        EVAL_ROOT / "consumer.py",
+        EVAL_ROOT / "replay/request_equivalence.py",
+        EVAL_ROOT / "manifest.json",
+        EVAL_ROOT / "reevaluate_saved.py",
+    ):
+        digest.update(path.relative_to(EVAL_ROOT).as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -50,7 +65,7 @@ def main() -> int:
     from evals.harness.core import Harness, evaluate_dimension_details
 
     consumer = load_consumer()
-    evaluator_version = sha256(EVAL_ROOT / "consumer.py")
+    evaluator_version = evaluator_sha256()
     manifest = consumer.manifest
     output.mkdir(parents=True, exist_ok=True)
     batch_runs = []
@@ -70,6 +85,9 @@ def main() -> int:
             raise SystemExit(f"required saved evidence missing from {run_dir}")
         old_evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
         original_score = json.loads(score_path.read_text(encoding="utf-8"))
+        original_score_copy = output / "original-scores" / f"{run_dir.name}.json"
+        original_score_copy.parent.mkdir(parents=True, exist_ok=True)
+        original_score_copy.write_bytes(score_path.read_bytes())
         evidence = dict(old_evidence)
         raw = trace_path.read_text(encoding="utf-8")
         summary = consumer._event_summary(raw)
@@ -103,6 +121,9 @@ def main() -> int:
                 "source_raw_trace_sha256": sha256(trace_path),
                 "source_evidence_sha256": sha256(evidence_path),
                 "source_score_sha256": sha256(score_path),
+            "published_original_score": os.path.relpath(original_score_copy, output).replace(os.sep, "/"),
+            "published_original_score_sha256": sha256(original_score_copy),
+            "published_original_score_byte_identical": score_path.read_bytes() == original_score_copy.read_bytes(),
                 "source_boundary_sha256": sha256(boundary_path) if boundary_path.is_file() else None,
                 "evaluator_version_sha256": evaluator_version,
             },
@@ -179,6 +200,8 @@ def main() -> int:
                 "raw_trace_sha256": sha256(run_dir / "raw_stream.jsonl"),
                 "evidence_sha256": sha256(run_dir / "evidence.json"),
                 "score_sha256": sha256(run_dir / "score.json"),
+                "published_original_score": os.path.relpath(output / "original-scores" / f"{run_dir.name}.json", output).replace(os.sep, "/"),
+                "published_original_score_sha256": sha256(run_dir / "score.json"),
             } for run_dir in run_dirs
         },
         "agent_execution_count": 0,
