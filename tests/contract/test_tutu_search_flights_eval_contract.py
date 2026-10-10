@@ -128,6 +128,16 @@ def test_scenario_3_deterministically_checks_party_price_and_fare_association():
         "тариф «Базовый» — 11 148,23 ₽; «Выгодный» — 18 214 ₽."
     )
     assert evaluate(grounded)["status"] == "PASS"
+    assert consumer._outcome_issues(
+        "Рейс DP-6949 длится 3ч 40м.",
+        fixture,
+    ) == []
+    assert consumer._outcome_issues(
+        "Рейс DP-6949 вылетает в 19:25 и длится 3 ч 40 мин. "
+        "Стоимость для группы — 11 148,23 (RUB), маршрут SVO—AER. "
+        "Лимит сбрасывается в 20:44.",
+        fixture,
+    ) == []
 
     multiplied = (
         "Для группы из двух взрослых и ребёнка рейс DP-6949 по тарифу "
@@ -214,7 +224,7 @@ def test_terminal_trace_recognizes_successful_structured_skill_cli_result():
     assert summary["terminal_invocations"][0]["success"] is True
 
 
-def test_terminal_trace_recognizes_truncated_successful_structured_skill_cli_result():
+def test_terminal_trace_rejects_truncated_structured_cli_output_without_exit_code():
     structured = json.dumps(
         {"pricing_basis": "party_total", "offers": [{"flight_number": "DP-6949"}]}
     )
@@ -229,7 +239,65 @@ def test_terminal_trace_recognizes_truncated_successful_structured_skill_cli_res
         "\n".join(json.dumps(event) for event in events)
     )
 
-    assert summary["terminal_invocations"][0]["success"] is True
+    assert summary["terminal_invocations"][0]["success"] is False
+
+
+def test_terminal_trace_rejects_nonzero_cli_even_when_output_contains_offers():
+    events = [
+        {"type": "tool_use", "name": "terminal", "input": {"command": '"$PYTHON" tutu_search_flights.py ...'}},
+        {
+            "type": "tool_result",
+            "name": "terminal",
+            "is_error": False,
+            "output": json.dumps({"output": json.dumps({"offers": [{"flight_number": "DP-6949"}]}), "exit_code": 7, "error": None}),
+        },
+        {"type": "result", "text": "done"},
+    ]
+
+    summary = load_consumer()._event_summary(
+        "\n".join(json.dumps(event) for event in events)
+    )
+
+    assert summary["terminal_invocations"][0]["success"] is False
+
+
+def test_trajectory_distinguishes_missing_cli_exit_code_from_confirmed_failure():
+    consumer = load_consumer()
+    fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    arguments = fixture["arguments"]
+    command = '"$PYTHON" tutu_search_flights.py ...'
+    evidence = {
+        "tool_names": ["terminal"],
+        "terminal_commands": [command],
+        "terminal_invocations": [{
+            "command": command,
+            "exit_code": None,
+            "success": False,
+            "result_index": 3,
+        }],
+        "final_event_index": 4,
+        "mcp_boundary_requests": [{
+            "host": "mcp.tutu.ru",
+            "path": "/mcp",
+            "http_method": "POST",
+            "jsonrpc_method": "tools/call",
+            "tool_name": "search_avia",
+            "arguments": arguments,
+            "replay_status": "fixture-served",
+        }],
+        "requested_search_arguments": arguments,
+        "actual_search_arguments": arguments,
+        "blocked_tutu_egress_attempts": [],
+    }
+    rules = consumer.manifest["scenarios"]["search-results-reflect-tutu"]["evaluation"]["trajectory"]
+
+    detail = consumer.evaluate_dimension_diagnostic("trajectory", evidence, rules)
+
+    assert detail["status"] == "ERROR"
+    assert "INSUFFICIENT_EVIDENCE" in detail["reason"]
+    evidence["terminal_invocations"][0]["exit_code"] = 7
+    detail = consumer.evaluate_dimension_diagnostic("trajectory", evidence, rules)
+    assert detail["status"] == "FAIL"
 
 
 def test_recorded_boundary_keeps_candidate_cli_parser_and_mcp_sdk_live(tmp_path):
@@ -291,6 +359,62 @@ def test_recorded_boundary_keeps_candidate_cli_parser_and_mcp_sdk_live(tmp_path)
     assert calls[0]["arguments"] == fixture["arguments"]
 
 
+def test_recorded_boundary_accepts_only_semantically_equivalent_search_arguments(tmp_path):
+    fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    skill_path = Path("hermes/skills/travel/tutu-search-flights")
+    materialized = tmp_path / "skills" / "travel" / "tutu-search-flights"
+    manifest = json.loads((EVAL / "manifest.json").read_text(encoding="utf-8"))
+    materialize_skill_source(ROOT, skill_path, manifest["skill_versions"]["candidate"], materialized)
+    log_path = tmp_path / "mcp-boundary.jsonl"
+    env = os.environ.copy()
+    replay_path = str(EVAL / "replay")
+    env.update({
+        "PYTHONPATH": os.pathsep.join(value for value in (replay_path, env.get("PYTHONPATH", "")) if value),
+        "TUTU_EVAL_FIXTURE": str(FIXTURE),
+        "TUTU_EVAL_BOUNDARY_LOG": str(log_path),
+    })
+    cli = [sys.executable, str(materialized / "tutu_search_flights.py")]
+    expected = fixture["arguments"]
+    equivalent = {
+        **expected,
+        "adults": 1,
+        "page": 1,
+        "sort": "price_asc",
+        "view": "full",
+    }
+    accepted = subprocess.run(
+        [*cli, json.dumps(equivalent, ensure_ascii=False)], env=env, text=True, capture_output=True
+    )
+    assert accepted.returncode == 0, accepted.stderr
+    assert json.loads(accepted.stdout)["offers"]
+    recorded = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    calls = [item for item in recorded if item.get("jsonrpc_method") == "tools/call"]
+    assert calls[-1]["replay_status"] == "fixture-served-equivalent"
+
+    for changes in (
+        {"origin": "MOW"},
+        {"destination": "Адлер"},
+        {"departure_date": "2026-10-16"},
+        {"adults": 2},
+        {"page_size": 2},
+    ):
+        changed = {**expected, **changes}
+        rejected = subprocess.run(
+            [*cli, json.dumps(changed, ensure_ascii=False)], env=env, text=True, capture_output=True
+        )
+        assert rejected.returncode != 0, changes
+    recorded = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    calls = [item for item in recorded if item.get("jsonrpc_method") == "tools/call"]
+    assert [item["replay_status"] for item in calls] == [
+        "fixture-served-equivalent",
+        "request-mismatch",
+        "request-mismatch",
+        "request-mismatch",
+        "request-mismatch",
+        "request-mismatch",
+    ]
+
+
 def test_eval_case_selects_requested_skill_version():
     path = EVAL / "run_eval.py"
     spec = importlib.util.spec_from_file_location("tutu_search_flights_run_eval", path)
@@ -322,7 +446,8 @@ def test_candidate_source_tracks_declared_ref_and_baseline_stays_pinned(tmp_path
         capture_output=True,
     ).stdout.strip()
     assert candidate_identity["resolved_commit"] == expected_candidate
-    assert "reference_commit" not in candidate
+    assert candidate["reference_commit"] == "55effd14b8245125cf9c47e65aad4dd84e8ec24a"
+    assert candidate["ref"] == candidate["reference_commit"]
 
     baseline_dir = tmp_path / "baseline"
     baseline = manifest["skill_versions"]["baseline"]

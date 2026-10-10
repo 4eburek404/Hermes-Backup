@@ -88,11 +88,19 @@ def main() -> int:
         default="candidate",
         help="skill source to evaluate (default: candidate)",
     )
+    model_ids = [item["model"] for item in manifest["models"]]
+    parser.add_argument(
+        "--model",
+        choices=model_ids,
+        default=model_ids[0],
+        help="single model for this run (default: first manifest model)",
+    )
     parser.add_argument("--output-dir", type=Path, help="persistent evidence directory (default: ~/.hermes/evals/...)")
     args = parser.parse_args()
 
-    if manifest["repeats"] != 1 or len(manifest["models"]) != 1:
-        raise SystemExit("this consumer is intentionally limited to one scenario, model, and repeat")
+    if manifest["repeats"] != 1:
+        raise SystemExit("this consumer is intentionally limited to one repeat")
+    selected_model = next(item for item in manifest["models"] if item["model"] == args.model)
     source = manifest["skill_versions"][args.skill_version]
     if args.skill_version == "candidate":
         _git("fetch", "origin", "new-tutu")
@@ -137,6 +145,7 @@ def main() -> int:
         json.dumps(baseline, indent=2) + "\n", encoding="utf-8"
     )
     case = _case(manifest, args.scenario, args.skill_version)
+    case["models"] = [selected_model]
     consumer = _load_consumer()
     consumer.manifest["skill_versions"][args.skill_version] = {
         **source,

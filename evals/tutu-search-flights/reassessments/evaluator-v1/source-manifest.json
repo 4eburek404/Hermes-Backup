@@ -1,0 +1,44 @@
+{
+  "agent_execution_count": 0,
+  "evaluator_version_sha256": "387b911d5cac930a4367ac0d213c9027a1e31956ada606717c77d28c27c610ab",
+  "historical_raw_traces_modified": false,
+  "source_directory": "/home/konstantin/.hermes/evals/tutu-search-flights/runs/20261009-comparison",
+  "source_runs": {
+    "missing-cabin-baggage-weight--gpt-6-luna--openai-codex--candidate--r1": {
+      "evidence_sha256": "910e1c4d6aec0779bebe492fc57b4e6e205d8981b7b6cc1c959005e4d46a3d71",
+      "raw_trace": "../../../../../.hermes/evals/tutu-search-flights/runs/20261009-comparison/gpt-6-luna/missing-cabin-baggage-weight/missing-cabin-baggage-weight--gpt-6-luna--openai-codex--candidate--r1/raw_stream.jsonl",
+      "raw_trace_sha256": "b6b07259d6208b0b1f19eb61755c6487d0f18a9a36600be0a24b6ad10852c6b6",
+      "score_sha256": "f049dae4343c07975fadd8915dfb593d0f6fbec396dc15292406f46bed7ad08e"
+    },
+    "missing-cabin-baggage-weight--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1": {
+      "evidence_sha256": "4ce9eea21b002d2d77154245f85e5b7216448c2b3036d5931e3891987ec8fa2b",
+      "raw_trace": "../../../../../.hermes/evals/tutu-search-flights/runs/20261009-comparison/nemotron-3-ultra-cloud/missing-cabin-baggage-weight/missing-cabin-baggage-weight--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1/raw_stream.jsonl",
+      "raw_trace_sha256": "4a13a75431117374bc5e423406774aaa58d744ed2fa173e2426457e45b2269b4",
+      "score_sha256": "2a02c32c382587dcf68d8c7b1988562db45c81588abf8f1b0d8f65ade3ee82a7"
+    },
+    "party-price-and-fare--gpt-6-luna--openai-codex--candidate--r1": {
+      "evidence_sha256": "9c5a2846aff413120b1f856d5b452289e23562ffaa70a1345bef35449955e1f2",
+      "raw_trace": "../../../../../.hermes/evals/tutu-search-flights/runs/20261009-comparison/gpt-6-luna/party-price-and-fare/party-price-and-fare--gpt-6-luna--openai-codex--candidate--r1/raw_stream.jsonl",
+      "raw_trace_sha256": "59143d134f386dabd5609b60fdf7dea0ed86dd008485f5410255ca72918484b0",
+      "score_sha256": "147eb4b29a4661bbadf680f7861b64486cdcdc7ab50d01d4aabe84ea541aad46"
+    },
+    "party-price-and-fare--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1": {
+      "evidence_sha256": "6e1be90a8f9fcae2b0095dc9525b28f6c7cb1d4b85d8844cd7a9650c18520ee4",
+      "raw_trace": "../../../../../.hermes/evals/tutu-search-flights/runs/20261009-comparison/nemotron-3-ultra-cloud/party-price-and-fare/party-price-and-fare--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1/raw_stream.jsonl",
+      "raw_trace_sha256": "6cddd4c4541c06470a3f794b56ae2afa0bc85d007e6bf2d079a0e0a6b848fe30",
+      "score_sha256": "147eb4b29a4661bbadf680f7861b64486cdcdc7ab50d01d4aabe84ea541aad46"
+    },
+    "search-results-reflect-tutu--gpt-6-luna--openai-codex--candidate--r1": {
+      "evidence_sha256": "6418085c06c1e43c095571d0212ee4fecc6e9e7bf7ba5e9e025496993307a402",
+      "raw_trace": "../../../../../.hermes/evals/tutu-search-flights/runs/20261009-comparison/gpt-6-luna/search-results-reflect-tutu/search-results-reflect-tutu--gpt-6-luna--openai-codex--candidate--r1/raw_stream.jsonl",
+      "raw_trace_sha256": "be37c460112a278f5d62e9d48746709e75ea42b4aa555b76f328db9730df1bb9",
+      "score_sha256": "f049dae4343c07975fadd8915dfb593d0f6fbec396dc15292406f46bed7ad08e"
+    },
+    "search-results-reflect-tutu--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1": {
+      "evidence_sha256": "6b6433d11541b07f0625cb92fc7073ace5e1f5ab1f4e676b9728e73ca426a6d5",
+      "raw_trace": "../../../../../.hermes/evals/tutu-search-flights/runs/20261009-comparison/nemotron-3-ultra-cloud/search-results-reflect-tutu/search-results-reflect-tutu--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1/raw_stream.jsonl",
+      "raw_trace_sha256": "9e81b2a139e3bcde0fdb2f24af988ef948180606a4dba0e19bd81274a989b467",
+      "score_sha256": "2a02c32c382587dcf68d8c7b1988562db45c81588abf8f1b0d8f65ade3ee82a7"
+    }
+  }
+}

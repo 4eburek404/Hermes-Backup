@@ -1,0 +1,228 @@
+{
+  "boundary_file": "raw-traces/search-results-reflect-tutu--gpt-6-luna--openai-codex--candidate--r1.mcp-boundary.jsonl",
+  "boundary_sha256": "7e83beec32d0805882e62018266ff84dfae0fb0f506d84192c40b93dfbe1134a",
+  "event_references": [
+    {
+      "event_type": "tool_use",
+      "index": 1,
+      "line": 2,
+      "name": "terminal",
+      "sha256": "941eb6952c19e555edd8da08f2add44c1f0627b6fe2f48852328bca7809c3add"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 2,
+      "line": 3,
+      "name": "terminal",
+      "sha256": "20dcf5f931c315b2503f445f9932a5c7d94a43b7b685d4a197a8f0c7fbd4560a"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 3,
+      "line": 4,
+      "name": "search_files",
+      "sha256": "14192e8dceb250168cde0933b9f549415ae46e561eaf77509cd135acdd8fadc5"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 4,
+      "line": 5,
+      "name": "search_files",
+      "sha256": "770c3aa4471b00d6ffacb965c5e39df997bed4dad0b55cebe7d5c0dfd2957f04"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 5,
+      "line": 6,
+      "name": "read_file",
+      "sha256": "0cb91592352fd1a9c8e48205c86de3a9691ef4e544514e8f2a1cf0f2368d485a"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 6,
+      "line": 7,
+      "name": "read_file",
+      "sha256": "b2898d6020e0e9c1a5fbd6baff6ac30a2ae36246e6cbad563d59b66e3f94b048"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 7,
+      "line": 8,
+      "name": "search_files",
+      "sha256": "0f13c5f2389f53109a2c2ce7009f2d85012fa6c0a385061b118ac6f3d9bc409e"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 8,
+      "line": 9,
+      "name": "search_files",
+      "sha256": "2bc33359a955cda9e0e62ee204eb659b7a11ca435d5e22168fc9ca840cf3cf4a"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 9,
+      "line": 10,
+      "name": "read_file",
+      "sha256": "588379d7083b8edfee710a62514858dc6e5e7ea74d9a71450d0685c3d9ff1ee7"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 10,
+      "line": 11,
+      "name": "read_file",
+      "sha256": "dcc2e86a603aec3c9518000a4f5126e64d08e8c26e1899079b515bc69c70b8df"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 11,
+      "line": 12,
+      "name": "read_file",
+      "sha256": "acb7026ee5b53aeff61719504d0866c88316e306175a23281fa8321ff662d4f1"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 12,
+      "line": 13,
+      "name": "read_file",
+      "sha256": "6305b426744092e6cd65967e62e4e1c44220c78bc6b97d65fed5b2f0ebf40420"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 13,
+      "line": 14,
+      "name": "read_file",
+      "sha256": "8ccd504a5e5de22e7295edd9df471009dfcfb009821eeae56aa6e9f5a345b061"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 14,
+      "line": 15,
+      "name": "read_file",
+      "sha256": "3e68215d346b7693a6eb09cf7d0fc897454b06cc3c5ee5a7fbe35c156a9b9423"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 15,
+      "line": 16,
+      "name": "read_file",
+      "sha256": "dbdb84c133bfc6430bf412a2f75a702a4c1e058491b6b60317648c423320d4b3"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 16,
+      "line": 17,
+      "name": "read_file",
+      "sha256": "a54ecb2b200df084d402d833cd51068718cb03d9bcfbd7a7cd8442f1c085bfc4"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 17,
+      "line": 18,
+      "name": "search_files",
+      "sha256": "ba43c5f1fb0480fc7ca653f4bb5179533593317a0c5a18823d25872568bcd29f"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 18,
+      "line": 19,
+      "name": "search_files",
+      "sha256": "f38f36961086097dc0a9453150b58ff7a9af1e41cb43662a93e301c1de7a77ac"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 19,
+      "line": 20,
+      "name": "read_file",
+      "sha256": "f9769c2bd1febe70eecac7801dabfd1a8422c5b521cbdf64cbae39371db735df"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 20,
+      "line": 21,
+      "name": "read_file",
+      "sha256": "726b5f88882a3454502ab2e32d20b55efedf6f6392b6d2faea25a7b46a1fd4c4"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 21,
+      "line": 22,
+      "name": "terminal",
+      "sha256": "b0c14b13fe96b488e0a1fff29accc6bed4e0ed4b29a6eea2312bf0e4f83f1430"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 22,
+      "line": 23,
+      "name": "terminal",
+      "sha256": "88ed5e4e12957fd57ee6f5f3bf3a9a2e0647e771d0bfbf16e0f2145de95f7af4"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 23,
+      "line": 24,
+      "name": "search_files",
+      "sha256": "92694939d589bda21595b67659d3e955d9029fe0cd5dc83b6a94fb275afae0ac"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 24,
+      "line": 25,
+      "name": "search_files",
+      "sha256": "03baae1e95362b3cb3e510abad3e65264a35fdebe7b52ac66d6f503a6ed69b9f"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 25,
+      "line": 26,
+      "name": "read_file",
+      "sha256": "c6ab5bdbdfb2691c8d5ecd7aa93c63abfb87e7817346f7bf530cb7a9f2bf6d80"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 26,
+      "line": 27,
+      "name": "read_file",
+      "sha256": "d61b3a3cfa79be806a6f2d40c9c7573b53a54b796f730c797d58aefbd22af70b"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 27,
+      "line": 28,
+      "name": "read_file",
+      "sha256": "9569be2c8470ddc3af5f86b00853d959eda24e261bbe5b94057aac29d58e107e"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 28,
+      "line": 29,
+      "name": "read_file",
+      "sha256": "570f23a8ed09cc7b7c8d5e34a359b5d36272c139917b3ab772caa61c7e810b6b"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 29,
+      "line": 30,
+      "name": "read_file",
+      "sha256": "c9aab4862a1caa6bd2be924af6bfe84fbcb7cd47ada34300f04f63ba118298ec"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 30,
+      "line": 31,
+      "name": "read_file",
+      "sha256": "19e4a5047adcca78c4d9d254792a5e0a1c02e0f1355e9d308b392ee134bba2b5"
+    },
+    {
+      "event_type": "result",
+      "index": 89,
+      "line": 90,
+      "name": null,
+      "sha256": "8f2d00f501dc4c8972b90702e26e2c896b6b482ac6e62986f2a7b00f0700e3ca"
+    }
+  ],
+  "published_boundary_byte_identical": true,
+  "published_copy_byte_identical": true,
+  "published_copy_sha256": "be37c460112a278f5d62e9d48746709e75ea42b4aa555b76f328db9730df1bb9",
+  "source_raw_trace": "raw-traces/search-results-reflect-tutu--gpt-6-luna--openai-codex--candidate--r1.jsonl",
+  "source_raw_trace_sha256": "be37c460112a278f5d62e9d48746709e75ea42b4aa555b76f328db9730df1bb9"
+}

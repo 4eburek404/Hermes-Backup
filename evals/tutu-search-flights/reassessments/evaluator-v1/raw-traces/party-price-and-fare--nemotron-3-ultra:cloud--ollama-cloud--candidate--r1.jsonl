@@ -1,0 +1,262 @@
+{"type": "system", "subtype": "init", "model": "nemotron-3-ultra:cloud", "session_id": "20261009_204609_d6bd89", "timestamp": 1791571570164}
+{"type": "tool_use", "name": "skill_view", "input": {"name": "travel/tutu-search-flights", "file_path": "scripts/tutu_search_flights.py"}, "timestamp": 1791571587966}
+{"type": "tool_result", "name": "skill_view", "output": "{\"success\": false, \"error\": \"File 'scripts/tutu_search_flights.py' not found in skill 'travel/tutu-search-flights'.\", \"available_files\": {\"scripts\": [\"scripts/check_doc_commands.py\"], \"other\": [\"tutu_search_flights.py\", \"README.md\", \"probe.py\", \"PROJECT_RULES.md\", \"AGENTS.md\", \"fixtures/manifest.json\", \"fixtures/README.md\", \"fixtures/avia/bad-input.json\", \"fixtures/avia/page-2.json\", \"fixtures/avia/past-date.json\", \"fixtures/avia/overnight.json\", \"fixtures/avia/direct-only.json\", \"fixtures/avia/baseline.json\", \"fixtures/avia/connections.json\", \"fixtures/avia/unknown-carrier.json\", \"fixtures/avia/iata-airport.json\", \"fixtures/avia/view-full.json\", \"fixtures/avia/round-trip.json\", \"fixtures/avia/party-2a-1c.json\", \"fixtures/avia/empty-route.json\", \"fixtures/meta/tools-list.json\", \"fixtures/meta/initialize.json\", \"fixtures/meta/resource-help.json\", \"fixtures/meta/resource-status.json\", \"fixtures/meta/resource-geo.json\", \"fixtures/meta/avia-instructions.json\", \"docs/verification.md\", \"docs/mcp-notes.md\", \"docs/decisions.md\", \"tests/test_live_search.py\", \"tests/test_party_pricing.py\", \"tests/test_empty_result_evidence.py\", \"tests/mcp_recording_server.py\", \"tests/test_cli_errors.py\", \"tests/product_driver.py\", \"tests/test_round_trip.py\", \"tests/__init__.py\", \"tests/test_successful_search.py\", \"tests/test_production_sdk_search.py\", \"tests/test_tool_error.py\", \"tests/test_harness.py\", \"tests/test_connections.py\", \"specs/02-successful-search.md\", \"specs/05-party-pricing.md\", \"specs/07-round-trip.md\", \"specs/01-product.md\", \"specs/06-connections.md\", \"specs/08-empty-result-evidence.md\", \"specs/03-production-sdk-search.md\", \"specs/09-cli-errors.md\", \"specs/04-tool-error.md\", \"specs/agent/01-live-search.md\"]}, \"hint\": \"Use one of the available file paths listed above\"}", "duration_ms": 33, "is_error": true, "timestamp": 1791571588003}
+{"type": "tool_use", "name": "read_file", "input": {"path": "/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-w_1pn1x4/skills/travel/tutu-search-flights/tutu_search_flights.py"}, "timestamp": 1791571592606}
+{"type": "tool_result", "name": "read_file", "output": "{\"content\": \"1|\\\"\\\"\\\"Разбор ответа Tutu search_avia и живой поиск через MCP SDK.\\\"\\\"\\\"\\n2|\\n3|from __future__ import annotations\\n4|\\n5|import argparse\\n6|import asyncio\\n7|import json\\n8|import sys\\n9|from collections.abc import Callable\\n10|from decimal import Decimal\\n11|from typing import Any\\n12|\\n13|from pydantic import AwareDatetime, BaseModel, ConfigDict, Field\\n14|\\n15|TUTU_MCP_URL = \\\"https://mcp.tutu.ru/mcp\\\"\\n16|\\n17|\\n18|class SourceModel(BaseModel):\\n19|    model_config = ConfigDict(extra=\\\"ignore\\\")\\n20|\\n21|\\n22|class Price(SourceModel):\\n23|    amount: Decimal\\n24|    currency: str\\n25|\\n26|\\n27|class Baggage(SourceModel):\\n28|    kg: int | None = None\\n29|    pieces: int | None = None\\n30|    dimensions: str | None = None\\n31|\\n32|\\n33|class Exchange(SourceModel):\\n34|    available: bool\\n35|    deadline_hours: int | None = None\\n36|\\n37|\\n38|class Conditions(SourceModel):\\n39|    fare_family: str | None = None\\n40|    baggage: Baggage | None = None\\n41|    cabin_baggage: Baggage | None = None\\n42|    refundable: bool | None = None\\n43|    changeable: bool | None = None\\n44|    exchange: Exchange | None = None\\n45|\\n46|\\n47|class Variant(SourceModel):\\n48|    price: Price\\n49|    conditions: Conditions\\n50|\\n51|\\n52|class Segment(SourceModel):\\n53|    carrier: str\\n54|    voyage_no: str\\n55|    from_: str = Field(alias=\\\"from\\\")\\n56|    to: str\\n57|    departure_at: AwareDatetime\\n58|    arrival_at: AwareDatetime\\n59|    duration_min: int\\n60|\\n61|    model_config = ConfigDict(extra=\\\"ignore\\\", populate_by_name=True)\\n62|\\n63|\\n64|class Leg(SourceModel):\\n65|    label: str\\n66|    from_: str = Field(alias=\\\"from\\\")\\n67|    to: str\\n68|    departure_at: AwareDatetime\\n69|    arrival_at: AwareDatetime\\n70|    duration_min: int\\n71|    segments: list[Segment]\\n72|\\n73|    model_config = ConfigDict(extra=\\\"ignore\\\", populate_by_name=True)\\n74|\\n75|\\n76|class Offer(SourceModel):\\n77|    duration_min: int\\n78|    segments_count: int\\n79|    departure_at: AwareDatetime\\n80|    arrival_at: AwareDatetime\\n81|    legs: list[Leg]\\n82|    variants: list[Variant]\\n83|    is_round_trip: bool | None = None\\n84|    return_departure_at: AwareDatetime | None = None\\n85|    return_arrival_at: AwareDatetime | None = None\\n86|    has_self_transfer: bool | None = None\\n87|    is_multi_pnr: bool | None = None\\n88|    multi_pnr_note: str | None = None\\n89|\\n90|\\n91|class Pricing(SourceModel):\\n92|    basis: str\\n93|    passengers: dict[str, int]\\n94|\\n95|\\n96|class Meta(SourceModel):\\n97|    pricing: Pricing\\n98|    has_more: bool\\n99|    total_matched_exact: bool\\n100|    upstream_note: str | None = None\\n101|    post_filter_dropped_over_cap: int = 0\\n102|    post_filter_dropped_not_direct: int = 0\\n103|    post_filter_dropped_wrong_carrier: int = 0\\n104|    post_filter_dropped_wrong_flight_number: int = 0\\n105|    post_filter_dropped_wrong_airport: int = 0\\n106|\\n107|\\n108|class SearchResponse(SourceModel):\\n109|    offers: list[Offer]\\n110|    meta: Meta\\n111|\\n112|\\n113|def _project_text(text: str) -> dict[str, Any]:\\n114|    payload = SearchResponse.model_validate_json(text)\\n115|\\n116|    offers = []\\n117|    for offer in payload.offers:\\n118|        segments = [segment for leg in offer.legs for segment in leg.segments]\\n119|        first_segment = segments[0]\\n120|        fares = []\\n121|        for variant in offer.variants:\\n122|            conditions = variant.conditions\\n123|            fares.append(\\n124|                {\\n125|                    \\\"name\\\": conditions.fare_family,\\n126|                    \\\"amount\\\": format(variant.price.amount, \\\".2f\\\"),\\n127|                    \\\"currency\\\": variant.price.currency,\\n128|                    \\\"baggage\\\": (\\n129|                        conditions.baggage.model_dump(exclude_unset=True)\\n130|                        if conditions.baggage\\n131|                        else None\\n132|                    ),\\n133|                    \\\"cabin_baggage\\\": (\\n134|                        conditions.cabin_baggage.model_dump(exclude_unset=True)\\n135|                        if conditions.cabin_baggage\\n136|                        else None\\n137|                    ),\\n138|                    \\\"refundable\\\": conditions.refundable,\\n139|                    \\\"changeable\\\": conditions.changeable,\\n140|                    \\\"exchange\\\": (\\n141|                        conditions.exchange.model_dump(exclude_unset=True)\\n142|                        if conditions.exchange\\n143|                        else None\\n144|                    ),\\n145|                }\\n146|            )\\n147|\\n148|        legs = []\\n149|        for leg in offer.legs:\\n150|            legs.append(\\n151|                {\\n152|                    \\\"label\\\": leg.label,\\n153|                    \\\"from\\\": leg.from_,\\n154|                    \\\"to\\\": leg.to,\\n155|                    \\\"departure_at\\\": leg.departure_at.isoformat(),\\n156|                    \\\"arrival_at\\\": leg.arrival_at.isoformat(),\\n157|         ...", "duration_ms": 51, "is_error": false, "timestamp": 1791571592660}
+{"type": "tool_use", "name": "terminal", "input": {"command": "echo $PYTHON"}, "timestamp": 1791571615367}
+{"type": "tool_result", "name": "terminal", "output": "{\"output\": \"/home/konstantin/.hermes/evals/tutu-search-flights/runs/20261009-comparison/nemotron-3-ultra-cloud/party-price-and-fare/party-price-and-fare--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1/recorded-python\", \"exit_code\": 0, \"error\": null}", "duration_ms": 58, "is_error": false, "timestamp": 1791571615427}
+{"type": "tool_use", "name": "read_file", "input": {"path": "/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-w_1pn1x4/skills/travel/tutu-search-flights/fixtures/avia/party-2a-1c.json"}, "timestamp": 1791571630303}
+{"type": "tool_result", "name": "read_file", "output": "{\"content\": \"1|{\\n2|  \\\"recorded_at\\\": \\\"2026-09-24T11:28:16+00:00\\\",\\n3|  \\\"source\\\": \\\"tutu\\\",\\n4|  \\\"method\\\": \\\"tools/call\\\",\\n5|  \\\"tool\\\": \\\"search_avia\\\",\\n6|  \\\"arguments\\\": {\\n7|    \\\"origin\\\": \\\"Москва\\\",\\n8|    \\\"destination\\\": \\\"Сочи\\\",\\n9|    \\\"departure_date\\\": \\\"2026-10-15\\\",\\n10|    \\\"page_size\\\": 2,\\n11|    \\\"adults\\\": 2,\\n12|    \\\"children\\\": 1\\n13|  },\\n14|  \\\"note\\\": \\\"за кого цена: basis типа Price. Сравнивать с baseline\\\",\\n15|  \\\"volatile\\\": [\\n16|    \\\"offers[].price\\\",\\n17|    \\\"offers[].checkout_ref\\\",\\n18|    \\\"meta.search_id\\\"\\n19|  ],\\n20|  \\\"response\\\": {\\n21|    \\\"envelope\\\": {\\n22|      \\\"jsonrpc\\\": \\\"2.0\\\",\\n23|      \\\"id\\\": 1,\\n24|      \\\"result\\\": {\\n25|        \\\"content\\\": [\\n26|          {\\n27|            \\\"type\\\": \\\"text\\\",\\n28|            \\\"text\\\": \\\"{\\\\\\\"offers\\\\\\\":[{\\\\\\\"offer_id\\\\\\\":\\\\\\\"a409680c1e4217c387b49c1763e75d16\\\\\\\",\\\\\\\"transport\\\\\\\":\\\\\\\"avia\\\\\\\",\\\\\\\"price\\\\\\\":{\\\\\\\"amount\\\\\\\":11148.23,\\\\\\\"currency\\\\\\\":\\\\\\\"RUB\\\\\\\"},\\\\\\\"duration_min\\\\\\\":220,\\\\\\\"carriers\\\\\\\":[\\\\\\\"Победа\\\\\\\"],\\\\\\\"search_results_url\\\\\\\":\\\\\\\"https://avia.tutu.ru/f/Moskva/Sochi/?class=Y&travelers=3&route[0]=491-15102026-78\\\\\\\",\\\\\\\"segments_count\\\\\\\":1,\\\\\\\"departure_at\\\\\\\":\\\\\\\"2026-10-15T19:25:00+03:00\\\\\\\",\\\\\\\"arrival_at\\\\\\\":\\\\\\\"2026-10-15T23:05:00+03:00\\\\\\\",\\\\\\\"legs\\\\\\\":[{\\\\\\\"label\\\\\\\":\\\\\\\"outbound\\\\\\\",\\\\\\\"from\\\\\\\":\\\\\\\"Москва — Шереметьево (SVO)\\\\\\\",\\\\\\\"to\\\\\\\":\\\\\\\"Сочи, AER\\\\\\\",\\\\\\\"departure_at\\\\\\\":\\\\\\\"2026-10-15T19:25:00+03:00\\\\\\\",\\\\\\\"arrival_at\\\\\\\":\\\\\\\"2026-10-15T23:05:00+03:00\\\\\\\",\\\\\\\"duration_min\\\\\\\":220,\\\\\\\"segments\\\\\\\":[{\\\\\\\"from\\\\\\\":\\\\\\\"Москва — Шереметьево (SVO)\\\\\\\",\\\\\\\"to\\\\\\\":\\\\\\\"Сочи, AER\\\\\\\",\\\\\\\"departure_at\\\\\\\":\\\\\\\"2026-10-15T19:25:00+03:00\\\\\\\",\\\\\\\"arrival_at\\\\\\\":\\\\\\\"2026-10-15T23:05:00+03:00\\\\\\\",\\\\\\\"duration_min\\\\\\\":220,\\\\\\\"carrier\\\\\\\":\\\\\\\"Победа\\\\\\\",\\\\\\\"voyage_no\\\\\\\":\\\\\\\"DP-6949\\\\\\\",\\\\\\\"from_geo_point_id\\\\\\\":2719726,\\\\\\\"to_geo_point_id\\\\\\\":2718761,\\\\\\\"review_summary\\\\\\\":{\\\\\\\"rating\\\\\\\":6.59,\\\\\\\"review_count\\\\\\\":14334,\\\\\\\"label\\\\\\\":\\\\\\\"⭐ 6.59/10 · 14 334 отзыва\\\\\\\",\\\\\\\"source\\\\\\\":\\\\\\\"offers-api.feedback\\\\\\\",\\\\\\\"scope\\\\\\\":\\\\\\\"carrier\\\\\\\",\\\\\\\"subject\\\\\\\":\\\\\\\"Победа\\\\\\\",\\\\\\\"scale\\\\\\\":10,\\\\\\\"feedback_key\\\\\\\":\\\\\\\"2227\\\\\\\"}}]}],\\\\\\\"variants\\\\\\\":[{\\\\\\\"variant_id\\\\\\\":\\\\\\\"87643a58afa951352c3dad2bd803cb8e:671018c27b97d70aa92a2c65120e84ac\\\\\\\",\\\\\\\"offer_hash\\\\\\\":\\\\\\\"{\\\\\\\\\\\\\\\"Price\\\\\\\\\\\\\\\":11149,\\\\\\\\\\\\\\\"OriginalHash\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"[{\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"offerVariantHash\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"9d7790b81ea93b0c716a21605c593b71+c93595748b6390ae573a6e82abdc1e1f\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"variantConditionsHash\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"a409680c1e4217c387b49c1763e75d16:f4b7bd50b88d2aef62aa0ef78689dd61\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"pricingVariantHash\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"1d1b19c8a60b386c568f69ee6e88379d\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"}]\\\\\\\\\\\\\\\"}\\\\\\\",\\\\\\\"price\\\\\\\":{\\\\\\\"amount\\\\\\\":11148.23,\\\\\\\"currency\\\\\\\":\\\\\\\"RUB\\\\\\\"},\\\\\\\"conditions\\\\\\\":{\\\\\\\"fare_family\\\\\\\":\\\\\\\"Базовый\\\\\\\",\\\\\\\"baggage\\\\\\\":{\\\\\\\"kg\\\\\\\":0,\\\\\\\"pieces\\\\\\\":0},\\\\\\\"cabin_baggage\\\\\\\":{\\\\\\\"kg\\\\\\\":null,\\\\\\\"pieces\\\\\\\":1,\\\\\\\"dimensions\\\\\\\":\\\\\\\"36 × 30 × 27\\\\\\\"},\\\\\\\"refundable\\\\\\\":false,\\\\\\\"changeable\\\\\\\":false},\\\\\\\"service_class\\\\\\\":\\\\\\\"ECONOMIC\\\\\\\"},{\\\\\\\"variant_id\\\\\\\":\\\\\\\"87643a58afa951352c3dad2bd803cb8e:6216f4b2c5b065... [truncated]\\n29|          }\\n30|        ],\\n31|        \\\"isError\\\": false\\n32|      }\\n33|    },\\n34|    \\\"payload\\\": {\\n35|      \\\"offers\\\": [\\n36|        {\\n37|          \\\"offer_id\\\": \\\"a409680c1e4217c387b49c1763e75d16\\\",\\n38|          \\\"transport\\\": \\\"avia\\\",\\n39|          \\\"price\\\": {\\n40|            \\\"amount\\\": 11148.23,\\n41|            \\\"currency\\\": \\\"RUB\\\"\\n42|          },\\n43|          \\\"duration_min\\\": 220,\\n44|          \\\"carriers\\\": [\\n45|            \\\"Победа\\\"\\n46|          ],\\n47|          \\\"search_results_url\\\": \\\"https://avia.tutu.ru/f/Moskva/Sochi/?class=Y&travelers=3&route[0]=491-15102026-78\\\",\\n48|          \\\"segments_count\\\": 1,\\n49|          \\\"departure_at\\\": \\\"2026-10-15T19:25:00+03:00\\\",\\n50|          \\\"arrival_at\\\": \\\"2026-10-15T23:05:00+03:00\\\",\\n51|          \\\"legs\\\": [\\n52|            {\\n53|              \\\"label\\\": \\\"outbound\\\",\\n54|              \\\"from\\\": \\\"Москва — Шереметьево (SVO)\\\",\\n55|              \\\"to\\\": \\\"Сочи, AER\\\",\\n56|              \\\"departure_at\\\": \\\"2026-10-15T19:25:00+03:00\\\",\\n57|              \\\"arrival_at\\\": \\\"2026-10-15T23:05:00+03:00\\\",\\n58|              \\\"duration_min\\\": 220,\\n59|              \\\"segments\\\": [\\n60|                {\\n61|                  \\\"from\\\": \\\"Москва — Шереметьево (SVO)\\\",\\n62|                  \\\"to\\\": \\\"Сочи, AER\\\",\\n63|                  \\\"departure_at\\\": \\\"2026-10-15T19:25:00+03:00\\\",\\n64|                  \\\"arrival_at\\\": \\\"2026-10-15T23:05:00+03:00\\\",\\n65|                  \\\"duration_min\\\": 220,\\n66|                  \\\"carrier\\\": \\\"Победа\\\",\\n67|                  \\\"voyage_no\\\": \\\"DP-6949\\\",\\n68|                  \\\"from_geo_point_id\\\": 2719726,\\n69|                  \\\"to_geo_point_id\\\": 2718761,\\n70|                  \\\"review_summary\\\": {\\n71|         ...", "duration_ms": 30, "is_error": false, "timestamp": 1791571630340}
+{"type": "tool_use", "name": "terminal", "input": {"command": "cd /home/konstantin/.hermes/cache/scratch/tutu-hermes-home-w_1pn1x4/skills/travel/tutu-search-flights && \"$PYTHON\" tutu_search_flights.py '{\"origin\": \"Москва\", \"destination\": \"Сочи\", \"departure_date\": \"2026-10-15\", \"page_size\": 2, \"adults\": 2, \"children\": 1}'", "timeout": 120}, "timestamp": 1791571640189}
+{"type": "tool_result", "name": "terminal", "output": "{\"output\": \"{\\n  \\\"pricing_basis\\\": \\\"party_total\\\",\\n  \\\"passengers\\\": {\\n    \\\"full\\\": 2,\\n    \\\"child\\\": 1\\n  },\\n  \\\"has_more\\\": true,\\n  \\\"total_matched_exact\\\": true,\\n  \\\"upstream_note\\\": null,\\n  \\\"post_filter_dropped\\\": {},\\n  \\\"offers\\\": [\\n    {\\n      \\\"flight_number\\\": \\\"DP-6949\\\",\\n      \\\"carrier\\\": \\\"Победа\\\",\\n      \\\"origin\\\": \\\"Москва — Шереметьево (SVO)\\\",\\n      \\\"destination\\\": \\\"Сочи, AER\\\",\\n      \\\"departure_at\\\": \\\"2026-10-15T19:25:00+03:00\\\",\\n      \\\"arrival_at\\\": \\\"2026-10-15T23:05:00+03:00\\\",\\n      \\\"return_departure_at\\\": null,\\n      \\\"return_arrival_at\\\": null,\\n      \\\"duration_min\\\": 220,\\n      \\\"segments_count\\\": 1,\\n      \\\"is_round_trip\\\": null,\\n      \\\"has_self_transfer\\\": null,\\n      \\\"is_multi_pnr\\\": null,\\n      \\\"multi_pnr_note\\\": null,\\n      \\\"legs\\\": [\\n        {\\n          \\\"label\\\": \\\"outbound\\\",\\n          \\\"from\\\": \\\"Москва — Шереметьево (SVO)\\\",\\n          \\\"to\\\": \\\"Сочи, AER\\\",\\n          \\\"departure_at\\\": \\\"2026-10-15T19:25:00+03:00\\\",\\n          \\\"arrival_at\\\": \\\"2026-10-15T23:05:00+03:00\\\",\\n          \\\"duration_min\\\": 220,\\n          \\\"segments\\\": [\\n            {\\n              \\\"flight_number\\\": \\\"DP-6949\\\",\\n              \\\"carrier\\\": \\\"Победа\\\",\\n              \\\"origin\\\": \\\"Москва — Шереметьево (SVO)\\\",\\n              \\\"destination\\\": \\\"Сочи, AER\\\",\\n              \\\"departure_at\\\": \\\"2026-10-15T19:25:00+03:00\\\",\\n              \\\"arrival_at\\\": \\\"2026-10-15T23:05:00+03:00\\\",\\n              \\\"duration_min\\\": 220\\n            }\\n          ]\\n        }\\n      ],\\n      \\\"fares\\\": [\\n        {\\n          \\\"name\\\": \\\"Базовый\\\",\\n          \\\"amount\\\": \\\"11148.23\\\",\\n          \\\"currency\\\": \\\"RUB\\\",\\n          \\\"baggage\\\": {\\n            \\\"kg\\\": 0,\\n            \\\"pieces\\\": 0\\n          },\\n          \\\"cabin_baggage\\\": {\\n            \\\"kg\\\": null,\\n            \\\"pieces\\\": 1,\\n            \\\"dimensions\\\": \\\"36 × 30 × 27\\\"\\n          },\\n          \\\"refundable\\\": false,\\n          \\\"changeable\\\": false,\\n          \\\"exchange\\\": null\\n        },\\n        {\\n          \\\"name\\\": \\\"Выгодный\\\",\\n          \\\"amount\\\": \\\"18214.00\\\",\\n          \\\"currency\\\": \\\"RUB\\\",\\n          \\\"baggage\\\": {\\n            \\\"kg\\\": 10,\\n            \\\"pieces\\\": 1\\n          },\\n          \\\"cabin_baggage\\\": {\\n            \\\"kg\\\": null,\\n            \\\"pieces\\\": 1,\\n            \\\"dimensions\\\": \\\"36 × 30 × 27\\\"\\n          },\\n          \\\"refundable\\\": false,\\n          \\\"changeable\\\": true,\\n          \\\"exchange\\\": {\\n            \\\"available\\\": true,\\n            \\\"deadline_hours\\\": 48\\n          }\\n        },\\n        {\\n          \\\"name\\\": \\\"Максимум\\\",\\n          \\\"amount\\\": \\\"26545.82\\\",\\n          \\\"currency\\\": \\\"RUB\\\",\\n          \\\"baggage\\\": {\\n            \\\"kg\\\": 20,\\n            \\\"pieces\\\": 1\\n          },\\n          \\\"cabin_baggage\\\": {\\n            \\\"kg\\\": null,\\n            \\\"pieces\\\": 1,\\n            \\\"dimensions\\\": \\\"36 × 30 × 27\\\"\\n          },\\n          \\\"refundable\\\": true,\\n          \\\"changeable\\\": true,\\n          \\\"exchange\\\": {\\n            \\\"available\\\": true,\\n            \\\"deadline_hours\\\": 48\\n          }\\n        }\\n      ]\\n    },\\n    {\\n      \\\"flight_number\\\": \\\"SU-1136\\\",\\n      \\\"carrier\\\": \\\"Аэрофлот\\\",\\n      \\\"origin\\\": \\\"Москва — Шереметьево (SVO), терм. B\\\",\\n      \\\"destination\\\": \\\"Сочи, AER\\\",\\n      \\\"departure_at\\\": \\\"2026-10-15T12:50:00+03:00\\\",\\n      \\\"arrival_at\\\": \\\"2026-10-15T16:30:00+03:00\\\",\\n      \\\"return_departure_at\\\": null,\\n      \\\"return_arrival_at\\\": null,\\n      \\\"duration_min\\\": 220,\\n      \\\"segments_count\\\": 1,\\n      \\\"is_round_trip\\\": null,\\n      \\\"has_self_transfer\\\": null,\\n      \\\"is_multi_pnr\\\": null,\\n      \\\"multi_pnr_note\\\": null,\\n      \\\"legs\\\": [\\n        {\\n          \\\"label\\\": \\\"outbound\\\",\\n          \\\"from\\\": \\\"Москва — Шереметьево (SVO), терм. B\\\",\\n          \\\"to\\\": \\\"Сочи, AER\\\",\\n          \\\"departure_at\\\": \\\"2026-10-15T12:50:00+03:00\\\",\\n          \\\"arrival_at\\\": \\\"2026-10-15T16:30:00+03:00\\\",\\n          \\\"duration_min\\\": 220,\\n          \\\"segments\\\": [\\n            {\\n              \\\"flight_number\\\": \\\"SU-1136\\\",\\n              \\\"carrier\\\": \\\"Аэрофлот\\\",\\n              \\\"origin\\\": \\\"Москва — Шереметьево (SVO), терм. B\\\",\\n              \\\"destination\\\": \\\"Сочи, AER\\\",\\n              \\\"departure_at\\\": \\\"2026-10-15T12:50:00+03:00\\\",\\n              \\\"arrival_at\\\": \\\"2026-10-15T16:30:00+03:00\\\",\\n              \\\"duration_min\\\": 220\\n            }\\n          ]\\n        }\\n      ],\\n      \\\"fares\\\": [\\n        {\\n          \\\"name\\\": \\\"Эконом Базовый\\\",\\n          \\\"amount\\\": \\\"13872.86\\\",\\n          \\\"currency\\\": \\\"RUB\\\",\\n          \\\"baggage\\\": {\\n            \\\"kg\\\": 0,\\n            \\\"pieces\\\": 0\\n          },\\n          \\\"cabin_baggage\\\": {\\n            \\\"kg\\\": 10,\\n            \\\"pieces\\\": 1,\\n            \\\"dimensions\\\": \\\"55 × 40 × 25\\\"\\n          },\\n          \\\"refundable\\\": false,\\n          \\\"changeable\\\": true,\\n          \\\"exchange\\\": {\\n            \\\"available\\\": true,\\n            \\\"deadline_hours\\\"...", "duration_ms": 1593, "is_error": false, "timestamp": 1791571641785}
+{"type": "text", "text": "\n\nН", "timestamp": 1791571650191}
+{"type": "text", "text": "айдено 2", "timestamp": 1791571650265}
+{"type": "text", "text": " варианта перелё", "timestamp": 1791571650306}
+{"type": "text", "text": "та Москва —", "timestamp": 1791571650356}
+{"type": "text", "text": " Сочи на", "timestamp": 1791571650399}
+{"type": "text", "text": " 15 октября", "timestamp": 1791571650448}
+{"type": "text", "text": " 2026", "timestamp": 1791571650491}
+{"type": "text", "text": " года", "timestamp": 1791571650537}
+{"type": "text", "text": " для 2 вз", "timestamp": 1791571650585}
+{"type": "text", "text": "рослых и", "timestamp": 1791571650629}
+{"type": "text", "text": " 1 ребён", "timestamp": 1791571650712}
+{"type": "text", "text": "ка (цена", "timestamp": 1791571650720}
+{"type": "text", "text": " — за", "timestamp": 1791571650766}
+{"type": "text", "text": " всю группу):\n\n###", "timestamp": 1791571650818}
+{"type": "text", "text": " 1. Рей", "timestamp": 1791571650872}
+{"type": "text", "text": "с **DP-", "timestamp": 1791571650907}
+{"type": "text", "text": "6949", "timestamp": 1791571650953}
+{"type": "text", "text": "** (Побе", "timestamp": 1791571650996}
+{"type": "text", "text": "да)\n**", "timestamp": 1791571651048}
+{"type": "text", "text": "Вылет:**", "timestamp": 1791571651091}
+{"type": "text", "text": " 15.1", "timestamp": 1791571651133}
+{"type": "text", "text": "0.20", "timestamp": 1791571651180}
+{"type": "text", "text": "26 1", "timestamp": 1791571651226}
+{"type": "text", "text": "9:25", "timestamp": 1791571651271}
+{"type": "text", "text": " из", "timestamp": 1791571651319}
+{"type": "text", "text": " Шереметье", "timestamp": 1791571651397}
+{"type": "text", "text": "во (SVO", "timestamp": 1791571651409}
+{"type": "text", "text": ")  \n**", "timestamp": 1791571651456}
+{"type": "text", "text": "Прил", "timestamp": 1791571651504}
+{"type": "text", "text": "ёт:** 1", "timestamp": 1791571651544}
+{"type": "text", "text": "5.10", "timestamp": 1791571651590}
+{"type": "text", "text": ".202", "timestamp": 1791571651635}
+{"type": "text", "text": "6 23", "timestamp": 1791571651680}
+{"type": "text", "text": ":05 в", "timestamp": 1791571651862}
+{"type": "text", "text": " Сочи (A", "timestamp": 1791571651863}
+{"type": "text", "text": "ER)", "timestamp": 1791571651863}
+{"type": "text", "text": "  \n**Д", "timestamp": 1791571651863}
+{"type": "text", "text": "лительность:**", "timestamp": 1791571651911}
+{"type": "text", "text": " 3 ч", "timestamp": 1791571651957}
+{"type": "text", "text": " 40 мин", "timestamp": 1791571651998}
+{"type": "text", "text": " |", "timestamp": 1791571652061}
+{"type": "text", "text": " Прямой рей", "timestamp": 1791571652090}
+{"type": "text", "text": "с\n\n| Та", "timestamp": 1791571652135}
+{"type": "text", "text": "риф | Ц", "timestamp": 1791571652180}
+{"type": "text", "text": "ена (R", "timestamp": 1791571652227}
+{"type": "text", "text": "UB) | Ба", "timestamp": 1791571652271}
+{"type": "text", "text": "гаж | Р", "timestamp": 1791571652317}
+{"type": "text", "text": "учная", "timestamp": 1791571652364}
+{"type": "text", "text": " кладь | Воз", "timestamp": 1791571652406}
+{"type": "text", "text": "врат | Об", "timestamp": 1791571652450}
+{"type": "text", "text": "мен | У", "timestamp": 1791571652493}
+{"type": "text", "text": "словия об", "timestamp": 1791571652534}
+{"type": "text", "text": "мена |\n|----", "timestamp": 1791571652576}
+{"type": "text", "text": "---|--------", "timestamp": 1791571652619}
+{"type": "text", "text": "---|-------", "timestamp": 1791571652671}
+{"type": "text", "text": "|--------------|", "timestamp": 1791571652701}
+{"type": "text", "text": "---------|----", "timestamp": 1791571652752}
+{"type": "text", "text": "---|----------------|", "timestamp": 1791571652783}
+{"type": "text", "text": "\n| **Баз", "timestamp": 1791571652825}
+{"type": "text", "text": "овый** |", "timestamp": 1791571652864}
+{"type": "text", "text": " 11 1", "timestamp": 1791571652913}
+{"type": "text", "text": "48.", "timestamp": 1791571652949}
+{"type": "text", "text": "23 |", "timestamp": 1791571652998}
+{"type": "text", "text": " 0 кг /", "timestamp": 1791571653029}
+{"type": "text", "text": " 0 мест", "timestamp": 1791571653070}
+{"type": "text", "text": " | 1 место", "timestamp": 1791571653112}
+{"type": "text", "text": ",", "timestamp": 1791571653152}
+{"type": "text", "text": " 36×", "timestamp": 1791571653200}
+{"type": "text", "text": "30×2", "timestamp": 1791571653235}
+{"type": "text", "text": "7 |", "timestamp": 1791571653285}
+{"type": "text", "text": " ❌ Нет", "timestamp": 1791571653321}
+{"type": "text", "text": " | ❌", "timestamp": 1791571653359}
+{"type": "text", "text": " Нет | — |", "timestamp": 1791571653398}
+{"type": "text", "text": "\n| **Выгод", "timestamp": 1791571653468}
+{"type": "text", "text": "ный** |", "timestamp": 1791571653491}
+{"type": "text", "text": " 18 2", "timestamp": 1791571653532}
+{"type": "text", "text": "14.0", "timestamp": 1791571653570}
+{"type": "text", "text": "0 | 1", "timestamp": 1791571653835}
+{"type": "text", "text": "0 кг /", "timestamp": 1791571653885}
+{"type": "text", "text": " 1 место |", "timestamp": 1791571653924}
+{"type": "text", "text": " 1 место,", "timestamp": 1791571653969}
+{"type": "text", "text": " 36×3", "timestamp": 1791571654007}
+{"type": "text", "text": "0×27", "timestamp": 1791571654050}
+{"type": "text", "text": " | ❌", "timestamp": 1791571654088}
+{"type": "text", "text": " Нет | ✅", "timestamp": 1791571654129}
+{"type": "text", "text": " Да | До", "timestamp": 1791571654173}
+{"type": "text", "text": " 48 часов перед", "timestamp": 1791571654211}
+{"type": "text", "text": " вылетом |", "timestamp": 1791571654253}
+{"type": "text", "text": "\n| **Мак", "timestamp": 1791571654296}
+{"type": "text", "text": "симум** |", "timestamp": 1791571654335}
+{"type": "text", "text": " 26", "timestamp": 1791571654375}
+{"type": "text", "text": " 545.", "timestamp": 1791571654418}
+{"type": "text", "text": "82 |", "timestamp": 1791571654457}
+{"type": "text", "text": " 20 кг /", "timestamp": 1791571654503}
+{"type": "text", "text": " 1 место |", "timestamp": 1791571654544}
+{"type": "text", "text": " 1 место,", "timestamp": 1791571654580}
+{"type": "text", "text": " 36×", "timestamp": 1791571654623}
+{"type": "text", "text": "30×2", "timestamp": 1791571654662}
+{"type": "text", "text": "7 | ✅", "timestamp": 1791571654707}
+{"type": "text", "text": " Да | ✅", "timestamp": 1791571654747}
+{"type": "text", "text": " Да | До", "timestamp": 1791571654790}
+{"type": "text", "text": " 48 часов перед", "timestamp": 1791571654833}
+{"type": "text", "text": " вылетом |", "timestamp": 1791571654872}
+{"type": "text", "text": "\n\n---\n\n### 2", "timestamp": 1791571654913}
+{"type": "text", "text": ". Рейс **", "timestamp": 1791571654957}
+{"type": "text", "text": "SU-11", "timestamp": 1791571654996}
+{"type": "text", "text": "36** (", "timestamp": 1791571655033}
+{"type": "text", "text": "Аэроф", "timestamp": 1791571655076}
+{"type": "text", "text": "лот)\n**Вы", "timestamp": 1791571655132}
+{"type": "text", "text": "лет:** 1", "timestamp": 1791571655155}
+{"type": "text", "text": "5.10", "timestamp": 1791571655198}
+{"type": "text", "text": ".202", "timestamp": 1791571655235}
+{"type": "text", "text": "6 12", "timestamp": 1791571655280}
+{"type": "text", "text": ":50 из", "timestamp": 1791571655521}
+{"type": "text", "text": " Шереметье", "timestamp": 1791571655522}
+{"type": "text", "text": "во (SVO", "timestamp": 1791571655522}
+{"type": "text", "text": "), терми", "timestamp": 1791571655522}
+{"type": "text", "text": "нал B", "timestamp": 1791571655523}
+{"type": "text", "text": "  \n**Прилёт", "timestamp": 1791571655523}
+{"type": "text", "text": ":** 15", "timestamp": 1791571655800}
+{"type": "text", "text": ".10.", "timestamp": 1791571655800}
+{"type": "text", "text": "2026", "timestamp": 1791571655800}
+{"type": "text", "text": " 16:", "timestamp": 1791571655801}
+{"type": "text", "text": "30 в Со", "timestamp": 1791571655801}
+{"type": "text", "text": "чи (AER", "timestamp": 1791571655801}
+{"type": "text", "text": ")  \n**", "timestamp": 1791571655801}
+{"type": "text", "text": "Длительность:**", "timestamp": 1791571655836}
+{"type": "text", "text": " 3 ч", "timestamp": 1791571655881}
+{"type": "text", "text": " 40 мин |", "timestamp": 1791571655919}
+{"type": "text", "text": " Прямой рей", "timestamp": 1791571655959}
+{"type": "text", "text": "с\n\n| Та", "timestamp": 1791571655999}
+{"type": "text", "text": "риф | Ц", "timestamp": 1791571656039}
+{"type": "text", "text": "ена (RUB", "timestamp": 1791571656077}
+{"type": "text", "text": ") | Бага", "timestamp": 1791571656120}
+{"type": "text", "text": "ж | Руч", "timestamp": 1791571656159}
+{"type": "text", "text": "ная кладь |", "timestamp": 1791571656205}
+{"type": "text", "text": " Возврат |", "timestamp": 1791571656238}
+{"type": "text", "text": " Обмен | У", "timestamp": 1791571656278}
+{"type": "text", "text": "словия об", "timestamp": 1791571656319}
+{"type": "text", "text": "мена |\n|----", "timestamp": 1791571656357}
+{"type": "text", "text": "---|-----------", "timestamp": 1791571656397}
+{"type": "text", "text": "|-------|", "timestamp": 1791571656441}
+{"type": "text", "text": "--------------|--------", "timestamp": 1791571656478}
+{"type": "text", "text": "-|-------", "timestamp": 1791571656518}
+{"type": "text", "text": "|----------------|\n|", "timestamp": 1791571656558}
+{"type": "text", "text": " Э", "timestamp": 1791571656597}
+{"type": "text", "text": "коном Базовый", "timestamp": 1791571656635}
+{"type": "text", "text": " | 13", "timestamp": 1791571656674}
+{"type": "text", "text": " 872", "timestamp": 1791571656715}
+{"type": "text", "text": ".86 |", "timestamp": 1791571656756}
+{"type": "text", "text": " 0 кг /", "timestamp": 1791571656831}
+{"type": "text", "text": " 0 мест |", "timestamp": 1791571656833}
+{"type": "text", "text": " 10 кг", "timestamp": 1791571656873}
+{"type": "text", "text": " / 1 место", "timestamp": 1791571656915}
+{"type": "text", "text": ", 55", "timestamp": 1791571656952}
+{"type": "text", "text": "×40×", "timestamp": 1791571656991}
+{"type": "text", "text": "25 |", "timestamp": 1791571657031}
+{"type": "text", "text": " ❌ Нет |", "timestamp": 1791571657072}
+{"type": "text", "text": " ✅ Да |", "timestamp": 1791571657112}
+{"type": "text", "text": " До 1 часа", "timestamp": 1791571657349}
+{"type": "text", "text": " перед", "timestamp": 1791571657634}
+{"type": "text", "text": " вылетом |", "timestamp": 1791571657857}
+{"type": "text", "text": "\n| Эконом Оп", "timestamp": 1791571657904}
+{"type": "text", "text": "тимум |", "timestamp": 1791571657940}
+{"type": "text", "text": " 22 0", "timestamp": 1791571657980}
+{"type": "text", "text": "71.2", "timestamp": 1791571658020}
+{"type": "text", "text": "4 | 2", "timestamp": 1791571658064}
+{"type": "text", "text": "3 кг /", "timestamp": 1791571658099}
+{"type": "text", "text": " 1 место |", "timestamp": 1791571658138}
+{"type": "text", "text": " 10 кг /", "timestamp": 1791571658175}
+{"type": "text", "text": " 1 место,", "timestamp": 1791571658217}
+{"type": "text", "text": " 55×", "timestamp": 1791571658257}
+{"type": "text", "text": "40×2", "timestamp": 1791571658296}
+{"type": "text", "text": "5 | ✅", "timestamp": 1791571658366}
+{"type": "text", "text": " Да | ✅", "timestamp": 1791571658403}
+{"type": "text", "text": " Да | До", "timestamp": 1791571658443}
+{"type": "text", "text": " 1 часа перед вы", "timestamp": 1791571658483}
+{"type": "text", "text": "летом |\n|", "timestamp": 1791571658527}
+{"type": "text", "text": " Эконом Макси", "timestamp": 1791571658568}
+{"type": "text", "text": "мум | 4", "timestamp": 1791571658603}
+{"type": "text", "text": "9 73", "timestamp": 1791571658641}
+{"type": "text", "text": "8.15", "timestamp": 1791571658683}
+{"type": "text", "text": " | 23", "timestamp": 1791571658724}
+{"type": "text", "text": " кг / 2", "timestamp": 1791571658764}
+{"type": "text", "text": " места | 1", "timestamp": 1791571658808}
+{"type": "text", "text": "0 кг /", "timestamp": 1791571658870}
+{"type": "text", "text": " 1 место,", "timestamp": 1791571658876}
+{"type": "text", "text": " 55×4", "timestamp": 1791571658918}
+{"type": "text", "text": "0×25", "timestamp": 1791571658957}
+{"type": "text", "text": " | ✅ Да", "timestamp": 1791571658996}
+{"type": "text", "text": " | ✅ Да", "timestamp": 1791571660190}
+{"type": "text", "text": " | До 1", "timestamp": 1791571660513}
+{"type": "text", "text": " часа перед выле", "timestamp": 1791571661765}
+{"type": "text", "text": "том |\n| Б", "timestamp": 1791571663043}
+{"type": "text", "text": "изнес Баз", "timestamp": 1791571664359}
+{"type": "text", "text": "овый | 1", "timestamp": 1791571664637}
+{"type": "text", "text": "77 1", "timestamp": 1791571664679}
+{"type": "text", "text": "58.1", "timestamp": 1791571664719}
+{"type": "text", "text": "5 | 3", "timestamp": 1791571664760}
+{"type": "text", "text": "2 кг /", "timestamp": 1791571664800}
+{"type": "text", "text": " 1 место |", "timestamp": 1791571664838}
+{"type": "text", "text": " 15 кг /", "timestamp": 1791571664878}
+{"type": "text", "text": " 1 место,", "timestamp": 1791571664921}
+{"type": "text", "text": " 55×", "timestamp": 1791571664988}
+{"type": "text", "text": "40×2", "timestamp": 1791571665000}
+{"type": "text", "text": "5 |", "timestamp": 1791571665055}
+{"type": "text", "text": " ❌ Нет |", "timestamp": 1791571665094}
+{"type": "text", "text": " ✅ Да | До", "timestamp": 1791571665118}
+{"type": "text", "text": " 1 часа перед", "timestamp": 1791571665159}
+{"type": "text", "text": " вылетом |", "timestamp": 1791571665196}
+{"type": "text", "text": "\n| Бизнес", "timestamp": 1791571665244}
+{"type": "text", "text": " Оптимум |", "timestamp": 1791571665279}
+{"type": "text", "text": " 202", "timestamp": 1791571665316}
+{"type": "text", "text": " 360", "timestamp": 1791571665356}
+{"type": "text", "text": ".86 |", "timestamp": 1791571665396}
+{"type": "text", "text": " 32 кг", "timestamp": 1791571665435}
+{"type": "text", "text": " / 2 места", "timestamp": 1791571665477}
+{"type": "text", "text": " | 15", "timestamp": 1791571665515}
+{"type": "text", "text": " кг / 1", "timestamp": 1791571665557}
+{"type": "text", "text": " место, 5", "timestamp": 1791571665593}
+{"type": "text", "text": "5×40", "timestamp": 1791571665632}
+{"type": "text", "text": "×25 |", "timestamp": 1791571665674}
+{"type": "text", "text": " ✅ Да |", "timestamp": 1791571665715}
+{"type": "text", "text": " ✅ Да |", "timestamp": 1791571665754}
+{"type": "text", "text": " До 1 часа", "timestamp": 1791571665791}
+{"type": "text", "text": " перед вылетом", "timestamp": 1791571665831}
+{"type": "text", "text": " |\n\n---", "timestamp": 1791571665871}
+{"type": "text", "text": "\n\n**Ва", "timestamp": 1791571665911}
+{"type": "text", "text": "жно:** Все", "timestamp": 1791571665950}
+{"type": "text", "text": " цены уже", "timestamp": 1791571665990}
+{"type": "text", "text": " включа", "timestamp": 1791571666028}
+{"type": "text", "text": "ют оп", "timestamp": 1791571666067}
+{"type": "text", "text": "лату за", "timestamp": 1791571666105}
+{"type": "text", "text": " 2 взрос", "timestamp": 1791571666145}
+{"type": "text", "text": "лых и 1", "timestamp": 1791571666183}
+{"type": "text", "text": " ребёнка", "timestamp": 1791571666219}
+{"type": "text", "text": " —", "timestamp": 1791571666259}
+{"type": "text", "text": " пере", "timestamp": 1791571666298}
+{"type": "text", "text": "мн", "timestamp": 1791571666349}
+{"type": "text", "text": "ожать на", "timestamp": 1791571666375}
+{"type": "text", "text": " количество", "timestamp": 1791571666414}
+{"type": "text", "text": " пассажиров не нужно", "timestamp": 1791571666450}
+{"type": "text", "text": " (", "timestamp": 1791571666489}
+{"type": "text", "text": "под", "timestamp": 1791571666531}
+{"type": "text", "text": "твержден", "timestamp": 1791571666568}
+{"type": "text", "text": "о источ", "timestamp": 1791571666605}
+{"type": "text", "text": "ником: `pr", "timestamp": 1791571666643}
+{"type": "text", "text": "icing.basis =", "timestamp": 1791571666687}
+{"type": "text", "text": " \"party_total\"`", "timestamp": 1791571666722}
+{"type": "text", "text": ").", "timestamp": 1791571666755}
+{"type": "result", "session_id": "20261009_204609_d6bd89", "exit_code": 0, "text": "Найдено 2 варианта перелёта Москва — Сочи на 15 октября 2026 года для 2 взрослых и 1 ребёнка (цена — за всю группу):\n\n### 1. Рейс **DP-6949** (Победа)\n**Вылет:** 15.10.2026 19:25 из Шереметьево (SVO)  \n**Прилёт:** 15.10.2026 23:05 в Сочи (AER)  \n**Длительность:** 3 ч 40 мин | Прямой рейс\n\n| Тариф | Цена (RUB) | Багаж | Ручная кладь | Возврат | Обмен | Условия обмена |\n|-------|-----------|-------|--------------|---------|-------|----------------|\n| **Базовый** | 11 148.23 | 0 кг / 0 мест | 1 место, 36×30×27 | ❌ Нет | ❌ Нет | — |\n| **Выгодный** | 18 214.00 | 10 кг / 1 место | 1 место, 36×30×27 | ❌ Нет | ✅ Да | До 48 часов перед вылетом |\n| **Максимум** | 26 545.82 | 20 кг / 1 место | 1 место, 36×30×27 | ✅ Да | ✅ Да | До 48 часов перед вылетом |\n\n---\n\n### 2. Рейс **SU-1136** (Аэрофлот)\n**Вылет:** 15.10.2026 12:50 из Шереметьево (SVO), терминал B  \n**Прилёт:** 15.10.2026 16:30 в Сочи (AER)  \n**Длительность:** 3 ч 40 мин | Прямой рейс\n\n| Тариф | Цена (RUB) | Багаж | Ручная кладь | Возврат | Обмен | Условия обмена |\n|-------|-----------|-------|--------------|---------|-------|----------------|\n| Эконом Базовый | 13 872.86 | 0 кг / 0 мест | 10 кг / 1 место, 55×40×25 | ❌ Нет | ✅ Да | До 1 часа перед вылетом |\n| Эконом Оптимум | 22 071.24 | 23 кг / 1 место | 10 кг / 1 место, 55×40×25 | ✅ Да | ✅ Да | До 1 часа перед вылетом |\n| Эконом Максимум | 49 738.15 | 23 кг / 2 места | 10 кг / 1 место, 55×40×25 | ✅ Да | ✅ Да | До 1 часа перед вылетом |\n| Бизнес Базовый | 177 158.15 | 32 кг / 1 место | 15 кг / 1 место, 55×40×25 | ❌ Нет | ✅ Да | До 1 часа перед вылетом |\n| Бизнес Оптимум | 202 360.86 | 32 кг / 2 места | 15 кг / 1 место, 55×40×25 | ✅ Да | ✅ Да | До 1 часа перед вылетом |\n\n---\n\n**Важно:** Все цены уже включают оплату за 2 взрослых и 1 ребёнка — перемножать на количество пассажиров не нужно (подтверждено источником: `pricing.basis = \"party_total\"`).", "tokens": {"input": 85242, "output": 2020, "total": 87262, "cache_read": 0, "cache_write": 0}, "duration_ms": 96707, "timestamp": 1791571666871}

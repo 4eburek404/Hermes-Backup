@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from request_equivalence import equivalent_arguments, payload_from_fixture
+
 try:
     import httpx2
 except ImportError:  # Other Python tools may not install the MCP SDK.
@@ -96,21 +98,26 @@ def _recorded_response(request: Any) -> Any:
         if not fixture:
             status = 503
             payload = _rpc_error(request_id, -32603, "recorded Tutu fixture unavailable")
-        elif params.get("name") != fixture.get("tool") or arguments != fixture.get("arguments"):
-            record["replay_status"] = "request-mismatch"
-            payload = {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "result": {
-                    "content": [{"type": "text", "text": "Recorded Tutu request does not match."}],
-                    "isError": True,
-                },
-            }
         else:
-            envelope = json.loads(json.dumps(fixture["response"]["envelope"]))
-            envelope["id"] = request_id
-            payload = envelope
-            record["replay_status"] = "fixture-served"
+            expected_arguments = fixture.get("arguments")
+            equivalent = equivalent_arguments(arguments, expected_arguments, payload_from_fixture(fixture))
+            if params.get("name") != fixture.get("tool") or not equivalent:
+                record["replay_status"] = "request-mismatch"
+                payload = {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "content": [{"type": "text", "text": "Recorded Tutu request does not match."}],
+                        "isError": True,
+                    },
+                }
+            else:
+                envelope = json.loads(json.dumps(fixture["response"]["envelope"]))
+                envelope["id"] = request_id
+                payload = envelope
+                record["replay_status"] = (
+                    "fixture-served" if arguments == expected_arguments else "fixture-served-equivalent"
+                )
     else:
         status = 404
         payload = _rpc_error(request_id, -32601, "Method not found")

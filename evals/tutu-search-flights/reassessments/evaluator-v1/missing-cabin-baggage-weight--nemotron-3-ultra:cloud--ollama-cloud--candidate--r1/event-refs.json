@@ -1,0 +1,18 @@
+{
+  "boundary_file": null,
+  "boundary_sha256": null,
+  "event_references": [
+    {
+      "event_type": "result",
+      "index": 1,
+      "line": 2,
+      "name": null,
+      "sha256": "d071964c880c3d4af8c2eaca904b47077fc109dac46e59d8ccf3b70eaa4ce37f"
+    }
+  ],
+  "published_boundary_byte_identical": null,
+  "published_copy_byte_identical": true,
+  "published_copy_sha256": "4a13a75431117374bc5e423406774aaa58d744ed2fa173e2426457e45b2269b4",
+  "source_raw_trace": "raw-traces/missing-cabin-baggage-weight--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1.jsonl",
+  "source_raw_trace_sha256": "4a13a75431117374bc5e423406774aaa58d744ed2fa173e2426457e45b2269b4"
+}

@@ -30,6 +30,15 @@ if _EGRESS_SPEC is None or _EGRESS_SPEC.loader is None:
 _EGRESS_MODULE = importlib.util.module_from_spec(_EGRESS_SPEC)
 _EGRESS_SPEC.loader.exec_module(_EGRESS_MODULE)
 TutuEgressGuard = _EGRESS_MODULE.TutuEgressGuard
+_EQUIVALENCE_SPEC = importlib.util.spec_from_file_location(
+    "tutu_search_flights_request_equivalence", _REPLAY_DIRECTORY / "request_equivalence.py"
+)
+if _EQUIVALENCE_SPEC is None or _EQUIVALENCE_SPEC.loader is None:
+    raise RuntimeError("cannot load recorded Tutu request equivalence rules")
+_EQUIVALENCE_MODULE = importlib.util.module_from_spec(_EQUIVALENCE_SPEC)
+_EQUIVALENCE_SPEC.loader.exec_module(_EQUIVALENCE_MODULE)
+_equivalent_arguments = _EQUIVALENCE_MODULE.equivalent_arguments
+_payload_from_fixture = _EQUIVALENCE_MODULE.payload_from_fixture
 
 
 class TutuSearchFlightsConsumer:
@@ -92,16 +101,6 @@ class TutuSearchFlightsConsumer:
         try:
             envelope = json.loads(raw)
         except json.JSONDecodeError:
-            if (
-                event.get("is_error") is False
-                and all(marker in raw for marker in ("pricing_basis", "offers", "flight_number"))
-            ):
-                return {
-                    "exit_code": None,
-                    "payload": {"offers": [{}]},
-                    "is_error": False,
-                    "structured_cli_output": True,
-                }
             return {}
         if not isinstance(envelope, dict):
             return {}
@@ -160,10 +159,7 @@ class TutuSearchFlightsConsumer:
                     "success": (
                         not result.get("is_error")
                         and isinstance(payload.get("offers"), list)
-                        and (
-                            result.get("exit_code") == 0
-                            or result.get("structured_cli_output") is True
-                        )
+                        and result.get("exit_code") == 0
                     ),
                 }
             )
@@ -532,7 +528,10 @@ class TutuSearchFlightsConsumer:
             actual_calls = [
                 item for item in boundary_records if item.get("jsonrpc_method") == "tools/call"
             ]
-            served_calls = [item for item in actual_calls if item.get("replay_status") == "fixture-served"]
+            served_calls = [
+                item for item in actual_calls
+                if item.get("replay_status") in {"fixture-served", "fixture-served-equivalent"}
+            ]
             fixture = prepared["recorded_tutu_result"]
             return {
                 "execution_status": execution_status,
@@ -739,7 +738,17 @@ class TutuSearchFlightsConsumer:
             if not supported:
                 issues.append(f"price not present for the stated offer: {match.group(0)}")
 
-        for match in re.finditer(r"(?<!\d)(?:[01]?\d|2[0-3]):[0-5]\d(?!\d)", answer):
+        for match in re.finditer(r"(?<![\d:+-])(?:[01]?\d|2[0-3]):[0-5]\d(?!\d)", answer):
+            sentence_start = max(
+                (answer.rfind(marker, 0, match.start()) for marker in ".!?;\n"),
+                default=-1,
+            ) + 1
+            time_context = answer[sentence_start:match.end() + 40].casefold()
+            if not re.search(
+                r"\b(?:вылет\w*|прил[её]т\w*|прибыт\w*|отправ\w*|departure|arrival|departs|arrives|schedule)\b",
+                time_context,
+            ):
+                continue
             selected_offers = allowed_offers(match.start())
             source_times = {
                 value[11:16]
@@ -822,10 +831,13 @@ class TutuSearchFlightsConsumer:
                     f"cabin baggage weight is not confirmed for the stated offer: {match.group('quantity')} kg"
                 )
 
-        for match in re.finditer(r"\b(\d+)\s*(?:минут\w*|мин\.?|час\w*|ч\.?)\b", answer, re.I):
-            number = int(match.group(1))
-            unit = match.group(0)[len(match.group(1)):].strip().casefold()
-            minutes = number * 60 if unit.startswith(("час", "ч")) else number
+        duration_pattern = re.compile(
+            r"\b(?:(?P<hours>\d+)\s*(?:час\w*|ч\.?)\s*(?:(?P<minutes>\d+)\s*(?:минут\w*|мин\.?|м\.?))?|(?P<only_minutes>\d+)\s*(?:минут\w*|мин\.?|м\.?)|(?P<only_hours>\d+)\s*(?:час\w*|ч\.?))\b",
+            re.I,
+        )
+        for match in duration_pattern.finditer(answer):
+            hours = int(match.group("hours") or match.group("only_hours") or 0)
+            minutes = hours * 60 + int(match.group("minutes") or match.group("only_minutes") or 0)
             sentence_start = max(
                 (answer.rfind(marker, 0, match.start()) for marker in ".!?;\n"),
                 default=-1,
@@ -857,7 +869,7 @@ class TutuSearchFlightsConsumer:
                 for value in [segment.get("duration_min", 0)]
                 if value
             )
-            if minutes not in source_durations and number not in source_durations:
+            if minutes not in source_durations:
                 issues.append(f"duration not present in Tutu result: {match.group(0)}")
 
         fare_pattern = re.compile(
@@ -877,6 +889,8 @@ class TutuSearchFlightsConsumer:
                 issues.append(f"fare name not present in Tutu result: {candidate}")
 
         for match in re.finditer(r"\(([A-Z]{3})\)", answer):
+            if match.group(1) in {"RUB", "USD", "EUR"}:
+                continue
             airport_codes = {
                 code
                 for offer in allowed_offers(match.start())
@@ -903,6 +917,11 @@ class TutuSearchFlightsConsumer:
             answer = evidence.get("final_answer")
             if not isinstance(fixture, dict) or not isinstance(answer, str) or not answer.strip():
                 return {"status": "ERROR", "reason": "recorded Tutu result or final answer missing"}
+            if "HTTP 429" in answer and not evidence.get("tool_names"):
+                return {
+                    "status": "ERROR",
+                    "reason": "PROVIDER_FAILURE: HTTP 429 blocked agent generation before any Tutu result; outcome is unobservable",
+                }
             try:
                 issues = self._outcome_issues(answer, fixture)
             except (KeyError, ValueError, TypeError, json.JSONDecodeError) as exc:
@@ -924,6 +943,11 @@ class TutuSearchFlightsConsumer:
             tool_names = set(evidence.get("tool_names", []))
             if forbidden_tools.intersection(tool_names):
                 return {"status": "FAIL", "reason": "forbidden alternate search tool used"}
+            if "HTTP 429" in str(evidence.get("final_answer", "")) and not tool_names:
+                return {
+                    "status": "ERROR",
+                    "reason": "PROVIDER_FAILURE: HTTP 429 prevented tool execution; trajectory is unobserved",
+                }
             commands = [str(value) for value in evidence.get("terminal_commands", [])]
             for pattern in rules.get("forbidden_command_patterns", []):
                 if any(re.search(pattern, command, re.IGNORECASE) for command in commands):
@@ -934,9 +958,49 @@ class TutuSearchFlightsConsumer:
             calls = [
                 item for item in evidence.get("mcp_boundary_requests", [])
                 if item.get("jsonrpc_method") == "tools/call"
-                and item.get("replay_status") == "fixture-served"
+                and item.get("replay_status") in {"fixture-served", "fixture-served-equivalent"}
             ]
             if len(calls) != 1:
+                tool_calls = [
+                    item for item in evidence.get("mcp_boundary_requests", [])
+                    if item.get("jsonrpc_method") == "tools/call"
+                ]
+                fixture = evidence.get("recorded_tutu_result")
+                expected = evidence.get("requested_search_arguments")
+                mismatch_calls = [
+                    item for item in tool_calls
+                    if item.get("replay_status") == "request-mismatch"
+                ]
+                equivalent_rejected = [
+                    item for item in mismatch_calls
+                    if isinstance(fixture, dict)
+                    and _equivalent_arguments(
+                        item.get("arguments"), expected, _payload_from_fixture(fixture)
+                    )
+                ]
+                non_equivalent_rejected = [
+                    item for item in mismatch_calls
+                    if not isinstance(fixture, dict)
+                    or not _equivalent_arguments(
+                        item.get("arguments"), expected, _payload_from_fixture(fixture)
+                    )
+                ]
+                if non_equivalent_rejected:
+                    return {"status": "FAIL", "reason": "recorded search arguments changed one or more requested constraints"}
+                if equivalent_rejected:
+                    return {
+                        "status": "ERROR",
+                        "reason": (
+                            "INSUFFICIENT_EVIDENCE / EVALUATOR_DEFECT: the saved replay used "
+                            "strict argument equality and rejected a semantically equivalent "
+                            "search; no fixture response was recorded for this trace"
+                        ),
+                    }
+                if not tool_calls and "429" in str(evidence.get("final_answer", "")):
+                    return {
+                        "status": "ERROR",
+                        "reason": "PROVIDER_FAILURE: HTTP 429 prevented tool execution; trajectory is unobserved",
+                    }
                 return {"status": "FAIL", "reason": f"expected one successful recorded SDK search, got {len(calls)}"}
             call = calls[0]
             if call.get("host") != "mcp.tutu.ru" or call.get("path") != "/mcp" or call.get("http_method") != "POST":
@@ -946,12 +1010,21 @@ class TutuSearchFlightsConsumer:
             expected_arguments = evidence.get("requested_search_arguments")
             if call.get("arguments") != expected_arguments or evidence.get("actual_search_arguments") != expected_arguments:
                 return {"status": "FAIL", "reason": "recorded MCP search arguments do not match the requested search"}
-            successful_cli = [
+            cli_invocations = [
                 item for item in evidence.get("terminal_invocations", [])
-                if "tutu_search_flights.py" in item.get("command", "") and item.get("success")
+                if "tutu_search_flights.py" in item.get("command", "")
             ]
+            successful_cli = [item for item in cli_invocations if item.get("success")]
             if not successful_cli:
-                return {"status": "FAIL", "reason": "production skill CLI did not return a successful result"}
+                if any(item.get("exit_code") is None for item in cli_invocations):
+                    return {
+                        "status": "ERROR",
+                        "reason": (
+                            "INSUFFICIENT_EVIDENCE: saved terminal result is truncated or lacks "
+                            "an exit code; CLI success or failure cannot be confirmed"
+                        ),
+                    }
+                return {"status": "FAIL", "reason": "production skill CLI returned no successful result"}
             final_index = evidence.get("final_event_index")
             if final_index is not None and not any(
                 item.get("result_index") is not None and item["result_index"] < final_index

@@ -1,0 +1,144 @@
+{
+  "boundary_file": "raw-traces/party-price-and-fare--gpt-6-luna--openai-codex--candidate--r1.mcp-boundary.jsonl",
+  "boundary_sha256": "47617094003fa9fb72e28ccf3e64a8a1b43f716423035ed90b98129a0b8ce748",
+  "event_references": [
+    {
+      "event_type": "tool_use",
+      "index": 1,
+      "line": 2,
+      "name": "terminal",
+      "sha256": "9285468c56486b891d0a8e3a24bbac2cd01c3ffcb435abb4b3547729ce1899f9"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 2,
+      "line": 3,
+      "name": "terminal",
+      "sha256": "26fc7e1d080bdc320450d37b8b30bb9fbb3e10714b9ad0874c020c2db3dd1582"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 3,
+      "line": 4,
+      "name": "read_file",
+      "sha256": "f4a2b15036aa38b5363d5036ba1a2d366932d43a5ba3413ef2d1692f8fdd6bda"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 4,
+      "line": 5,
+      "name": "read_file",
+      "sha256": "b22fb14088196e4b25890d004b0e30f3533331ef55eaff4d8494e61cb2601e34"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 5,
+      "line": 6,
+      "name": "read_file",
+      "sha256": "38e02112049779b15ff574aa035c9bf1a6c67bdad3813bbc71fc01cdf8ceaa38"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 6,
+      "line": 7,
+      "name": "search_files",
+      "sha256": "9610c7557b69707b39d5d4d0443ee4869fff2a3d2043d4dfcfbdb8c68e1cde29"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 7,
+      "line": 8,
+      "name": "read_file",
+      "sha256": "5d4e9858a927dc859913383152cb63c02f194ff5dd8ccea871c09d1b4f75a7d3"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 8,
+      "line": 9,
+      "name": "search_files",
+      "sha256": "388ac1ef8cf74d2aba35b7b97dc1661a6183148c2980db0e7c35bdb317f7d258"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 9,
+      "line": 10,
+      "name": "read_file",
+      "sha256": "579cc215dd49feb6af1f483189a1f581bd2dc29fdd124cae52b45169fcb634ad"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 10,
+      "line": 11,
+      "name": "read_file",
+      "sha256": "681ee78428e145a6a514e99771bd17ad7ca7b7030f49aa00dad1d7350dd273da"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 11,
+      "line": 12,
+      "name": "read_file",
+      "sha256": "885e0e74721e82a3f96cbd15d76571095f8852bd091ef5efc4389448e3b695c5"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 12,
+      "line": 13,
+      "name": "read_file",
+      "sha256": "d8ea23507ed1d4881bfded63db287c3f4e91fb2d75b461e393594597fd48b0cc"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 13,
+      "line": 14,
+      "name": "read_file",
+      "sha256": "dda16219076058bf6b84be1ed10f442f54c20d571b75cadbe13da6503063ac26"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 14,
+      "line": 15,
+      "name": "read_file",
+      "sha256": "f8eef689fcb32c359ed87fca72d3f7aed245bec82689cbbcadfcbf4b93d74ac5"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 15,
+      "line": 16,
+      "name": "read_file",
+      "sha256": "20ea295e44aaf1f46d3836953ac6ff4521558bc1f9199a8ad5410dc0b0ad26f8"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 16,
+      "line": 17,
+      "name": "read_file",
+      "sha256": "1c4261f9d55ae826d5b1eb95787f9b7b2348ea8dc1cd2b10d55a186fb6a9015d"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 17,
+      "line": 18,
+      "name": "terminal",
+      "sha256": "037aaffb9cfc08443e6a3d7dfeefedbb073287fd94da4b2157e993584099de7b"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 18,
+      "line": 19,
+      "name": "terminal",
+      "sha256": "b4517351ff363cbbc5a5bd64381e12ed5a8d40b57fe40b2f519a6a036d6c5c4a"
+    },
+    {
+      "event_type": "result",
+      "index": 415,
+      "line": 416,
+      "name": null,
+      "sha256": "e47063eee66b9566a0b73887ba23809f4edc899d93b8f5ec1fa4a0c200cd9696"
+    }
+  ],
+  "published_boundary_byte_identical": true,
+  "published_copy_byte_identical": true,
+  "published_copy_sha256": "59143d134f386dabd5609b60fdf7dea0ed86dd008485f5410255ca72918484b0",
+  "source_raw_trace": "raw-traces/party-price-and-fare--gpt-6-luna--openai-codex--candidate--r1.jsonl",
+  "source_raw_trace_sha256": "59143d134f386dabd5609b60fdf7dea0ed86dd008485f5410255ca72918484b0"
+}

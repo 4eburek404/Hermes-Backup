@@ -1,0 +1,9 @@
+{"host": "mcp.tutu.ru", "http_method": "POST", "jsonrpc_method": "server/discover", "path": "/mcp", "replay_status": "protocol-fallback"}
+{"host": "mcp.tutu.ru", "http_method": "POST", "jsonrpc_method": "initialize", "path": "/mcp", "replay_status": "protocol-handshake"}
+{"host": "mcp.tutu.ru", "http_method": "POST", "jsonrpc_method": "notifications/initialized", "path": "/mcp", "replay_status": "protocol-handshake"}
+{"arguments": {"departure_date": "2026-10-15", "destination": "Сочи", "origin": "Москва"}, "fixture_id": "tutu-avia-baseline-2026-09-24", "fixture_sha256": "77930a78b4d99bed72cdbd35310de6b297d3ea5edc5beaf1656c70008a74c58b", "host": "mcp.tutu.ru", "http_method": "POST", "jsonrpc_method": "tools/call", "path": "/mcp", "replay_status": "request-mismatch", "tool_name": "search_avia"}
+{"host": "mcp.tutu.ru", "http_method": "POST", "jsonrpc_method": "server/discover", "path": "/mcp", "replay_status": "protocol-fallback"}
+{"host": "mcp.tutu.ru", "http_method": "POST", "jsonrpc_method": "initialize", "path": "/mcp", "replay_status": "protocol-handshake"}
+{"host": "mcp.tutu.ru", "http_method": "POST", "jsonrpc_method": "notifications/initialized", "path": "/mcp", "replay_status": "protocol-handshake"}
+{"arguments": {"departure_date": "2026-10-15", "destination": "Сочи", "origin": "Москва", "page_size": 3}, "fixture_id": "tutu-avia-baseline-2026-09-24", "fixture_sha256": "77930a78b4d99bed72cdbd35310de6b297d3ea5edc5beaf1656c70008a74c58b", "host": "mcp.tutu.ru", "http_method": "POST", "jsonrpc_method": "tools/call", "path": "/mcp", "replay_status": "fixture-served", "tool_name": "search_avia"}
+{"host": "mcp.tutu.ru", "http_method": "POST", "jsonrpc_method": "tools/list", "path": "/mcp", "replay_status": "protocol-handshake"}

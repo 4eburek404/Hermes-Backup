@@ -8,7 +8,8 @@
   "skill_versions": {
     "candidate": {
       "source": "git",
-      "ref": "refs/remotes/origin/new-tutu"
+      "ref": "55effd14b8245125cf9c47e65aad4dd84e8ec24a",
+      "reference_commit": "55effd14b8245125cf9c47e65aad4dd84e8ec24a"
     },
     "baseline": {
       "source": "git",
@@ -20,6 +21,14 @@
     {
       "model": "gpt-6-luna",
       "provider": "openai-codex"
+    },
+    {
+      "model": "nemotron-3-ultra:cloud",
+      "provider": "ollama-cloud"
+    },
+    {
+      "model": "qwen3.8-27b",
+      "provider": "custom:neuraldeep"
     }
   ],
   "repeats": 1,

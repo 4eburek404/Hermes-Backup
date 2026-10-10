@@ -1,0 +1,5 @@
+{"host": "mcp.tutu.ru", "http_method": "POST", "jsonrpc_method": "server/discover", "path": "/mcp", "replay_status": "protocol-fallback"}
+{"host": "mcp.tutu.ru", "http_method": "POST", "jsonrpc_method": "initialize", "path": "/mcp", "replay_status": "protocol-handshake"}
+{"host": "mcp.tutu.ru", "http_method": "POST", "jsonrpc_method": "notifications/initialized", "path": "/mcp", "replay_status": "protocol-handshake"}
+{"arguments": {"adults": 2, "children": 1, "departure_date": "2026-10-15", "destination": "Сочи", "origin": "Москва", "page_size": 2}, "fixture_id": "tutu-avia-party-2a-1c-2026-09-24", "fixture_sha256": "7666c93ea19389389264f0f87098dcfa7b4bcdb71014ae465009b156d4eee5d2", "host": "mcp.tutu.ru", "http_method": "POST", "jsonrpc_method": "tools/call", "path": "/mcp", "replay_status": "fixture-served", "tool_name": "search_avia"}
+{"host": "mcp.tutu.ru", "http_method": "POST", "jsonrpc_method": "tools/list", "path": "/mcp", "replay_status": "protocol-handshake"}

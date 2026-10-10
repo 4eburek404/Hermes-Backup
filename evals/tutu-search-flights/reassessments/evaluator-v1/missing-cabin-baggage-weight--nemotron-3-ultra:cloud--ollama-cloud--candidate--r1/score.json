@@ -1,0 +1,112 @@
+{
+  "evaluator_version_sha256": "387b911d5cac930a4367ac0d213c9027a1e31956ada606717c77d28c27c610ab",
+  "original": {
+    "evaluator_provenance": {
+      "evaluator": "tutu-search-flights",
+      "identity_sha256": "5045a824dc0ea85f95b9279a5850fa7e0ece52368977e5dd02929eddeff7d63a",
+      "recorded_fixture_sha256": "77930a78b4d99bed72cdbd35310de6b297d3ea5edc5beaf1656c70008a74c58b",
+      "rules": {
+        "outcome": {
+          "fixture_id": "tutu-avia-baseline-2026-09-24",
+          "judge_prompt": "prompt/outcome-judge.txt",
+          "judge_prompt_sha256": "6715de2f85a7fe0b630fb1cc22fcbc90a946c076dc036a0caf6a2a1d2621f16b"
+        },
+        "trajectory": {
+          "expected_search_arguments_from_fixture": true,
+          "forbidden_command_patterns": [
+            "\\bcurl\\b",
+            "\\bwget\\b",
+            "\\bprobe\\.py\\b"
+          ],
+          "forbidden_tool_names": [
+            "browser_navigate",
+            "web_search",
+            "web_extract",
+            "mcp__tutu__search_avia"
+          ],
+          "required_mcp_tool": "search_avia",
+          "required_skill_cli": "tutu_search_flights.py"
+        }
+      }
+    },
+    "score": {
+      "outcome": "FAIL",
+      "privacy": "UNDEFINED",
+      "trajectory": "FAIL"
+    }
+  },
+  "reevaluated": {
+    "diagnostics": {
+      "outcome": {
+        "reason": "semantic judge timed out",
+        "status": "ERROR"
+      },
+      "privacy": {
+        "reason": "privacy is outside this scenario's evaluation scope",
+        "status": "UNDEFINED"
+      },
+      "trajectory": {
+        "reason": "production tutu-search-flights CLI was not invoked",
+        "status": "FAIL"
+      }
+    },
+    "harness_result": {
+      "agent_execution_count": 1,
+      "diagnostics": {
+        "outcome": {
+          "reason": "semantic judge timed out",
+          "status": "ERROR"
+        },
+        "privacy": {
+          "reason": "privacy is outside this scenario's evaluation scope",
+          "status": "UNDEFINED"
+        },
+        "trajectory": {
+          "reason": "production tutu-search-flights CLI was not invoked",
+          "status": "FAIL"
+        }
+      },
+      "evaluator_provenance": {
+        "evaluator": "tutu-search-flights",
+        "identity_sha256": "8811bb68eef36609629c459d201a24817f8d33670f40a44bc79e8caea195c941",
+        "recorded_fixture_sha256": "77930a78b4d99bed72cdbd35310de6b297d3ea5edc5beaf1656c70008a74c58b",
+        "rules": {
+          "outcome": {
+            "fixture_id": "tutu-avia-baseline-2026-09-24",
+            "judge_prompt": "prompt/outcome-judge.txt",
+            "judge_prompt_sha256": "6715de2f85a7fe0b630fb1cc22fcbc90a946c076dc036a0caf6a2a1d2621f16b"
+          },
+          "trajectory": {
+            "expected_search_arguments_from_fixture": true,
+            "forbidden_command_patterns": [
+              "\\bcurl\\b",
+              "\\bwget\\b",
+              "\\bprobe\\.py\\b"
+            ],
+            "forbidden_tool_names": [
+              "browser_navigate",
+              "web_search",
+              "web_extract",
+              "mcp__tutu__search_avia"
+            ],
+            "required_mcp_tool": "search_avia",
+            "required_skill_cli": "tutu_search_flights.py"
+          }
+        }
+      },
+      "score": {
+        "outcome": "ERROR",
+        "privacy": "UNDEFINED",
+        "trajectory": "FAIL"
+      },
+      "workflow_events": null
+    },
+    "score": {
+      "outcome": "ERROR",
+      "privacy": "UNDEFINED",
+      "trajectory": "FAIL"
+    }
+  },
+  "source_evidence": "../../../../../.hermes/evals/tutu-search-flights/runs/20261009-comparison/nemotron-3-ultra-cloud/missing-cabin-baggage-weight/missing-cabin-baggage-weight--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1/evidence.json",
+  "source_score": "../../../../../.hermes/evals/tutu-search-flights/runs/20261009-comparison/nemotron-3-ultra-cloud/missing-cabin-baggage-weight/missing-cabin-baggage-weight--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1/score.json"
+}

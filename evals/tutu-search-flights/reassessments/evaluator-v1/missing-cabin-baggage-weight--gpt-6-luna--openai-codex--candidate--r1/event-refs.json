@@ -1,0 +1,158 @@
+{
+  "boundary_file": "raw-traces/missing-cabin-baggage-weight--gpt-6-luna--openai-codex--candidate--r1.mcp-boundary.jsonl",
+  "boundary_sha256": "025f2f89ba0dada0a699a8fed06af655ca9190d1e76a04bd46b566287e0a8eb9",
+  "event_references": [
+    {
+      "event_type": "tool_use",
+      "index": 1,
+      "line": 2,
+      "name": "read_file",
+      "sha256": "4d7ab5fc290d909f9b2bc773e226eb67baa16c29bc4155bc24f84395df068692"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 2,
+      "line": 3,
+      "name": "read_file",
+      "sha256": "0c5100ab21d743093088fc702a9497118d4735af6e4199d85ea9db05d7910045"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 3,
+      "line": 4,
+      "name": "read_file",
+      "sha256": "daf5f1d1cb20a54ac92c14411a985c2edd9ed8d03bb9c36429b59b6a55d324a3"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 4,
+      "line": 5,
+      "name": "read_file",
+      "sha256": "116702dedc028863c179984489f4394b4a037c4aac48baba8def4da218636e80"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 5,
+      "line": 6,
+      "name": "terminal",
+      "sha256": "f2c410a3cc7fc6785958d7d3e836a1eca491090a081c419dbcc6d08c5cc9ec5c"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 6,
+      "line": 7,
+      "name": "terminal",
+      "sha256": "14c9559a98f9d7d6660b948fca52093211f7391dd47310bd5a253aa51f56d110"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 7,
+      "line": 8,
+      "name": "search_files",
+      "sha256": "75c4a3f8bbb86021694970ef88d44221869973e665887397b9f629c49bc59aca"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 8,
+      "line": 9,
+      "name": "search_files",
+      "sha256": "c52fa3d4ed9fcbec35773061448b1306fc57f3a1d5cc4075899ff13255cb124c"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 9,
+      "line": 10,
+      "name": "search_files",
+      "sha256": "af5e3a2102e8fd65cd95cc112c8cd5e5d27711fccfc364abc3c18f847504a414"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 10,
+      "line": 11,
+      "name": "search_files",
+      "sha256": "190a6ac9be2a8b2b72ded06661e2f04867b0854fb353adce960f364b07db2c7c"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 11,
+      "line": 12,
+      "name": "search_files",
+      "sha256": "d7ee452a16945d7894c1a22078c79e49f464676d7d530f64454cf0a3f057b4be"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 12,
+      "line": 13,
+      "name": "search_files",
+      "sha256": "7ed8b2f8504d98adba7bb328fb0d5acc845becc018cb1db6dfaedf089762554a"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 13,
+      "line": 14,
+      "name": "terminal",
+      "sha256": "d2dd552c4b24ef0a7f3608132a6ad00f795b9298bfab1017bd7c448b578a03d8"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 14,
+      "line": 15,
+      "name": "terminal",
+      "sha256": "29938cd385e8714bb64fc7a7ded48845d5e62907adfd9d16fce5b701d56eee31"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 15,
+      "line": 16,
+      "name": "search_files",
+      "sha256": "e24f82b58a5aeebaeca80efd9628950fdc42c6480f0acbbab1742589629fd87b"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 16,
+      "line": 17,
+      "name": "search_files",
+      "sha256": "10b638a2635c1bc833c7f4cb980fb742945f866ed3c04b939981ada810266aa4"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 17,
+      "line": 18,
+      "name": "read_file",
+      "sha256": "fffa4ec905696a38d1b50db8e2cd8da265c34c9d5b7b47eddea242d41811f49c"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 18,
+      "line": 19,
+      "name": "read_file",
+      "sha256": "40afdfeb43b6a0be1f79afc74a87005073d0f5b38bb528b9241a213e303f0ae2"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 19,
+      "line": 20,
+      "name": "terminal",
+      "sha256": "cd6cd35425b841d40cd18b8405ba4f2545c13849d734592118763dcd47213acc"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 20,
+      "line": 21,
+      "name": "terminal",
+      "sha256": "9a81536a74b79530f14e918efd0a40408e6767a24591bbf5cbaba4d710e43ae8"
+    },
+    {
+      "event_type": "result",
+      "index": 259,
+      "line": 260,
+      "name": null,
+      "sha256": "745a272d4e3e12c5031f4bd7fc38043d4ada06e6b57df269cffca675c077e443"
+    }
+  ],
+  "published_boundary_byte_identical": true,
+  "published_copy_byte_identical": true,
+  "published_copy_sha256": "b6b07259d6208b0b1f19eb61755c6487d0f18a9a36600be0a24b6ad10852c6b6",
+  "source_raw_trace": "raw-traces/missing-cabin-baggage-weight--gpt-6-luna--openai-codex--candidate--r1.jsonl",
+  "source_raw_trace_sha256": "b6b07259d6208b0b1f19eb61755c6487d0f18a9a36600be0a24b6ad10852c6b6"
+}

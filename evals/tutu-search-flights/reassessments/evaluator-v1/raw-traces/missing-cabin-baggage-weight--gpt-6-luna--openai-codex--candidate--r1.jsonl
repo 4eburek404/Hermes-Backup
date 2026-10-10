@@ -1,0 +1,260 @@
+{"type": "system", "subtype": "init", "model": "gpt-6-luna", "session_id": "20261009_203314_1840ec", "timestamp": 1791570794722}
+{"type": "tool_use", "name": "read_file", "input": {"path": "/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-aqd9gq5p/skills/travel/tutu-search-flights/README.md"}, "timestamp": 1791570804587}
+{"type": "tool_use", "name": "read_file", "input": {"path": "/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-aqd9gq5p/skills/travel/tutu-search-flights/tutu_search_flights.py"}, "timestamp": 1791570804588}
+{"type": "tool_result", "name": "read_file", "output": "{\"content\": \"1|# tutu-search-flights\\n2|\\n3|Skill содержит CLI для поиска авиабилетов через Tutu, записанные MCP fixtures, детерминированные тесты и исполняемые спецификации.\\n4|\\n5|## Локальная установка\\n6|\\n7|Запускайте команды из этой директории. Укажите `PYTHON` — интерпретатор, в который нужно установить зависимости. На Mac для разработки Hermes-Backup:\\n8|\\n9|```sh\\n10|export PYTHON=/Users/home/.venvs/hermes-backup/bin/python\\n11|uv pip install --python \\\"$PYTHON\\\" --require-hashes -r requirements-dev.txt\\n12|make check\\n13|```\\n14|\\n15|Зависимости из lock-файла устанавливаются в выбранный интерпретатор. Команды не создают виртуальное окружение и не запускают `uv sync` для общего окружения.\\n16|\\n17|## Файл блокировки\\n18|\\n19|`requirements-dev.txt` — универсальный lock с хэшами, собранный из `pyproject.toml`. Чтобы обновить его, запустите из этой директории:\\n20|\\n21|```sh\\n22|uv pip compile pyproject.toml --extra dev --universal --generate-hashes --no-annotate -o requirements-dev.txt\\n23|```\\n24|\\n25|Проверьте сгенерированный файл перед установкой или коммитом.\\n26|\\n27|## Проверки и CI\\n28|\\n29|- `make check` запускает все тесты без live-маркера, Ruff lint и проверку форматирования, а также проверку команд в документации.\\n30|- `make spec` запускает детерминированные исполняемые спецификации продукта.\\n31|- `make live` явно включает smoke test реального Tutu MCP. Команда отправляет сетевой запрос и не входит в `make check`.\\n32|- `make discover` обновляет исследовательские данные через реальный Tutu MCP.\\n33|- `make clean` удаляет локальные кэши Python-инструментов.\\n34|\\n35|GitHub Actions запускает workflow для pull request и push с изменениями в этом skill или в его workflow; его также можно запустить вручную. Workflow устанавливает зависимости с проверкой хэшей на Ubuntu с Python 3.13 и выполняет `make check`. CI не запускает `make live` и `make discover`, секреты Tutu не используются.\\n36|\\n37|[GitHub Actions успешно прошёл](https://github.com/4eburek404/Hermes-Backup/actions/runs/36174651955) для коммита `8f6dce2` в `new-tutu` (2026-09-25). Обязательность workflow в branch protection не проверена. Подробности — в [матрице требований и доказательств](docs/verification.md).\", \"total_lines\": 37, \"file_size\": 3081, \"truncated\": false, \"is_binary\": false, \"is_image\": false}", "duration_ms": 63, "is_error": false, "timestamp": 1791570804651}
+{"type": "tool_result", "name": "read_file", "output": "{\"content\": \"1|\\\"\\\"\\\"Разбор ответа Tutu search_avia и живой поиск через MCP SDK.\\\"\\\"\\\"\\n2|\\n3|from __future__ import annotations\\n4|\\n5|import argparse\\n6|import asyncio\\n7|import json\\n8|import sys\\n9|from collections.abc import Callable\\n10|from decimal import Decimal\\n11|from typing import Any\\n12|\\n13|from pydantic import AwareDatetime, BaseModel, ConfigDict, Field\\n14|\\n15|TUTU_MCP_URL = \\\"https://mcp.tutu.ru/mcp\\\"\\n16|\\n17|\\n18|class SourceModel(BaseModel):\\n19|    model_config = ConfigDict(extra=\\\"ignore\\\")\\n20|\\n21|\\n22|class Price(SourceModel):\\n23|    amount: Decimal\\n24|    currency: str\\n25|\\n26|\\n27|class Baggage(SourceModel):\\n28|    kg: int | None = None\\n29|    pieces: int | None = None\\n30|    dimensions: str | None = None\\n31|\\n32|\\n33|class Exchange(SourceModel):\\n34|    available: bool\\n35|    deadline_hours: int | None = None\\n36|\\n37|\\n38|class Conditions(SourceModel):\\n39|    fare_family: str | None = None\\n40|    baggage: Baggage | None = None\\n41|    cabin_baggage: Baggage | None = None\\n42|    refundable: bool | None = None\\n43|    changeable: bool | None = None\\n44|    exchange: Exchange | None = None\\n45|\\n46|\\n47|class Variant(SourceModel):\\n48|    price: Price\\n49|    conditions: Conditions\\n50|\\n51|\\n52|class Segment(SourceModel):\\n53|    carrier: str\\n54|    voyage_no: str\\n55|    from_: str = Field(alias=\\\"from\\\")\\n56|    to: str\\n57|    departure_at: AwareDatetime\\n58|    arrival_at: AwareDatetime\\n59|    duration_min: int\\n60|\\n61|    model_config = ConfigDict(extra=\\\"ignore\\\", populate_by_name=True)\\n62|\\n63|\\n64|class Leg(SourceModel):\\n65|    label: str\\n66|    from_: str = Field(alias=\\\"from\\\")\\n67|    to: str\\n68|    departure_at: AwareDatetime\\n69|    arrival_at: AwareDatetime\\n70|    duration_min: int\\n71|    segments: list[Segment]\\n72|\\n73|    model_config = ConfigDict(extra=\\\"ignore\\\", populate_by_name=True)\\n74|\\n75|\\n76|class Offer(SourceModel):\\n77|    duration_min: int\\n78|    segments_count: int\\n79|    departure_at: AwareDatetime\\n80|    arrival_at: AwareDatetime\\n81|    legs: list[Leg]\\n82|    variants: list[Variant]\\n83|    is_round_trip: bool | None = None\\n84|    return_departure_at: AwareDatetime | None = None\\n85|    return_arrival_at: AwareDatetime | None = None\\n86|    has_self_transfer: bool | None = None\\n87|    is_multi_pnr: bool | None = None\\n88|    multi_pnr_note: str | None = None\\n89|\\n90|\\n91|class Pricing(SourceModel):\\n92|    basis: str\\n93|    passengers: dict[str, int]\\n94|\\n95|\\n96|class Meta(SourceModel):\\n97|    pricing: Pricing\\n98|    has_more: bool\\n99|    total_matched_exact: bool\\n100|    upstream_note: str | None = None\\n101|    post_filter_dropped_over_cap: int = 0\\n102|    post_filter_dropped_not_direct: int = 0\\n103|    post_filter_dropped_wrong_carrier: int = 0\\n104|    post_filter_dropped_wrong_flight_number: int = 0\\n105|    post_filter_dropped_wrong_airport: int = 0\\n106|\\n107|\\n108|class SearchResponse(SourceModel):\\n109|    offers: list[Offer]\\n110|    meta: Meta\\n111|\\n112|\\n113|def _project_text(text: str) -> dict[str, Any]:\\n114|    payload = SearchResponse.model_validate_json(text)\\n115|\\n116|    offers = []\\n117|    for offer in payload.offers:\\n118|        segments = [segment for leg in offer.legs for segment in leg.segments]\\n119|        first_segment = segments[0]\\n120|        fares = []\\n121|        for variant in offer.variants:\\n122|            conditions = variant.conditions\\n123|            fares.append(\\n124|                {\\n125|                    \\\"name\\\": conditions.fare_family,\\n126|                    \\\"amount\\\": format(variant.price.amount, \\\".2f\\\"),\\n127|                    \\\"currency\\\": variant.price.currency,\\n128|                    \\\"baggage\\\": (\\n129|                        conditions.baggage.model_dump(exclude_unset=True)\\n130|                        if conditions.baggage\\n131|                        else None\\n132|                    ),\\n133|                    \\\"cabin_baggage\\\": (\\n134|                        conditions.cabin_baggage.model_dump(exclude_unset=True)\\n135|                        if conditions.cabin_baggage\\n136|                        else None\\n137|                    ),\\n138|                    \\\"refundable\\\": conditions.refundable,\\n139|                    \\\"changeable\\\": conditions.changeable,\\n140|                    \\\"exchange\\\": (\\n141|                        conditions.exchange.model_dump(exclude_unset=True)\\n142|                        if conditions.exchange\\n143|                        else None\\n144|                    ),\\n145|                }\\n146|            )\\n147|\\n148|        legs = []\\n149|        for leg in offer.legs:\\n150|            legs.append(\\n151|                {\\n152|                    \\\"label\\\": leg.label,\\n153|                    \\\"from\\\": leg.from_,\\n154|                    \\\"to\\\": leg.to,\\n155|                    \\\"departure_at\\\": leg.departure_at.isoformat(),\\n156|                    \\\"arrival_at\\\": leg.arrival_at.isoformat(),\\n157|         ...", "duration_ms": 62, "is_error": false, "timestamp": 1791570804654}
+{"type": "tool_use", "name": "terminal", "input": {"command": "printf 'PYTHON=%s\\n' \"$PYTHON\"; \"$PYTHON\" --version", "workdir": "/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-aqd9gq5p/skills/travel/tutu-search-flights"}, "timestamp": 1791570804657}
+{"type": "tool_result", "name": "terminal", "output": "{\"output\": \"PYTHON=/home/konstantin/.hermes/evals/tutu-search-flights/runs/20261009-comparison/gpt-6-luna/missing-cabin-baggage-weight/missing-cabin-baggage-weight--gpt-6-luna--openai-codex--candidate--r1/recorded-python\\nPython 3.11.15\", \"exit_code\": 0, \"error\": null}", "duration_ms": 51, "is_error": false, "timestamp": 1791570804711}
+{"type": "tool_use", "name": "search_files", "input": {"pattern": "search_avia|Москва|MOW|departure_date|date_from", "path": "/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-aqd9gq5p/skills/travel/tutu-search-flights", "limit": 20, "context": 2}, "timestamp": 1791570809400}
+{"type": "tool_result", "name": "search_files", "output": "{\"total_count\": 189, \"matches_format\": \"path-grouped: each file path on its own line, followed by indented '<line>: <content>' rows for matches in that file\", \"matches_text\": \"/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-aqd9gq5p/skills/travel/tutu-search-flights/AGENTS.md\\n  8: - product specification: [`specs/01-product.md`](specs/01-product.md);\\n  9: - S1 — сохранение успешного ответа: [`specs/02-successful-search.md`](specs/02-successful-search.md);\\n  10: - S2 — production CLI → MCP SDK → `search_avia`: [`specs/03-production-sdk-search.md`](specs/03-production-sdk-search.md);\\n  11: - S3 — tool-level error не является пустой выдачей: [`specs/04-tool-error.md`](specs/04-tool-error.md);\\n  12: - S4 — party_total и состав пассажиров: [`specs/05-party-pricing.md`](specs/05-party-pricing.md);\\n/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-aqd9gq5p/skills/travel/tutu-search-flights/specs/agent/01-live-search.md\\n  17: - It performs the live search through the project's MCP SDK client against\\n  18:   `https://mcp.tutu.ru/mcp`.\\n  19: - The SDK session calls `search_avia` with arguments matching the user's request.\\n  20: - Any flight, price, fare, or condition stated in the answer is supported by the\\n  21:   returned Tutu result; the model does not invent missing values.\\n/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-aqd9gq5p/skills/travel/tutu-search-flights/specs/04-tool-error.md\\n  6: ## Дано\\n  7: \\n  8: Запись `fixtures/avia/empty-route.json` содержит результат `search_avia` с\\n  9: `isError: true` и полным текстом причины Tutu. Тестовый in-memory MCP `Server`\\n  10: возвращает эту запись через типизированный результат настоящего MCP SDK 2.2.0.\\n  12: ## Когда\\n  13: \\n  14: Production поиск вызывает `search_avia` через настоящий SDK client/session.\\n  15: \\n  16: ## Тогда\", \"truncated\": true, \"total_count_is_lower_bound\": true, \"_hint\": \"Results truncated. Use offset=20 to see more, or narrow with a more specific pattern or file_glob.\"}", "duration_ms": 145, "is_error": false, "timestamp": 1791570809547}
+{"type": "tool_use", "name": "search_files", "input": {"context": 3, "limit": 30, "path": "/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-aqd9gq5p/skills/travel/tutu-search-flights", "pattern": "\"origin\"|\"from\"|\"date\"|\"to\"", "target": "content", "file_glob": "*.json"}, "timestamp": 1791570814628}
+{"type": "tool_use", "name": "search_files", "input": {"context": 3, "limit": 30, "path": "/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-aqd9gq5p/skills/travel/tutu-search-flights", "pattern": "departure_date|date_from|date_to|from_city|origin", "target": "content", "file_glob": "*.md"}, "timestamp": 1791570814631}
+{"type": "tool_result", "name": "search_files", "output": "{\"total_count\": 206, \"matches_format\": \"path-grouped: each file path on its own line, followed by indented '<line>: <content>' rows for matches in that file\", \"matches_text\": \"/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-aqd9gq5p/skills/travel/tutu-search-flights/fixtures/meta/tools-list.json\\n  22:                 \\\"check_in\\\": {\\n  23:                   \\\"anyOf\\\": [\\n  24:                     {\\n  25:                       \\\"format\\\": \\\"date\\\",\\n  26:                       \\\"type\\\": \\\"string\\\"\\n  27:                     },\\n  28:                     {\\n  36:                 \\\"check_out\\\": {\\n  37:                   \\\"anyOf\\\": [\\n  38:                     {\\n  39:                       \\\"format\\\": \\\"date\\\",\\n  40:                       \\\"type\\\": \\\"string\\\"\\n  41:                     },\\n  42:                     {\\n  50:                 \\\"checkin_date\\\": {\\n  51:                   \\\"anyOf\\\": [\\n  52:                     {\\n  53:                       \\\"format\\\": \\\"date\\\",\\n  54:                       \\\"type\\\": \\\"string\\\"\\n  55:                     },\\n  56:                     {\\n  64:                 \\\"checkout_date\\\": {\\n  65:                   \\\"anyOf\\\": [\\n  66:                     {\\n  67:                       \\\"format\\\": \\\"date\\\",\\n  68:                       \\\"type\\\": \\\"string\\\"\\n  69:                     },\\n  70:                     {\\n  407:             \\\"inputSchema\\\": {\\n  408:               \\\"additionalProperties\\\": false,\", \"truncated\": true, \"total_count_is_lower_bound\": true, \"_hint\": \"Results truncated. Use offset=30 to see more, or narrow with a more specific pattern or file_glob.\"}", "duration_ms": 175, "is_error": false, "timestamp": 1791570814805}
+{"type": "tool_result", "name": "search_files", "output": "{\"total_count\": 25, \"matches_format\": \"path-grouped: each file path on its own line, followed by indented '<line>: <content>' rows for matches in that file\", \"matches_text\": \"/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-aqd9gq5p/skills/travel/tutu-search-flights/specs/07-round-trip.md\\n  14: - outbound и return остаются отдельными legs в исходном порядке;\\n  15: - для каждого плеча сохраняются длительность, сегменты, номера рейсов, перевозчики,\\n  16:   аэропорты и локальные времена;\\n  17: - основной origin/destination описывает outbound, а не склеивает начало outbound\\n  18:   с концом return;\\n  19: - времена обратного вылета и прилёта сохраняются, когда источник их сообщает.\\n  20: \\n/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-aqd9gq5p/skills/travel/tutu-search-flights/fixtures/README.md\\n  19:   \\\"source\\\": \\\"tutu\\\",\\n  20:   \\\"method\\\": \\\"tools/call\\\",\\n  21:   \\\"tool\\\": \\\"search_avia\\\",\\n  22:   \\\"arguments\\\": { \\\"origin\\\": \\\"Москва\\\", \\\"destination\\\": \\\"Сочи\\\", \\\"departure_date\\\": \\\"2026-10-15\\\" },\\n  23:   \\\"note\\\": \\\"зачем этот файл существует\\\",\\n  24:   \\\"volatile\\\": [\\\"offers[].price\\\", \\\"offers[].checkout_ref\\\", \\\"meta.search_id\\\"],\\n  25:   \\\"response\\\": { \\\"envelope\\\": …, \\\"payload\\\": … }\\n/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-aqd9gq5p/skills/travel/tutu-search-flights/docs/mcp-notes.md\\n  217: \\n  218: **A** — вся ошибка валидации pydantic попадает в текст, включая ссылку на документацию:\\n  219: \\n  220: > `Error executing tool search_avia: 1 validation error for search_aviaArguments departure_date  Input should be a valid date or datetime, invalid character in year [type=date_from_datetime_parsing, input_value='вчера', ...]`\\n  221: \\n  222: **B** — сервер не просто отказывает, он предлагает выход:\\n  223: \\n  224: > `avia cannot search origin='Урюпинск': it resolved to «Урюпинск» (Волгоградская область), which has no avia_id in Tutu's index — Tutu's avia index answers this wording with «Воронеж» (VOZ); search that city explicitly if the user agrees.`\\n  225: \\n  226: Это готовый `Issue` для пользователя, но приходит текстом, не структурой. Разбирать\\n  227: регуляркой нельзя — передавать целиком.\"}", "duration_ms": 152, "is_error": false, "timestamp": 1791570814808}
+{"type": "tool_use", "name": "terminal", "input": {"command": "\"$PYTHON\" tutu_search_flights.py '{\"origin\":\"Москва\",\"destination\":\"Сочи\",\"departure_date\":\"2026-10-15\"}'", "timeout": 180, "workdir": "/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-aqd9gq5p/skills/travel/tutu-search-flights"}, "timestamp": 1791570819460}
+{"type": "tool_result", "name": "terminal", "output": "{\"output\": \"Recorded Tutu request does not match.\", \"exit_code\": 1, \"error\": null}", "duration_ms": 1585, "is_error": true, "timestamp": 1791570821048}
+{"type": "tool_use", "name": "search_files", "input": {"context": 10, "limit": 20, "path": "/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-aqd9gq5p/skills/travel/tutu-search-flights/fixtures/meta/tools-list.json", "pattern": "\"name\": \"search_avia\"", "target": "content"}, "timestamp": 1791570829511}
+{"type": "tool_result", "name": "search_files", "output": "{\"total_count\": 21, \"matches_format\": \"path-grouped: each file path on its own line, followed by indented '<line>: <content>' rows for matches in that file\", \"matches_text\": \"/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-aqd9gq5p/skills/travel/tutu-search-flights/fixtures/meta/tools-list.json\\n  394:               }\\n  395:             ],\\n  396:             \\\"annotations\\\": {\\n  397:               \\\"readOnlyHint\\\": true,\\n  398:               \\\"destructiveHint\\\": false,\\n  399:               \\\"idempotentHint\\\": true,\\n  400:               \\\"openWorldHint\\\": true\\n  401:             }\\n  402:           },\\n  403:           {\\n  404:             \\\"name\\\": \\\"search_avia\\\",\\n  405:             \\\"title\\\": \\\"Search air tickets (Tutu.ru)\\\",\\n  406:             \\\"description\\\": \\\"Search Tutu air tickets between two cities or specific airports. PRICE BASIS — every `price` already covers the WHOLE searched party (`adults` + `children` + `infants`; `meta.pricing.basis=\\\\\\\"party_total\\\\\\\"`, verified live). Never multiply it by the passenger count. NB the sibling tools differ: `search_rail` / `search_etrain` quote ONE SEAT. `origin`/`destination` accept a city ('Москва'), an airport name ('Шереметьево') or a bare IATA code ('SVO', 'IST'). An airport in\\n  407:             \\\"inputSchema\\\": {\\n  408:               \\\"additionalProperties\\\": false,\\n  409:               \\\"properties\\\": {\\n  410:                 \\\"origin\\\": {\\n  411:                   \\\"anyOf\\\": [\\n  412:                     {\\n  413:                       \\\"type\\\": \\\"string\\\"\", \"truncated\": true, \"total_count_is_lower_bound\": true, \"_hint\": \"Results truncated. Use offset=20 to see more, or narrow with a more specific pattern or file_glob.\"}", "duration_ms": 49, "is_error": false, "timestamp": 1791570829564}
+{"type": "tool_use", "name": "read_file", "input": {"limit": 180, "offset": 404, "path": "/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-aqd9gq5p/skills/travel/tutu-search-flights/fixtures/meta/tools-list.json"}, "timestamp": 1791570832616}
+{"type": "tool_result", "name": "read_file", "output": "{\"content\": \"404|            \\\"name\\\": \\\"search_avia\\\",\\n405|            \\\"title\\\": \\\"Search air tickets (Tutu.ru)\\\",\\n406|            \\\"description\\\": \\\"Search Tutu air tickets between two cities or specific airports. PRICE BASIS — every `price` already covers the WHOLE searched party (`adults` + `children` + `infants`; `meta.pricing.basis=\\\\\\\"party_total\\\\\\\"`, verified live). Never multiply it by the passenger count. NB the sibling tools differ: `search_rail` / `search_etrain` quote ONE SEAT. `origin`/`destination` accept a city ('Москва'), an airport name ('Шереметьево') or a bare IATA code ('SVO', 'IST'). An airport input narrows the city-wide search to that airport: offers via the city's other airports are dropped (count in `meta.post_filter_dropped_wrong_airport`; the key is present only when the request named a specific airport), the endpoint gets `meta.from/to.kind=\\\\\\\"airport\\\\\\\"` and its `iata` becomes the airport's own code. A bare code means the airport, not the metro area ('IST' = Стамбул-Новый only, SAW dropped); pass the city name to cover all its airports. When every city flight uses other airports, `meta.airport_note` lists them with counts — relay it and offer a city-wide retry. `meta.from/to` echo the resolved place (`name`, `geo_id`, `region`); `match` + `query` are added only when the resolved name differs from the wording sent (`lead` = a short form or typo read by Tutu's own ranking — say which city came back and keep going; `qualified` = the trailing words acted as a region filter; `prefix`), and `also_named[]` lists same-name places that lost — mention them, never as a blocking question. An ambiguous or unknown name is REFUSED with `could not resolve …` (the equal candidates with regions, or a note that only Tutu's hotel index lists the place — then offer `search_hotels`), never searched as another city: ask the user or resend as '<name>, <область>' (name first). A place without an airport is refused too; the text names the city Tutu's avia index answers with (Сочи for Хоста) — OFFER that city and search it only after the user agrees, never pick an airport city on your own... [truncated]\\n407|            \\\"inputSchema\\\": {\\n408|              \\\"additionalProperties\\\": false,\\n409|              \\\"properties\\\": {\\n410|                \\\"origin\\\": {\\n411|                  \\\"anyOf\\\": [\\n412|                    {\\n413|                      \\\"type\\\": \\\"string\\\"\\n414|                    },\\n415|                    {\\n416|                      \\\"type\\\": \\\"null\\\"\\n417|                    }\\n418|                  ],\\n419|                  \\\"default\\\": null,\\n420|                  \\\"description\\\": \\\"Origin city (e.g. 'Москва', 'Moscow', 'Сочи') or a specific airport by name/IATA code ('Внуково', 'VKO') — an airport narrows results to it. Resolved via Tutu suggest: short forms («Питер», «Мск») resolve server-side — `meta.from` then carries `match` + `query`, plus `also_named` when a same-name place lost. If the tool refuses with candidates (`could not resolve …`), ask the user or resend as '<name>, <область>' (name first). `from_city` is accepted as a backward-compatible alias.\\\",\\n421|                  \\\"title\\\": \\\"Origin\\\"\\n422|                },\\n423|                \\\"destination\\\": {\\n424|                  \\\"anyOf\\\": [\\n425|                    {\\n426|                      \\\"type\\\": \\\"string\\\"\\n427|                    },\\n428|                    {\\n429|                      \\\"type\\\": \\\"null\\\"\\n430|                    }\\n431|                  ],\\n432|                  \\\"default\\\": null,\\n433|                  \\\"description\\\": \\\"Destination city or a specific airport by name/IATA code ('Шереметьево', 'SVO') — an airport narrows results to it. Resolved via Tutu suggest: short forms («Питер», «Мск») resolve server-side — `meta.to` then carries `match` + `query`, plus `also_named` when a same-name place lost. If the tool refuses with candidates (`could not resolve …`), ask the user or resend as '<name>, <область>' (name first). `to_city` is accepted as a backward-compatible alias.\\\",\\n434|                  \\\"title\\\": \\\"Destination\\\"\\n435|                },\\n436|                \\\"departure_date\\\": {\\n437|                  \\\"anyOf\\\": [\\n438|                    {\\n439|                      \\\"format\\\": \\\"date\\\",\\n440|                      \\\"type\\\": \\\"string\\\"\\n441|                    },\\n442|                    {\\n443|                      \\\"type\\\": \\\"null\\\"\\n444|                    }\\n445|                  ],\\n446|                  \\\"default\\\": null,\\n447|                  \\\"description\\\": \\\"Outbound departure date, YYYY-MM-DD.\\\",\\n448|                  \\\"title\\\": \\\"Departure Date\\\"\\n449|                },\\n450|                \\\"from_city\\\": {\\n451|                  \\\"anyOf\\\": [\\n452|                    {\\n453|                      \\\"type\\\": \\\"string\\\"\\n454|                    },\\n455|                    {\\n456|                      \\\"type\\\": \\\"null\\\"\\n457|                    }\\n458|                  ...", "duration_ms": 13, "is_error": false, "timestamp": 1791570832632}
+{"type": "tool_use", "name": "terminal", "input": {"command": "\"$PYTHON\" tutu_search_flights.py '{\"origin\":\"Москва\",\"destination\":\"Сочи\",\"departure_date\":\"2026-10-15\",\"page_size\":3}'", "timeout": 180, "workdir": "/home/konstantin/.hermes/cache/scratch/tutu-hermes-home-aqd9gq5p/skills/travel/tutu-search-flights"}, "timestamp": 1791570840625}
+{"type": "tool_result", "name": "terminal", "output": "{\"output\": \"{\\n  \\\"pricing_basis\\\": \\\"party_total\\\",\\n  \\\"passengers\\\": {\\n    \\\"full\\\": 1\\n  },\\n  \\\"has_more\\\": true,\\n  \\\"total_matched_exact\\\": true,\\n  \\\"upstream_note\\\": null,\\n  \\\"post_filter_dropped\\\": {},\\n  \\\"offers\\\": [\\n    {\\n      \\\"flight_number\\\": \\\"DP-6949\\\",\\n      \\\"carrier\\\": \\\"Победа\\\",\\n      \\\"origin\\\": \\\"Москва — Шереметьево (SVO), терм. D\\\",\\n      \\\"destination\\\": \\\"Сочи, AER\\\",\\n      \\\"departure_at\\\": \\\"2026-10-15T19:25:00+03:00\\\",\\n      \\\"arrival_at\\\": \\\"2026-10-15T23:05:00+03:00\\\",\\n      \\\"return_departure_at\\\": null,\\n      \\\"return_arrival_at\\\": null,\\n      \\\"duration_min\\\": 220,\\n      \\\"segments_count\\\": 1,\\n      \\\"is_round_trip\\\": null,\\n      \\\"has_self_transfer\\\": null,\\n      \\\"is_multi_pnr\\\": null,\\n      \\\"multi_pnr_note\\\": null,\\n      \\\"legs\\\": [\\n        {\\n          \\\"label\\\": \\\"outbound\\\",\\n          \\\"from\\\": \\\"Москва — Шереметьево (SVO), терм. D\\\",\\n          \\\"to\\\": \\\"Сочи, AER\\\",\\n          \\\"departure_at\\\": \\\"2026-10-15T19:25:00+03:00\\\",\\n          \\\"arrival_at\\\": \\\"2026-10-15T23:05:00+03:00\\\",\\n          \\\"duration_min\\\": 220,\\n          \\\"segments\\\": [\\n            {\\n              \\\"flight_number\\\": \\\"DP-6949\\\",\\n              \\\"carrier\\\": \\\"Победа\\\",\\n              \\\"origin\\\": \\\"Москва — Шереметьево (SVO), терм. D\\\",\\n              \\\"destination\\\": \\\"Сочи, AER\\\",\\n              \\\"departure_at\\\": \\\"2026-10-15T19:25:00+03:00\\\",\\n              \\\"arrival_at\\\": \\\"2026-10-15T23:05:00+03:00\\\",\\n              \\\"duration_min\\\": 220\\n            }\\n          ]\\n        }\\n      ],\\n      \\\"fares\\\": [\\n        {\\n          \\\"name\\\": \\\"Базовый\\\",\\n          \\\"amount\\\": \\\"4446.87\\\",\\n          \\\"currency\\\": \\\"RUB\\\",\\n          \\\"baggage\\\": {\\n            \\\"kg\\\": 0,\\n            \\\"pieces\\\": 0\\n          },\\n          \\\"cabin_baggage\\\": {\\n            \\\"kg\\\": null,\\n            \\\"pieces\\\": 1,\\n            \\\"dimensions\\\": \\\"36 × 30 × 27\\\"\\n          },\\n          \\\"refundable\\\": false,\\n          \\\"changeable\\\": false,\\n          \\\"exchange\\\": null\\n        },\\n        {\\n          \\\"name\\\": \\\"Выгодный\\\",\\n          \\\"amount\\\": \\\"7253.91\\\",\\n          \\\"currency\\\": \\\"RUB\\\",\\n          \\\"baggage\\\": {\\n            \\\"kg\\\": 10,\\n            \\\"pieces\\\": 1\\n          },\\n          \\\"cabin_baggage\\\": {\\n            \\\"kg\\\": null,\\n            \\\"pieces\\\": 1,\\n            \\\"dimensions\\\": \\\"36 × 30 × 27\\\"\\n          },\\n          \\\"refundable\\\": false,\\n          \\\"changeable\\\": true,\\n          \\\"exchange\\\": {\\n            \\\"available\\\": true,\\n            \\\"deadline_hours\\\": 48\\n          }\\n        },\\n        {\\n          \\\"name\\\": \\\"Максимум\\\",\\n          \\\"amount\\\": \\\"10590.19\\\",\\n          \\\"currency\\\": \\\"RUB\\\",\\n          \\\"baggage\\\": {\\n            \\\"kg\\\": 20,\\n            \\\"pieces\\\": 1\\n          },\\n          \\\"cabin_baggage\\\": {\\n            \\\"kg\\\": null,\\n            \\\"pieces\\\": 1,\\n            \\\"dimensions\\\": \\\"36 × 30 × 27\\\"\\n          },\\n          \\\"refundable\\\": true,\\n          \\\"changeable\\\": true,\\n          \\\"exchange\\\": {\\n            \\\"available\\\": true,\\n            \\\"deadline_hours\\\": 48\\n          }\\n        }\\n      ]\\n    },\\n    {\\n      \\\"flight_number\\\": \\\"S7-2055\\\",\\n      \\\"carrier\\\": \\\"S7 Airlines\\\",\\n      \\\"origin\\\": \\\"Москва — Домодедово (DME)\\\",\\n      \\\"destination\\\": \\\"Сочи, AER\\\",\\n      \\\"departure_at\\\": \\\"2026-10-15T11:05:00+03:00\\\",\\n      \\\"arrival_at\\\": \\\"2026-10-15T14:50:00+03:00\\\",\\n      \\\"return_departure_at\\\": null,\\n      \\\"return_arrival_at\\\": null,\\n      \\\"duration_min\\\": 225,\\n      \\\"segments_count\\\": 1,\\n      \\\"is_round_trip\\\": null,\\n      \\\"has_self_transfer\\\": null,\\n      \\\"is_multi_pnr\\\": null,\\n      \\\"multi_pnr_note\\\": null,\\n      \\\"legs\\\": [\\n        {\\n          \\\"label\\\": \\\"outbound\\\",\\n          \\\"from\\\": \\\"Москва — Домодедово (DME)\\\",\\n          \\\"to\\\": \\\"Сочи, AER\\\",\\n          \\\"departure_at\\\": \\\"2026-10-15T11:05:00+03:00\\\",\\n          \\\"arrival_at\\\": \\\"2026-10-15T14:50:00+03:00\\\",\\n          \\\"duration_min\\\": 225,\\n          \\\"segments\\\": [\\n            {\\n              \\\"flight_number\\\": \\\"S7-2055\\\",\\n              \\\"carrier\\\": \\\"S7 Airlines\\\",\\n              \\\"origin\\\": \\\"Москва — Домодедово (DME)\\\",\\n              \\\"destination\\\": \\\"Сочи, AER\\\",\\n              \\\"departure_at\\\": \\\"2026-10-15T11:05:00+03:00\\\",\\n              \\\"arrival_at\\\": \\\"2026-10-15T14:50:00+03:00\\\",\\n              \\\"duration_min\\\": 225\\n            }\\n          ]\\n        }\\n      ],\\n      \\\"fares\\\": [\\n        {\\n          \\\"name\\\": \\\"Эконом Базовый\\\",\\n          \\\"amount\\\": \\\"5365.96\\\",\\n          \\\"currency\\\": \\\"RUB\\\",\\n          \\\"baggage\\\": {\\n            \\\"kg\\\": 0,\\n            \\\"pieces\\\": 0\\n          },\\n          \\\"cabin_baggage\\\": {\\n            \\\"kg\\\": 10,\\n            \\\"pieces\\\": 1,\\n            \\\"dimensions\\\": \\\"55 × 40 × 23\\\"\\n          },\\n          \\\"refundable\\\": false,\\n          \\\"changeable\\\": true,\\n          \\\"exchange\\\": null\\n        },\\n        {\\n          \\\"name\\\": \\\"Эконом Стандарт\\\",\\n          \\\"amo...", "duration_ms": 1594, "is_error": false, "timestamp": 1791570842224}
+{"type": "text", "text": "\n\nП", "timestamp": 1791570847856}
+{"type": "text", "text": "ервые", "timestamp": 1791570847858}
+{"type": "text", "text": " три", "timestamp": 1791570847858}
+{"type": "text", "text": " вари", "timestamp": 1791570847859}
+{"type": "text", "text": "анта", "timestamp": 1791570847860}
+{"type": "text", "text": " в", "timestamp": 1791570847860}
+{"type": "text", "text": " выда", "timestamp": 1791570847860}
+{"type": "text", "text": "че", "timestamp": 1791570847861}
+{"type": "text", "text": " T", "timestamp": 1791570847861}
+{"type": "text", "text": "utu", "timestamp": 1791570847862}
+{"type": "text", "text": " на", "timestamp": 1791570847862}
+{"type": "text", "text": " ", "timestamp": 1791570847863}
+{"type": "text", "text": "15", "timestamp": 1791570847863}
+{"type": "text", "text": " октября", "timestamp": 1791570847864}
+{"type": "text", "text": ",", "timestamp": 1791570847864}
+{"type": "text", "text": " цены", "timestamp": 1791570847865}
+{"type": "text", "text": " за", "timestamp": 1791570847865}
+{"type": "text", "text": " одного", "timestamp": 1791570847866}
+{"type": "text", "text": " взросл", "timestamp": 1791570847869}
+{"type": "text", "text": "ого", "timestamp": 1791570847869}
+{"type": "text", "text": ":\n\n", "timestamp": 1791570847870}
+{"type": "text", "text": "1", "timestamp": 1791570847870}
+{"type": "text", "text": ".", "timestamp": 1791570847870}
+{"type": "text", "text": " DP", "timestamp": 1791570847871}
+{"type": "text", "text": "-", "timestamp": 1791570847875}
+{"type": "text", "text": "694", "timestamp": 1791570847875}
+{"type": "text", "text": "9", "timestamp": 1791570847876}
+{"type": "text", "text": ",", "timestamp": 1791570847876}
+{"type": "text", "text": " «", "timestamp": 1791570847876}
+{"type": "text", "text": "П", "timestamp": 1791570847877}
+{"type": "text", "text": "об", "timestamp": 1791570847877}
+{"type": "text", "text": "еда", "timestamp": 1791570847878}
+{"type": "text", "text": "»,", "timestamp": 1791570847878}
+{"type": "text", "text": " Ш", "timestamp": 1791570847879}
+{"type": "text", "text": "ер", "timestamp": 1791570847879}
+{"type": "text", "text": "ем", "timestamp": 1791570847880}
+{"type": "text", "text": "еть", "timestamp": 1791570847880}
+{"type": "text", "text": "ево", "timestamp": 1791570847881}
+{"type": "text", "text": " —", "timestamp": 1791570847882}
+{"type": "text", "text": " С", "timestamp": 1791570847883}
+{"type": "text", "text": "очи", "timestamp": 1791570847886}
+{"type": "text", "text": ":", "timestamp": 1791570847887}
+{"type": "text", "text": " ", "timestamp": 1791570847888}
+{"type": "text", "text": "19", "timestamp": 1791570847888}
+{"type": "text", "text": ":", "timestamp": 1791570847889}
+{"type": "text", "text": "25", "timestamp": 1791570847889}
+{"type": "text", "text": "–", "timestamp": 1791570847889}
+{"type": "text", "text": "23", "timestamp": 1791570847889}
+{"type": "text", "text": ":", "timestamp": 1791570847890}
+{"type": "text", "text": "05", "timestamp": 1791570847890}
+{"type": "text", "text": ",", "timestamp": 1791570847891}
+{"type": "text", "text": " ", "timestamp": 1791570847891}
+{"type": "text", "text": "4", "timestamp": 1791570847891}
+{"type": "text", "text": " ч", "timestamp": 1791570847891}
+{"type": "text", "text": " ", "timestamp": 1791570847892}
+{"type": "text", "text": "40", "timestamp": 1791570847892}
+{"type": "text", "text": " мин", "timestamp": 1791570847893}
+{"type": "text", "text": ".", "timestamp": 1791570847893}
+{"type": "text", "text": " Т", "timestamp": 1791570847893}
+{"type": "text", "text": "ариф", "timestamp": 1791570847894}
+{"type": "text", "text": "ы", "timestamp": 1791570847894}
+{"type": "text", "text": ":", "timestamp": 1791570847894}
+{"type": "text", "text": " «", "timestamp": 1791570847895}
+{"type": "text", "text": "Б", "timestamp": 1791570847895}
+{"type": "text", "text": "аз", "timestamp": 1791570847896}
+{"type": "text", "text": "овый", "timestamp": 1791570847896}
+{"type": "text", "text": "»", "timestamp": 1791570847898}
+{"type": "text", "text": " —", "timestamp": 1791570847898}
+{"type": "text", "text": " ", "timestamp": 1791570847899}
+{"type": "text", "text": "4", "timestamp": 1791570847899}
+{"type": "text", "text": " ", "timestamp": 1791570847905}
+{"type": "text", "text": "446", "timestamp": 1791570847906}
+{"type": "text", "text": ",", "timestamp": 1791570847906}
+{"type": "text", "text": "87", "timestamp": 1791570847909}
+{"type": "text", "text": " ₽", "timestamp": 1791570847910}
+{"type": "text", "text": ",", "timestamp": 1791570847910}
+{"type": "text", "text": " «", "timestamp": 1791570847911}
+{"type": "text", "text": "В", "timestamp": 1791570847911}
+{"type": "text", "text": "ыг", "timestamp": 1791570847911}
+{"type": "text", "text": "од", "timestamp": 1791570847916}
+{"type": "text", "text": "ный", "timestamp": 1791570847917}
+{"type": "text", "text": "»", "timestamp": 1791570847918}
+{"type": "text", "text": " —", "timestamp": 1791570847919}
+{"type": "text", "text": " ", "timestamp": 1791570847919}
+{"type": "text", "text": "7", "timestamp": 1791570847920}
+{"type": "text", "text": " ", "timestamp": 1791570847920}
+{"type": "text", "text": "253", "timestamp": 1791570847920}
+{"type": "text", "text": ",", "timestamp": 1791570847921}
+{"type": "text", "text": "91", "timestamp": 1791570847923}
+{"type": "text", "text": " ₽", "timestamp": 1791570847924}
+{"type": "text", "text": ",", "timestamp": 1791570847924}
+{"type": "text", "text": " «", "timestamp": 1791570847924}
+{"type": "text", "text": "Мак", "timestamp": 1791570847925}
+{"type": "text", "text": "сим", "timestamp": 1791570847925}
+{"type": "text", "text": "ум", "timestamp": 1791570847926}
+{"type": "text", "text": "»", "timestamp": 1791570847929}
+{"type": "text", "text": " —", "timestamp": 1791570847930}
+{"type": "text", "text": " ", "timestamp": 1791570847930}
+{"type": "text", "text": "10", "timestamp": 1791570847931}
+{"type": "text", "text": " ", "timestamp": 1791570847931}
+{"type": "text", "text": "590", "timestamp": 1791570847932}
+{"type": "text", "text": ",", "timestamp": 1791570847932}
+{"type": "text", "text": "19", "timestamp": 1791570847932}
+{"type": "text", "text": " ₽", "timestamp": 1791570847933}
+{"type": "text", "text": ".", "timestamp": 1791570847933}
+{"type": "text", "text": " Для", "timestamp": 1791570847934}
+{"type": "text", "text": " руч", "timestamp": 1791570847938}
+{"type": "text", "text": "ной", "timestamp": 1791570847939}
+{"type": "text", "text": " кла", "timestamp": 1791570847939}
+{"type": "text", "text": "ди", "timestamp": 1791570847939}
+{"type": "text", "text": " указ", "timestamp": 1791570847940}
+{"type": "text", "text": "аны", "timestamp": 1791570847968}
+{"type": "text", "text": " ", "timestamp": 1791570847971}
+{"type": "text", "text": "1", "timestamp": 1791570847971}
+{"type": "text", "text": " место", "timestamp": 1791570847972}
+{"type": "text", "text": " и", "timestamp": 1791570848012}
+{"type": "text", "text": " размеры", "timestamp": 1791570848017}
+{"type": "text", "text": " ", "timestamp": 1791570848018}
+{"type": "text", "text": "36", "timestamp": 1791570848019}
+{"type": "text", "text": " ×", "timestamp": 1791570848019}
+{"type": "text", "text": " ", "timestamp": 1791570848030}
+{"type": "text", "text": "30", "timestamp": 1791570848031}
+{"type": "text", "text": " ×", "timestamp": 1791570848032}
+{"type": "text", "text": " ", "timestamp": 1791570848032}
+{"type": "text", "text": "27", "timestamp": 1791570848061}
+{"type": "text", "text": " см", "timestamp": 1791570848062}
+{"type": "text", "text": ";", "timestamp": 1791570848088}
+{"type": "text", "text": " вес", "timestamp": 1791570848089}
+{"type": "text", "text": " в", "timestamp": 1791570848090}
+{"type": "text", "text": " выда", "timestamp": 1791570848122}
+{"type": "text", "text": "че", "timestamp": 1791570848128}
+{"type": "text", "text": " не", "timestamp": 1791570848129}
+{"type": "text", "text": " указан", "timestamp": 1791570848130}
+{"type": "text", "text": ".\n", "timestamp": 1791570848133}
+{"type": "text", "text": "2", "timestamp": 1791570848157}
+{"type": "text", "text": ".", "timestamp": 1791570848159}
+{"type": "text", "text": " S", "timestamp": 1791570848160}
+{"type": "text", "text": "7", "timestamp": 1791570848160}
+{"type": "text", "text": "-", "timestamp": 1791570848170}
+{"type": "text", "text": "205", "timestamp": 1791570848171}
+{"type": "text", "text": "5", "timestamp": 1791570848172}
+{"type": "text", "text": ",", "timestamp": 1791570848172}
+{"type": "text", "text": " Дом", "timestamp": 1791570848212}
+{"type": "text", "text": "од", "timestamp": 1791570848218}
+{"type": "text", "text": "ед", "timestamp": 1791570848220}
+{"type": "text", "text": "ово", "timestamp": 1791570848220}
+{"type": "text", "text": " —", "timestamp": 1791570848221}
+{"type": "text", "text": " С", "timestamp": 1791570848222}
+{"type": "text", "text": "очи", "timestamp": 1791570848226}
+{"type": "text", "text": ":", "timestamp": 1791570848242}
+{"type": "text", "text": " ", "timestamp": 1791570848243}
+{"type": "text", "text": "11", "timestamp": 1791570848243}
+{"type": "text", "text": ":", "timestamp": 1791570848244}
+{"type": "text", "text": "05", "timestamp": 1791570848266}
+{"type": "text", "text": "–", "timestamp": 1791570848267}
+{"type": "text", "text": "14", "timestamp": 1791570848278}
+{"type": "text", "text": ":", "timestamp": 1791570848328}
+{"type": "text", "text": "50", "timestamp": 1791570848346}
+{"type": "text", "text": ",", "timestamp": 1791570848395}
+{"type": "text", "text": " ", "timestamp": 1791570848419}
+{"type": "text", "text": "3", "timestamp": 1791570848440}
+{"type": "text", "text": " ч", "timestamp": 1791570848471}
+{"type": "text", "text": " ", "timestamp": 1791570848475}
+{"type": "text", "text": "45", "timestamp": 1791570848483}
+{"type": "text", "text": " мин", "timestamp": 1791570848489}
+{"type": "text", "text": ".", "timestamp": 1791570848497}
+{"type": "text", "text": " Мини", "timestamp": 1791570848504}
+{"type": "text", "text": "м", "timestamp": 1791570848506}
+{"type": "text", "text": "альный", "timestamp": 1791570848510}
+{"type": "text", "text": " тариф", "timestamp": 1791570848516}
+{"type": "text", "text": " «", "timestamp": 1791570848516}
+{"type": "text", "text": "Эк", "timestamp": 1791570848519}
+{"type": "text", "text": "оном", "timestamp": 1791570848520}
+{"type": "text", "text": " Б", "timestamp": 1791570848561}
+{"type": "text", "text": "аз", "timestamp": 1791570848562}
+{"type": "text", "text": "овый", "timestamp": 1791570848562}
+{"type": "text", "text": "»", "timestamp": 1791570848563}
+{"type": "text", "text": " —", "timestamp": 1791570848563}
+{"type": "text", "text": " ", "timestamp": 1791570848595}
+{"type": "text", "text": "5", "timestamp": 1791570848774}
+{"type": "text", "text": " ", "timestamp": 1791570848781}
+{"type": "text", "text": "365", "timestamp": 1791570848792}
+{"type": "text", "text": ",", "timestamp": 1791570848810}
+{"type": "text", "text": "96", "timestamp": 1791570848850}
+{"type": "text", "text": " ₽", "timestamp": 1791570848866}
+{"type": "text", "text": ".\n", "timestamp": 1791570848867}
+{"type": "text", "text": "3", "timestamp": 1791570848867}
+{"type": "text", "text": ".", "timestamp": 1791570848869}
+{"type": "text", "text": " S", "timestamp": 1791570848869}
+{"type": "text", "text": "7", "timestamp": 1791570848869}
+{"type": "text", "text": "-", "timestamp": 1791570848877}
+{"type": "text", "text": "204", "timestamp": 1791570848882}
+{"type": "text", "text": "9", "timestamp": 1791570848886}
+{"type": "text", "text": ",", "timestamp": 1791570848888}
+{"type": "text", "text": " Дом", "timestamp": 1791570848889}
+{"type": "text", "text": "од", "timestamp": 1791570848894}
+{"type": "text", "text": "ед", "timestamp": 1791570848903}
+{"type": "text", "text": "ово", "timestamp": 1791570848905}
+{"type": "text", "text": " —", "timestamp": 1791570848905}
+{"type": "text", "text": " С", "timestamp": 1791570848906}
+{"type": "text", "text": "очи", "timestamp": 1791570848906}
+{"type": "text", "text": ":", "timestamp": 1791570848911}
+{"type": "text", "text": " ", "timestamp": 1791570848911}
+{"type": "text", "text": "08", "timestamp": 1791570848962}
+{"type": "text", "text": ":", "timestamp": 1791570849026}
+{"type": "text", "text": "55", "timestamp": 1791570849027}
+{"type": "text", "text": "–", "timestamp": 1791570849029}
+{"type": "text", "text": "12", "timestamp": 1791570849034}
+{"type": "text", "text": ":", "timestamp": 1791570849035}
+{"type": "text", "text": "40", "timestamp": 1791570849035}
+{"type": "text", "text": ",", "timestamp": 1791570849036}
+{"type": "text", "text": " ", "timestamp": 1791570849037}
+{"type": "text", "text": "3", "timestamp": 1791570849037}
+{"type": "text", "text": " ч", "timestamp": 1791570849038}
+{"type": "text", "text": " ", "timestamp": 1791570849038}
+{"type": "text", "text": "45", "timestamp": 1791570849039}
+{"type": "text", "text": " мин", "timestamp": 1791570849040}
+{"type": "text", "text": ".", "timestamp": 1791570849040}
+{"type": "text", "text": " Мини", "timestamp": 1791570849041}
+{"type": "text", "text": "м", "timestamp": 1791570849042}
+{"type": "text", "text": "альный", "timestamp": 1791570849042}
+{"type": "text", "text": " тариф", "timestamp": 1791570849045}
+{"type": "text", "text": " «", "timestamp": 1791570849046}
+{"type": "text", "text": "Эк", "timestamp": 1791570849048}
+{"type": "text", "text": "оном", "timestamp": 1791570849053}
+{"type": "text", "text": " Б", "timestamp": 1791570849053}
+{"type": "text", "text": "аз", "timestamp": 1791570849057}
+{"type": "text", "text": "овый", "timestamp": 1791570849058}
+{"type": "text", "text": "»", "timestamp": 1791570849059}
+{"type": "text", "text": " —", "timestamp": 1791570849060}
+{"type": "text", "text": " ", "timestamp": 1791570849061}
+{"type": "text", "text": "5", "timestamp": 1791570849061}
+{"type": "text", "text": " ", "timestamp": 1791570849062}
+{"type": "text", "text": "365", "timestamp": 1791570849067}
+{"type": "text", "text": ",", "timestamp": 1791570849068}
+{"type": "text", "text": "96", "timestamp": 1791570849069}
+{"type": "text", "text": " ₽", "timestamp": 1791570849070}
+{"type": "text", "text": ".", "timestamp": 1791570849082}
+{"type": "result", "session_id": "20261009_203314_1840ec", "exit_code": 0, "text": "Первые три варианта в выдаче Tutu на 15 октября, цены за одного взрослого:\n\n1. DP-6949, «Победа», Шереметьево — Сочи: 19:25–23:05, 4 ч 40 мин. Тарифы: «Базовый» — 4 446,87 ₽, «Выгодный» — 7 253,91 ₽, «Максимум» — 10 590,19 ₽. Для ручной клади указаны 1 место и размеры 36 × 30 × 27 см; вес в выдаче не указан.\n2. S7-2055, Домодедово — Сочи: 11:05–14:50, 3 ч 45 мин. Минимальный тариф «Эконом Базовый» — 5 365,96 ₽.\n3. S7-2049, Домодедово — Сочи: 08:55–12:40, 3 ч 45 мин. Минимальный тариф «Эконом Базовый» — 5 365,96 ₽.", "tokens": {"input": 25341, "output": 1809, "total": 105486, "cache_read": 78336, "cache_write": 0}, "duration_ms": 54707, "timestamp": 1791570849429}

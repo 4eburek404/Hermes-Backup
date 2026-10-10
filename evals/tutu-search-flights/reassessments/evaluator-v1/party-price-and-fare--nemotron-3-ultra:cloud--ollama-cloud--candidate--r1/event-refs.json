@@ -1,0 +1,88 @@
+{
+  "boundary_file": "raw-traces/party-price-and-fare--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1.mcp-boundary.jsonl",
+  "boundary_sha256": "47617094003fa9fb72e28ccf3e64a8a1b43f716423035ed90b98129a0b8ce748",
+  "event_references": [
+    {
+      "event_type": "tool_use",
+      "index": 1,
+      "line": 2,
+      "name": "skill_view",
+      "sha256": "dfd608c96f31616a548d64066abe38554d23f745c21918e846c2d2026c0429e0"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 2,
+      "line": 3,
+      "name": "skill_view",
+      "sha256": "b391455b6a90068dffbeb67b19e2ebd362a122445fb3e0cfaf500fdb73a9d333"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 3,
+      "line": 4,
+      "name": "read_file",
+      "sha256": "62d343206add3cb8f47c5fba33f741584f7e0d81c708117f68981c007bc0a0a9"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 4,
+      "line": 5,
+      "name": "read_file",
+      "sha256": "5a519fc01ea89d77d63c7978ee753e91f20de0afba1c157f0cba90b7f05ed2f6"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 5,
+      "line": 6,
+      "name": "terminal",
+      "sha256": "2e93b48a015ee817bf5eac35ae7718cc673d6171143d4b0046c19124944c2789"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 6,
+      "line": 7,
+      "name": "terminal",
+      "sha256": "9540cba76105ac5f1a81b0f8f45c369de6ba1bd3dedaa91c4ffe9ff07aa30d99"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 7,
+      "line": 8,
+      "name": "read_file",
+      "sha256": "396723adbbf365a48170513d29567352ec283fee25d0496b8e56e78a54edf9f6"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 8,
+      "line": 9,
+      "name": "read_file",
+      "sha256": "3b049b2e3130a9d23f90d2c7f8a4b4289d0478328c05cb8ee800e335c147c549"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 9,
+      "line": 10,
+      "name": "terminal",
+      "sha256": "69cc8682b8a494801c73f1accd3705d8a080297fad2f6310554f2ce3161292f6"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 10,
+      "line": 11,
+      "name": "terminal",
+      "sha256": "4a88011dcb20d5c52df600e521b4fa87419e28695fe825d27cb80b93e78ba2c5"
+    },
+    {
+      "event_type": "result",
+      "index": 261,
+      "line": 262,
+      "name": null,
+      "sha256": "75027181929582609a48941991406f4f767e6977730edc9ae74b005b88b5d571"
+    }
+  ],
+  "published_boundary_byte_identical": true,
+  "published_copy_byte_identical": true,
+  "published_copy_sha256": "6cddd4c4541c06470a3f794b56ae2afa0bc85d007e6bf2d079a0e0a6b848fe30",
+  "source_raw_trace": "raw-traces/party-price-and-fare--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1.jsonl",
+  "source_raw_trace_sha256": "6cddd4c4541c06470a3f794b56ae2afa0bc85d007e6bf2d079a0e0a6b848fe30"
+}

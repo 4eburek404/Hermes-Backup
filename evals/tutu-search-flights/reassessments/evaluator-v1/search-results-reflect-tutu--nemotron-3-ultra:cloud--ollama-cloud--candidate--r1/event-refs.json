@@ -1,0 +1,116 @@
+{
+  "boundary_file": "raw-traces/search-results-reflect-tutu--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1.mcp-boundary.jsonl",
+  "boundary_sha256": "e372dd22603505a77129d74886b257526bf145318357148aabba451e7d04061d",
+  "event_references": [
+    {
+      "event_type": "tool_use",
+      "index": 1,
+      "line": 2,
+      "name": "skill_view",
+      "sha256": "6c445e58c1ac2228c5b47b982cf5727319ba07c30a8b094be6dab7c8a585e84a"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 2,
+      "line": 3,
+      "name": "skill_view",
+      "sha256": "6d6b8d03d8d3badf9eed6d91ba2e86c7821f80ba151d9a23b0ea8ed62540589d"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 3,
+      "line": 4,
+      "name": "skill_view",
+      "sha256": "f49fab765630ec3186d8aa6a30e2299a659c80e8fd8f8e955cd2a5ec88e7b5a6"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 4,
+      "line": 5,
+      "name": "skill_view",
+      "sha256": "f86405244d6531ff4374bd144e3ee75425dba41ec5ecebe27e41b02d8cb44d6e"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 5,
+      "line": 6,
+      "name": "terminal",
+      "sha256": "7ded55fef42764fddfefee1dc0f8f2934708c8e450a7fddf495f43b41b8bc8b4"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 6,
+      "line": 7,
+      "name": "terminal",
+      "sha256": "10df162d58b6990c5c57d20fbc5291a00e0726ebd61dbe36be685426acf5de12"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 7,
+      "line": 8,
+      "name": "read_file",
+      "sha256": "50dcbe703b2904ea65a4ae67eb0a3d48f5fabab1b0839ee70f30f707a3692f41"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 8,
+      "line": 9,
+      "name": "read_file",
+      "sha256": "46d094114b29c746813c478ada523b814750beb1a0eaa5b404c1a6691fae50a1"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 9,
+      "line": 10,
+      "name": "terminal",
+      "sha256": "ce5dbd36ca843d73fafb2d305ffc4818fa12f5837843ef9a95d9e8c431c688d5"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 10,
+      "line": 11,
+      "name": "terminal",
+      "sha256": "26ca683a961d7cc3c7ec182d33004e90d1e37a9203bad43b8f9c7eb249ace682"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 11,
+      "line": 12,
+      "name": "read_file",
+      "sha256": "5d0a2b561f95dc9d773a672a5f7d29892b843173631847f9a6317f9dd0029971"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 12,
+      "line": 13,
+      "name": "read_file",
+      "sha256": "09c1600086513b614c0ff3b8ce5914f4ccb49cb3b60e34ad2c132df8b2afa40b"
+    },
+    {
+      "event_type": "tool_use",
+      "index": 13,
+      "line": 14,
+      "name": "read_file",
+      "sha256": "4e69e0b941ebdbad2cb4d207c388a5f322de23542e738840672b61373a34a097"
+    },
+    {
+      "event_type": "tool_result",
+      "index": 14,
+      "line": 15,
+      "name": "read_file",
+      "sha256": "ea2d097b6e18c501c709cc0e54e921e95194440e185790664d8bb88837e6a3ac"
+    },
+    {
+      "event_type": "result",
+      "index": 202,
+      "line": 203,
+      "name": null,
+      "sha256": "41761f1e8220b1752891eaee7c61d2eeeab503a0adb8455f21574fb9d56bc8bf"
+    }
+  ],
+  "published_boundary_byte_identical": true,
+  "published_copy_byte_identical": true,
+  "published_copy_sha256": "9e81b2a139e3bcde0fdb2f24af988ef948180606a4dba0e19bd81274a989b467",
+  "source_raw_trace": "raw-traces/search-results-reflect-tutu--nemotron-3-ultra:cloud--ollama-cloud--candidate--r1.jsonl",
+  "source_raw_trace_sha256": "9e81b2a139e3bcde0fdb2f24af988ef948180606a4dba0e19bd81274a989b467"
+}

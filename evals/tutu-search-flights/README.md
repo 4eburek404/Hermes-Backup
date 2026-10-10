@@ -2,8 +2,9 @@
 
 This consumer evaluates the first three `tutu-search-flights` product scenarios: Scenario 1 checks that search results reflect the recorded Tutu result; Scenario 2 checks that the agent does not invent a cabin-baggage weight absent from that result; Scenario 3 checks party-total prices and their association with the matching fare and fare conditions.
 
-- Candidate skill source: `refs/remotes/origin/new-tutu`; `run_eval.py` records the resolved commit for each run rather than pinning the candidate to an old branch tip.
+- Candidate skill source: pinned commit `55effd14b8245125cf9c47e65aad4dd84e8ec24a`; `run_eval.py` verifies the resolved commit for every run.
 - Reproducible original baseline: `ab1ae0ff622be6a78466ccc12f3be71bdb0abceb`, retained as the separate `baseline` source in the manifest. Select it with `--skill-version baseline`; candidate is the default.
+- The manifest lists the three comparison models. Each invocation selects exactly one using `--model <model-id>`; scenarios, prompts, fixtures, execution limits, and evaluation rules remain fixed.
 - The skill is materialized from Git for each run, not copied into this branch.
 - Replay seam: the production MCP SDK HTTP request to `mcp.tutu.ru/mcp` is intercepted by `replay/sitecustomize.py` and answered from the scenario's recorded fixture. The production CLI, parsing, transformation, agent reasoning, and final answer are not replaced.
 - Scenario 3 uses the byte-identical recorded party fixture from candidate commit `ab1ae0ff622be6a78466ccc12f3be71bdb0abceb` (`2 adults + 1 child`). Deterministic outcome checks reject a multiplied group total and prices or conditions attributed to a different fare before consulting the semantic judge.
